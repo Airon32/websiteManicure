@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock } from 'lucide-react';
 import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, subYears, addYears, isSameMonth } from 'date-fns';
@@ -132,15 +132,15 @@ export default function AdminDashboard() {
     try {
       const appQuery = loggedUser.role === 'admin' ? '' : `?professional_id=${loggedUser.id}`;
       const baseRequests = [
-        axios.get(`http://localhost:3001/api/appointments${appQuery}`),
-        axios.get('http://localhost:3001/api/clients'),
-        axios.get('http://localhost:3001/api/services'),
-        axios.get('http://localhost:3001/api/settings')
+        api.get(`/api/appointments${appQuery}`),
+        api.get('/api/clients'),
+        api.get('/api/services'),
+        api.get('/api/settings')
       ];
 
       const requests = loggedUser.role === 'admin'
-        ? [...baseRequests, axios.get('http://localhost:3001/api/professionals')]
-        : [...baseRequests, axios.get(`http://localhost:3001/api/professionals/${loggedUser.id}`)];
+        ? [...baseRequests, api.get('/api/professionals')]
+        : [...baseRequests, api.get(`/api/professionals/${loggedUser.id}`)];
 
       const [appRes, cliRes, srvRes, setRes, profileRes] = await Promise.all(requests);
       const incomingSettings = setRes.data.data;
@@ -219,7 +219,7 @@ export default function AdminDashboard() {
   const handleAddStaff = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:3001/api/professionals', newStaff);
+      await api.post('/api/professionals', newStaff);
       setShowAddStaff(false);
       setNewStaff({ name: '', specialty: '', avatar: '', username: '', password: '' });
       loadData(user);
@@ -231,7 +231,7 @@ export default function AdminDashboard() {
 
   const handleEditClient = (e) => {
     e.preventDefault();
-    axios.put(`http://localhost:3001/api/clients/${selectedClient.id}`, selectedClient)
+    api.put(`/api/clients/${selectedClient.id}`, selectedClient)
       .then(() => {
         setClients(prev => prev.map(c => c.id === selectedClient.id ? selectedClient : c));
         setShowEditClientModal(false);
@@ -246,7 +246,7 @@ export default function AdminDashboard() {
       message: 'Tem certeza que deseja remover este cliente? Isso não afetará os agendamentos já realizados.',
       type: 'confirm',
       onConfirm: () => {
-        axios.delete(`http://localhost:3001/api/clients/${id}`)
+        api.delete(`/api/clients/${id}`)
           .then(() => {
             setClients(prev => prev.filter(c => c.id !== id));
             openModal({ title: 'Sucesso', message: 'Cliente removido da base.', type: 'success' });
@@ -286,7 +286,7 @@ export default function AdminDashboard() {
       confirmText: 'Demitir',
       onConfirm: async () => {
         try {
-          await axios.delete(`http://localhost:3001/api/professionals/${id}`);
+          await api.delete(`/api/professionals/${id}`);
           setProfessionals(professionals.filter(p => p.id !== id));
           openModal({ title: 'Sucesso', message: 'Profissional removido com sucesso.', type: 'success' });
         } catch (err) { 
@@ -300,7 +300,7 @@ export default function AdminDashboard() {
   const handleAddService = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:3001/api/services', newService);
+      await api.post('/api/services', newService);
       setShowAddService(false);
       setNewService({ name: '', duration: '', price: '' });
       loadData(user);
@@ -317,7 +317,7 @@ export default function AdminDashboard() {
       confirmText: 'Excluir',
       onConfirm: async () => {
         try {
-          await axios.delete(`http://localhost:3001/api/services/${id}`);
+          await api.delete(`/api/services/${id}`);
           setServices(services.filter(s => s.id !== id));
         } catch (err) { 
           openModal({ title: 'Erro', message: 'Erro ao excluir serviço.', type: 'error', confirmText: 'Entendido' });
@@ -332,7 +332,7 @@ export default function AdminDashboard() {
       let payload = { ...newAppt };
       if (user.role !== 'admin') payload.professional_id = user.id;
 
-      await axios.post('http://localhost:3001/api/appointments', payload);
+      await api.post('/api/appointments', payload);
       setShowAddAppt(false);
       setNewAppt({ client_name: '', client_phone: '', service_id: '', professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
       loadData(user);
@@ -359,7 +359,7 @@ export default function AdminDashboard() {
           professional_id: user.role === 'admin' ? newBlock.professional_id : user.id
       };
       
-      const response = await axios.post('http://localhost:3001/api/appointments/block', payload);
+      const response = await api.post('/api/appointments/block', payload);
       setAppointments([response.data.data, ...appointments]);
       setShowBlockModal(false);
       setNewBlock({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '', duration: '30', description: '' });
@@ -379,7 +379,7 @@ export default function AdminDashboard() {
       confirmText: 'Desmarcar',
       onConfirm: async () => {
         try {
-          await axios.post(`http://localhost:3001/api/appointments/${id}/cancel`);
+          await api.post(`/api/appointments/${id}/cancel`);
           setAppointments(prev => prev.filter(a => a.id !== id));
         } catch (err) {
           console.error('Erro ao desmarcar:', err);
@@ -397,15 +397,15 @@ export default function AdminDashboard() {
   const handleSaveSettings = async () => {
     try {
       await Promise.all([
-        axios.put('http://localhost:3001/api/settings', { key: 'business_name', value: businessName }),
-        axios.put('http://localhost:3001/api/settings', { key: 'whatsapp_message', value: whatsappMessage }),
-        axios.put('http://localhost:3001/api/settings', { key: 'work_start', value: workStart }),
-        axios.put('http://localhost:3001/api/settings', { key: 'work_end', value: workEnd }),
-        axios.put('http://localhost:3001/api/settings', { key: 'slot_interval', value: slotInterval }),
-        axios.put('http://localhost:3001/api/settings', { key: 'work_days', value: JSON.stringify(workDays) }),
-        axios.put('http://localhost:3001/api/settings', { key: 'whatsapp_number', value: whatsappNumber }),
-        axios.put('http://localhost:3001/api/settings', { key: 'allow_online_booking', value: String(allowOnlineBooking) }),
-        axios.put('http://localhost:3001/api/settings', { key: 'max_advance_days', value: maxAdvanceDays }),
+        api.put('/api/settings', { key: 'business_name', value: businessName }),
+        api.put(/api/settings', { key: 'whatsapp_message', value: whatsappMessage }),
+        api.put(/api/settings', { key: 'work_start', value: workStart }),
+        api.put(/api/settings', { key: 'work_end', value: workEnd }),
+        api.put(/api/settings', { key: 'slot_interval', value: slotInterval }),
+        api.put(/api/settings', { key: 'work_days', value: JSON.stringify(workDays) }),
+        api.put(/api/settings', { key: 'whatsapp_number', value: whatsappNumber }),
+        api.put(/api/settings', { key: 'allow_online_booking', value: String(allowOnlineBooking) }),
+        api.put(/api/settings', { key: 'max_advance_days', value: maxAdvanceDays }),
       ]);
       openModal({ title: 'Sucesso!', message: 'Todas as configurações foram salvas com sucesso!', type: 'success', confirmText: 'Ótimo' });
     } catch (err) { 
@@ -485,8 +485,8 @@ export default function AdminDashboard() {
       ];
 
       const [res] = await Promise.all([
-        axios.put(`http://localhost:3001/api/professionals/${user.id}`, payload),
-        ...scheduleUpdates.map(entry => axios.put('http://localhost:3001/api/settings', entry))
+        api.put(`/api/professionals/${user.id}`, payload),
+        ...scheduleUpdates.map(entry => api.put('/api/settings', entry))
       ]);
       const updatedProfile = res.data.data;
 

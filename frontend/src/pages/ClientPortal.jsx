@@ -20,7 +20,7 @@ import {
   Moon,
   Sun
 } from 'lucide-react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate, useLocation } from 'react-router-dom';
 import FadeContent from '../components/FadeContent';
 import { buildEffectiveSchedule, buildTimeSlots } from '../utils/schedule';
@@ -86,9 +86,9 @@ export default function ClientPortal() {
   const timeSlots = useMemo(() => buildTimeSlots(workStart, workEnd, slotInterval), [workStart, workEnd, slotInterval]);
 
   useEffect(() => {
-    axios.get('http://localhost:3001/api/services').then(res => setServices(res.data.data)).catch(console.error);
-    axios.get('http://localhost:3001/api/professionals').then(res => setProfessionals(res.data.data)).catch(console.error);
-    axios.get('http://localhost:3001/api/settings').then(res => {
+    api.get('/api/services').then(res => setServices(res.data.data)).catch(console.error);
+    api.get('/api/professionals').then(res => setProfessionals(res.data.data)).catch(console.error);
+    api.get('/api/settings').then(res => {
       const settings = res.data.data;
       setAllSettings(settings);
       const bName = settings.find(s => s.key === 'business_name');
@@ -149,7 +149,7 @@ export default function ClientPortal() {
     const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
     
     // Tenta a rota principal
-    axios.get(`http://localhost:3001/api/appointments?client_phone=${cleanPhone}`)
+    api.get(`/api/appointments?client_phone=${cleanPhone}`)
       .then(res => {
          const list = res.data.data;
          setMyAppointments(list);
@@ -163,7 +163,7 @@ export default function ClientPortal() {
       .catch(err => {
           console.error('Erro ao carregar histórico:', err);
           // Fallback final
-          axios.get(`http://localhost:3001/api/clients/appointments?phone=${cleanPhone}`)
+          api.get(`/api/clients/appointments?phone=${cleanPhone}`)
             .then(res => setMyAppointments(res.data.data.appointments))
             .catch(console.error);
       })
@@ -196,7 +196,7 @@ export default function ClientPortal() {
     localStorage.setItem('client_portal_data', JSON.stringify(clientData));
     setConfirmError(null);
     
-    axios.post('http://localhost:3001/api/appointments', payload).then(() => {
+    api.post('/api/appointments', payload).then(() => {
       if (step === 3) setStep(5);
       else handleNext();
     }).catch(err => {
@@ -234,7 +234,7 @@ export default function ClientPortal() {
   useEffect(() => {
     if (selectedDate && selectedPro) {
       const dStr = format(selectedDate, 'yyyy-MM-dd');
-      axios.get(`http://localhost:3001/api/appointments?date=${dStr}&professional_id=${selectedPro.id}`)
+      api.get(`/api/appointments?date=${dStr}&professional_id=${selectedPro.id}`)
         .then(res => setBusyAppointments(res.data.data))
         .catch(console.error);
     }
@@ -307,7 +307,7 @@ export default function ClientPortal() {
                             if(loginPhone) {
                                const newData = { name: loginName || clientData.name, phone: loginPhone };
                                // Sincroniza com o backend para garantir que apareça na "Base de Clientes"
-                               axios.post('http://localhost:3001/api/clients', newData).catch(console.error);
+                               api.post('/api/clients', newData).catch(console.error);
                                
                                setClientData(newData);
                                localStorage.setItem('client_portal_data', JSON.stringify(newData));

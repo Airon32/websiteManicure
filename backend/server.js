@@ -447,13 +447,23 @@ app.get('/api/appointments', async (req, res) => {
     const { data, error } = await query;
     if (error) return res.status(400).json({"error": error.message});
     
-    const formatted = data.map(app => ({
-        ...app,
-        service_name: app.service?.name,
-        service_price: app.service?.price,
-        service_duration: app.service?.duration,
-        professional_name: app.professional?.name
-    }));
+    const formatted = data.map(app => {
+        let duration = app.service?.duration;
+        let sName = app.service?.name;
+        
+        if (!duration && app.notes && typeof app.notes === 'string' && app.notes.startsWith('BLOCK:')) {
+            duration = parseInt(app.notes.split(':')[1], 10);
+            sName = "⏳ Agenda Fechada";
+        }
+        
+        return {
+            ...app,
+            service_name: sName,
+            service_price: app.service?.price,
+            service_duration: duration,
+            professional_name: app.professional?.name
+        };
+    });
 
     res.json({ "message": "success", "data": formatted });
 });
@@ -551,6 +561,73 @@ app.post('/api/appointments', async (req, res) => {
     }
 
     res.json({ "message": "success", "data": data[0] });
+});
+
+// Criar um bloqueio de horário (Horário Fechado)
+app.post('/api/appointments/block', async (req, res) => {
+    const { professional_id, date, time, duration, description } = req.body;
+    
+    try {
+        // Validação básica do horário (não cruzar o expediente)
+        const settingsMap = await loadSettingsMap();
+        const professionalSchedule = buildProfessionalSchedule(settingsMap, professional_id);
+        
+        const newStart = timeToMinutes(time);
+        const newEnd = newStart + Number(duration);
+        const schedEnd = timeToMinutes(professionalSchedule.work_end);
+        
+        if (newEnd > schedEnd) {
+            return res.status(400).json({"error": "O bloqueio excede o horário de expediente."});
+        }
+        
+        // Regra de Conflitos
+        const { data: existing, error: eErr } = await supabase
+            .from('appointments')
+            .select(`
+                time, 
+                notes,
+                services!left(duration)
+            `)
+            .eq('professional_id', professional_id)
+            .eq('date', date)
+            .neq('status', 'cancelado');
+            
+        if (!eErr && existing) {
+            const hasConflict = existing.some(app => {
+                const exStart = timeToMinutes(app.time);
+                
+                let exDuration = 30;
+                if (app.services && app.services.duration) {
+                    exDuration = Number(app.services.duration);
+                } else if (app.notes && typeof app.notes === 'string' && app.notes.startsWith('BLOCK:')) {
+                    exDuration = parseInt(app.notes.split(':')[1], 10);
+                }
+                
+                const exEnd = exStart + exDuration;
+                return (newStart < exEnd && newEnd > exStart);
+            });
+            if (hasConflict) {
+                return res.status(400).json({"error": "Já existe um agendamento ou bloqueio neste horário."});
+            }
+        }
+        
+        // Inserir o Bloqueio
+        const { data: insertData, error: insertError } = await supabase.from('appointments').insert([{
+            client_name: description ? `Bloqueio: ${description}` : 'Bloqueio de Agenda',
+            client_phone: '00000000000',
+            professional_id,
+            date,
+            time,
+            status: 'confirmado',
+            notes: description ? `BLOCK:${duration}|${description}` : `BLOCK:${duration}`
+        }]).select();
+        
+        if (insertError) return res.status(400).json({"error": insertError.message});
+        
+        res.json({ "message": "success", "data": insertData[0] });
+    } catch (e) {
+         res.status(400).json({"error": e.message});
+    }
 });
 
 function timeToMinutes(timeStr) {

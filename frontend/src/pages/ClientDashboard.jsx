@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import { format, parseISO, isAfter, startOfToday, addDays, isBefore, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -88,7 +88,7 @@ const ClientDashboard = () => {
       const cleanPhone = clientData.phone.replace(/\D/g, "");
       
       // Carrega TODOS os agendamentos para filtrar no frontend
-      const res = await axios.get(`http://localhost:3001/api/appointments?client_phone=${cleanPhone}`);
+      const res = await api.get(`/api/appointments?client_phone=${cleanPhone}`);
       setAppointments(res.data.data);
       setMessage(null);
     } catch (err) {
@@ -144,7 +144,7 @@ const ClientDashboard = () => {
       onConfirm: async () => {
         try {
           setCancellingId(id);
-          await axios.post(`http://localhost:3001/api/appointments/${id}/cancel`);
+          await api.post(`/api/appointments/${id}/cancel`);
           setMessage({ type: 'success', text: 'Agendamento desmarcado com sucesso.' });
           fetchAppointments();
         } catch (err) {

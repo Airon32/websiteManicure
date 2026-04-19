@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User } from 'lucide-react';
 
@@ -13,7 +13,7 @@ export default function Login() {
     e.preventDefault();
     setError('');
     try {
-      const res = await axios.post('http://localhost:3001/api/login', { username, password });
+      const res = await api.post('/api/login', { username, password });
       const user = res.data.data;
       sessionStorage.setItem('user', JSON.stringify(user));
       navigate('/admin');
