@@ -49,7 +49,7 @@ export default function AdminDashboard() {
 
   // Add Service State
   const [showAddService, setShowAddService] = useState(false);
-  const [newService, setNewService] = useState({ name: '', duration: '', price: '' });
+  const [newService, setNewService] = useState({ name: '', duration: '', price: '', category: '', description: '' });
 
   const [businessName, setBusinessName] = useState('Ateliê Pink');
   const [whatsappMessage, setWhatsappMessage] = useState('');
@@ -302,7 +302,7 @@ export default function AdminDashboard() {
     try {
       await api.post('/api/services', newService);
       setShowAddService(false);
-      setNewService({ name: '', duration: '', price: '' });
+      setNewService({ name: '', duration: '', price: '', category: '', description: '' });
       loadData(user);
     } catch (err) { 
       openModal({ title: 'Falha no Catálogo', message: 'Erro ao registrar serviço. Verifique a conexão.', type: 'error', confirmText: 'Tentar Novamente' });
@@ -1057,32 +1057,84 @@ export default function AdminDashboard() {
                         {showAddService && (
                           <form onSubmit={handleAddService} className="bg-card border border-primary/30 rounded-xl p-6 mb-6 slide-in-from-top-4 animate-in duration-300">
                             <h4 className="text-foreground mb-4 font-medium">Injetar Novo Serviço no Web App</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                               <input className="input-field" placeholder="Nome do Serviço" required value={newService.name} onChange={e => setNewService({ ...newService, name: e.target.value })} />
+                              <select className="input-field" required value={newService.category} onChange={e => setNewService({ ...newService, category: e.target.value })}>
+                                <option value="">Tipo / Categoria</option>
+                                <option value="Manicure">Manicure</option>
+                                <option value="Pedicure">Pedicure</option>
+                                <option value="Depilação">Depilação</option>
+                                <option value="Sobrancelha">Sobrancelha</option>
+                                <option value="Cabelo">Cabelo</option>
+                                <option value="Geral">Outros / Geral</option>
+                              </select>
                               <input className="input-field" placeholder="Duração (Minutos)" type="number" required value={newService.duration} onChange={e => setNewService({ ...newService, duration: e.target.value })} />
                               <input className="input-field" placeholder="Preço (Ex: 120.50)" type="number" step="0.01" required value={newService.price} onChange={e => setNewService({ ...newService, price: e.target.value })} />
+                            </div>
+                            <div className="mb-4">
+                              <textarea 
+                                className="input-field w-full h-20 resize-none" 
+                                placeholder="Descrição do serviço (opcional)..." 
+                                value={newService.description} 
+                                onChange={e => setNewService({ ...newService, description: e.target.value })}
+                              />
                             </div>
                             <button type="submit" className="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-2 rounded-lg transition-colors shadow-lg shadow-green-500/20">Publicar Serviço Agora</button>
                           </form>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {services.map(srv => (
-                            <div key={srv.id} className="p-6 rounded-xl border border-border bg-background flex flex-col hover:border-primary/50 transition-colors shadow-sm relative group overflow-hidden">
-                              <div className="absolute right-0 top-0 w-16 h-16 bg-primary/5 rounded-bl-full pointer-events-none"></div>
-                              <h4 className="text-xl font-serif text-foreground mb-1 pr-8">{srv.name}</h4>
-                              <p className="text-sm text-muted mb-4">{srv.duration} minutos para conclusão</p>
-                              <p className="text-2xl font-bold text-primary mt-auto">R$ {srv.price.toFixed(2)}</p>
+                        <div className="space-y-10">
+                          {Object.entries(
+                            services.reduce((acc, srv) => {
+                              const cat = srv.category || 'Geral';
+                              if (!acc[cat]) acc[cat] = [];
+                              acc[cat].push(srv);
+                              return acc;
+                            }, {})
+                          ).map(([category, catServices]) => (
+                            <div key={category} className="space-y-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-px flex-1 bg-border/50"></div>
+                                <h4 className="text-sm font-bold uppercase tracking-widest text-primary bg-primary/5 px-3 py-1 rounded-full border border-primary/10">
+                                  {category}
+                                </h4>
+                                <div className="h-px flex-1 bg-border/50"></div>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {catServices.map(srv => (
+                                  <div key={srv.id} className="p-6 rounded-xl border border-border bg-background flex flex-col hover:border-primary/50 transition-colors shadow-sm relative group overflow-hidden">
+                                    <div className="absolute right-0 top-0 w-16 h-16 bg-primary/5 rounded-bl-full pointer-events-none"></div>
+                                    <div className="flex justify-between items-start mb-1 pr-8">
+                                      <h4 className="text-xl font-serif text-foreground">{srv.name}</h4>
+                                    </div>
+                                    <p className="text-xs font-medium text-primary mb-2 flex items-center gap-1">
+                                      <Scissors size={12} /> {srv.category || 'Geral'}
+                                    </p>
+                                    <p className="text-xs text-muted mb-3 line-clamp-2 italic">
+                                      {srv.description || 'Sem descrição cadastrada.'}
+                                    </p>
+                                    <p className="text-sm text-muted mb-4">{srv.duration} minutos</p>
+                                    <p className="text-2xl font-bold text-primary mt-auto">R$ {srv.price.toFixed(2)}</p>
 
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDeleteService(srv.id); }}
-                                className="absolute top-4 right-4 text-red-500 bg-red-500/10 hover:bg-red-500/20 p-2 rounded transition-colors z-20 shadow-sm"
-                                title="Apagar Serviço"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteService(srv.id); }}
+                                      className="absolute top-4 right-4 text-red-500 bg-red-500/10 hover:bg-red-500/20 p-2 rounded transition-colors z-20 shadow-sm"
+                                      title="Apagar Serviço"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           ))}
+                          
+                          {services.length === 0 && (
+                            <div className="text-center py-20 text-muted italic">
+                              Nenhum serviço disponível no catálogo.
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

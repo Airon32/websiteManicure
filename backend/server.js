@@ -141,16 +141,29 @@ app.post('/api/login', async (req, res) => {
 
 // --- ROTAS DE SERVIÇOS ---
 app.get('/api/services', async (req, res) => {
-    const { data, error } = await supabase.from('services').select('*').order('name');
+    const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .eq('status', 'ativo')
+        .order('category', { ascending: true })
+        .order('name', { ascending: true });
+        
     if (error) return res.status(400).json({"error": error.message});
     res.json({ "message": "success", "data": data });
 });
 
 app.post('/api/services', async (req, res) => {
-    const { name, duration, price } = req.body;
+    const { name, duration, price, category, description } = req.body;
     const { data, error } = await supabase
         .from('services')
-        .insert([{ name, duration, price }])
+        .insert([{ 
+            name, 
+            duration, 
+            price, 
+            category: category || 'Geral', 
+            description: description || '',
+            status: 'ativo' 
+        }])
         .select();
     
     if (error) return res.status(400).json({"error": error.message});
@@ -158,7 +171,13 @@ app.post('/api/services', async (req, res) => {
 });
 
 app.delete('/api/services/:id', async (req, res) => {
-    const { error } = await supabase.from('services').delete().eq('id', req.params.id);
+    // Soft Delete: Atualizamos para 'inativo' em vez de deletar fisicamente
+    // Isso evita erros de chave estrangeira com agendamentos antigos
+    const { error } = await supabase
+        .from('services')
+        .update({ status: 'inativo' })
+        .eq('id', req.params.id);
+        
     if (error) return res.status(400).json({"error": error.message});
     res.json({ "message": "success" });
 });
