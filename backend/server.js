@@ -1,9 +1,25 @@
-const express = require('express');
-const cors = require('cors');
-let supabase = require('./database.js');
-// Caso o Vercel mude o formato do export para CommonJS/ESM mix
-if (supabase.default) {
-    supabase = supabase.default;
+const { createClient } = require('@supabase/supabase-js');
+
+// --- CONFIGURAÇÃO SUPABASE (CENTRALIZADA PARA VERCEL) ---
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+    console.warn('[SUPABASE] ALERTA: SUPABASE_URL ou SUPABASE_KEY não foram encontradas no process.env!');
+}
+
+const supabaseInstance = createClient(supabaseUrl || '', supabaseKey || '');
+
+// Garantia para o Bundler do Vercel
+const supabase = supabaseInstance.default || supabaseInstance;
+
+if (typeof supabase.from !== 'function') {
+    console.error('[SUPABASE DIAGNOSTIC] Erro Crítico: supabase.from não é uma função!', {
+        keys: Object.keys(supabase),
+        type: typeof supabase
+    });
+} else {
+    console.log('[SUPABASE DIAGNOSTIC] Cliente inicializado com sucesso.');
 }
 
 const app = express();
