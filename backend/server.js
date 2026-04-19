@@ -22,9 +22,23 @@ if (typeof supabase.from !== 'function') {
     console.log('[SUPABASE DIAGNOSTIC] Cliente inicializado com sucesso.');
 }
 
+// --- CAPTURA DE ERROS FATAIS (PARA LOGS VERCEL) ---
+process.on('uncaughtException', (err) => {
+    console.error('[ERRO FATAL - uncaughtException]:', err.message);
+    console.error(err.stack);
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[ERRO FATAL - unhandledRejection]:', reason);
+});
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Rota de Health Check
+app.get('/', (req, res) => {
+    res.json({ status: 'live', supabase: typeof supabase.from === 'function' });
+});
 
 // Logger simples
 app.use((req, res, next) => {
