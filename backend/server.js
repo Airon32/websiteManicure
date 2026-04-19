@@ -83,7 +83,19 @@ app.post('/api/login', async (req, res) => {
         .eq('password', password)
         .single();
 
-    if (error) return res.status(401).json({"error": "Usuário ou senha incorretos."});
+    if (error) {
+        console.error('[Login Error]:', error.message);
+        // Se for um erro de autenticaÃ§Ã£o com o Supabase (chave errada), avisamos no log
+        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
+            return res.status(500).json({"error": "Erro de conexÃ£o com o banco (verificar chaves no Vercel)."});
+        }
+        return res.status(401).json({"error": "UsuÃ¡rio ou senha incorretos."});
+    }
+    
+    if (!data) {
+        return res.status(401).json({"error": "UsuÃ¡rio ou senha incorretos."});
+    }
+
     res.json({"message": "success", "data": data});
 });
 
