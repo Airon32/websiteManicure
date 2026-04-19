@@ -377,15 +377,19 @@ const ClientDashboard = () => {
               <p className="text-muted text-sm font-serif">Sincronizando com a agenda...</p>
             </div>
           ) : filteredAppointments.length === 0 ? (
-            <div className="text-center py-24 bg-muted/5 border-2 border-dashed border-border/50 rounded-3xl">
-              <Calendar size={64} className="mx-auto text-muted/30 mb-4" />
-              <p className="text-xl font-serif text-muted mb-6">Nenhum registro encontrado.</p>
+            <div className="text-center py-24 bg-muted/5 border-2 border-dashed border-border/50 rounded-3xl relative overflow-hidden group">
+              <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+              <Calendar size={64} className="mx-auto text-muted/30 mb-4 animate-bounce duration-[3000ms]" />
+              <p className="text-xl font-serif text-muted mb-2 px-6">Nenhum agendamento encontrado.</p>
+              <p className="text-sm text-muted/60 mb-8 max-w-xs mx-auto px-6">
+                Se você acabou de agendar, aguarde alguns segundos e clique em atualizar. Novos dados podem levar um momento para sincronizar.
+              </p>
               {activeTab === 'upcoming' && (
                 <button 
                   onClick={() => navigate('/')}
-                  className="text-primary font-bold hover:underline"
+                  className="btn-primary px-8 py-3 rounded-2xl shadow-xl shadow-primary/10 hover:shadow-primary/20 transition-all hover:scale-105 active:scale-95"
                 >
-                  Que tal agendar um horário hoje?
+                  Novo Agendamento
                 </button>
               )}
             </div>
@@ -404,6 +408,9 @@ const ClientDashboard = () => {
                       <h4 className="text-xl font-serif text-foreground mt-3 group-hover:text-primary transition-colors">
                         {app.service_name}
                       </h4>
+                      <p className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mt-1 opacity-70">
+                        {app.category || 'Geral'}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-foreground">{app.time}</p>
@@ -414,24 +421,30 @@ const ClientDashboard = () => {
                   </div>
 
                   <div className="space-y-3 mb-8">
+                    {app.description && (
+                      <p className="text-xs text-muted/80 italic line-clamp-2 border-l-2 border-primary/20 pl-3 py-1">
+                        "{app.description}"
+                      </p>
+                    )}
                     <div className="flex items-center gap-3 text-muted">
-                      <div className="w-8 h-8 rounded-full bg-muted/20 flex items-center justify-center text-primary font-bold text-xs">
+                      <div className="w-8 h-8 rounded-full bg-muted/20 flex items-center justify-center text-primary font-bold text-xs shadow-inner">
                         {app.professional_name?.charAt(0)}
                       </div>
                       <span className="text-sm font-medium">Profissional: <span className="text-foreground">{app.professional_name}</span></span>
                     </div>
                     <div className="flex items-center gap-3 text-muted">
-                      <div className="w-8 h-8 rounded-full bg-muted/20 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-muted/20 flex items-center justify-center shadow-inner">
                         <Clock size={14} className="text-primary" />
                       </div>
                       <span className="text-sm font-medium">Tempo: <span className="text-foreground">{app.service_duration} min</span></span>
                     </div>
                   </div>
 
-                  <div className="flex gap-3 pt-4 border-t border-border/40">
+                  <div className="flex gap-3 pt-6 border-t border-border/40 relative">
+                    <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/10 to-transparent"></div>
                     <button 
                       onClick={() => handleReschedule(app)}
-                      className="flex-1 py-3 px-4 rounded-xl border border-border text-xs font-bold text-foreground hover:bg-muted/10 transition-colors"
+                      className="flex-1 py-3 px-4 rounded-xl border border-border text-xs font-bold text-foreground hover:bg-primary/5 hover:border-primary/20 transition-all active:scale-95"
                     >
                       Remarcar
                     </button>
@@ -439,7 +452,7 @@ const ClientDashboard = () => {
                        <button 
                         onClick={() => handleCancel(app.id)}
                         disabled={cancellingId === app.id}
-                        className="p-3 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                        className="p-3 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 transition-all disabled:opacity-50 active:scale-95"
                         title="Desmarcar"
                       >
                         <Trash2 size={18} />

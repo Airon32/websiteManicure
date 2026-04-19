@@ -196,9 +196,13 @@ export default function ClientPortal() {
     localStorage.setItem('client_portal_data', JSON.stringify(clientData));
     setConfirmError(null);
     
+    // Mostramos feedback de carregamento no botão (opcional se quiser gerenciar estado de loading)
     api.post('/api/appointments', payload).then(() => {
-      if (step === 3) setStep(5);
-      else handleNext();
+      // Pequeno delay para garantir que o banco processou antes de dar o OK visual final
+      setTimeout(() => {
+        if (step === 3) setStep(5);
+        else handleNext();
+      }, 800);
     }).catch(err => {
       const errorMsg = err.response?.data?.error || 'Ops! Não foi possível confirmar seu agendamento. Por favor, tente novamente.';
       setConfirmError(errorMsg);
@@ -509,20 +513,52 @@ export default function ClientPortal() {
 
               {step === 1 && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <h3 className="text-xl md:text-3xl font-serif text-foreground mb-8">Qual serviço deseja realizar?</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {services.map(s => (
-                      <div 
-                        key={s.id} 
-                        className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedService?.id === s.id ? 'border-primary bg-primary/10' : 'border-border bg-background/50 hover:border-muted'}`}
-                        onClick={() => setSelectedService(s)}
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="text-lg font-medium text-foreground">{s.name}</h4>
-                           <span className="text-primary font-semibold">R$ {s.price?.toFixed(2) || '0.00'}</span>
+                  <h3 className="text-xl md:text-3xl font-serif text-foreground mb-8 text-center lg:text-left">Qual serviço deseja realizar?</h3>
+                  
+                  <div className="space-y-10">
+                    {Object.entries(
+                      services.reduce((acc, s) => {
+                        const cat = s.category || 'Geral';
+                        if (!acc[cat]) acc[cat] = [];
+                        acc[cat].push(s);
+                        return acc;
+                      }, {})
+                    ).map(([category, catServices]) => (
+                      <div key={category} className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <h4 className="text-xs font-bold uppercase tracking-widest text-primary bg-primary/5 px-3 py-1 rounded-full border border-primary/10">
+                            {category}
+                          </h4>
+                          <div className="h-px flex-1 bg-border/40"></div>
                         </div>
-                        <div className="text-muted flex items-center gap-2 text-sm">
-                          <Clock size={14} /> {s.duration} min
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {catServices.map(s => (
+                            <div 
+                              key={s.id} 
+                              className={`p-5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden group ${selectedService?.id === s.id ? 'border-primary bg-primary/10 ring-1 ring-primary/20' : 'border-border bg-background/50 hover:border-primary/30'}`}
+                              onClick={() => setSelectedService(s)}
+                            >
+                              {selectedService?.id === s.id && (
+                                <div className="absolute top-2 right-2 text-primary animate-in zoom-in duration-300">
+                                  <CheckCircle2 size={24} />
+                                </div>
+                              )}
+                              <div className="flex justify-between items-start mb-2 pr-8">
+                                <h4 className="text-lg font-serif font-medium text-foreground">{s.name}</h4>
+                                <span className="text-xl font-bold text-primary">R$ {s.price?.toFixed(2) || '0.00'}</span>
+                              </div>
+                              <p className="text-sm text-muted mb-4 italic line-clamp-2">
+                                {s.description || 'Experiência exclusiva e personalizada.'}
+                              </p>
+                              <div className="text-muted flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
+                                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                                  <Clock size={12} />
+                                </div>
+                                {s.duration} minutos
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
@@ -618,11 +654,17 @@ export default function ClientPortal() {
                 </div>
               )}
 
-              {step === 5 && (
-                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-center py-10">
-                                        <CheckCircle2 size={64} className="text-green-500 mx-auto mb-6" />
-                    <h3 className="text-3xl font-serif text-foreground mb-2">Agendamento Confirmado!</h3>
-                    <p className="text-muted mb-8">Seu horário foi reservado com sucesso no nosso sistema.</p>
+                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-center py-10">
+                    <div className="relative inline-block mb-6">
+                      <CheckCircle2 size={64} className="text-green-500" />
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-background rounded-full flex items-center justify-center">
+                        <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
+                      </div>
+                    </div>
+                    <h3 className="text-3xl font-serif text-foreground mb-2">Agendamento Realizado!</h3>
+                    <p className="text-muted mb-8 max-w-sm mx-auto">
+                      Estamos processando sua reserva. Seu horário aparecerá no histórico em alguns segundos.
+                    </p>
                     
                     <div className="glass-card p-6 mb-8 inline-block text-left text-foreground border-primary/30 bg-primary/5">
                        <p className="mb-2"><strong className="text-muted">Serviço:</strong> {selectedService.name}</p>
