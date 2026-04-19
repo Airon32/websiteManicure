@@ -1,3 +1,5 @@
+const express = require('express');
+const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 
 // --- CONFIGURAÇÃO SUPABASE (CENTRALIZADA PARA VERCEL) ---
