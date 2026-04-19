@@ -75,7 +75,11 @@ function validateAppointmentAgainstSchedule({ date, time, duration, schedule }) 
 
 // --- ROTA DE LOGIN ---
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
+    const username = String(req.body.username || '').trim();
+    const password = String(req.body.password || '').trim();
+    
+    console.log(`[Tentativa de Login] UsuÃ¡rio: "${username}"`);
+
     const { data, error } = await supabase
         .from('professionals')
         .select('id, name, role, avatar, username, specialty')
