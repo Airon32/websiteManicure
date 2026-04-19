@@ -1,6 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const supabase = require('./database.js');
+let supabase = require('./database.js');
+// Caso o Vercel mude o formato do export para CommonJS/ESM mix
+if (supabase.default) {
+    supabase = supabase.default;
+}
 
 const app = express();
 app.use(cors());
