@@ -16,7 +16,7 @@ export default function AdminDashboard() {
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
-  const [, setSettingsData] = useState([]);
+  const [settingsData, setSettingsData] = useState([]);
 
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(startOfToday());
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(startOfToday()));
@@ -398,14 +398,14 @@ export default function AdminDashboard() {
     try {
       await Promise.all([
         api.put('/api/settings', { key: 'business_name', value: businessName }),
-        api.put(/api/settings', { key: 'whatsapp_message', value: whatsappMessage }),
-        api.put(/api/settings', { key: 'work_start', value: workStart }),
-        api.put(/api/settings', { key: 'work_end', value: workEnd }),
-        api.put(/api/settings', { key: 'slot_interval', value: slotInterval }),
-        api.put(/api/settings', { key: 'work_days', value: JSON.stringify(workDays) }),
-        api.put(/api/settings', { key: 'whatsapp_number', value: whatsappNumber }),
-        api.put(/api/settings', { key: 'allow_online_booking', value: String(allowOnlineBooking) }),
-        api.put(/api/settings', { key: 'max_advance_days', value: maxAdvanceDays }),
+        api.put('/api/settings', { key: 'whatsapp_message', value: whatsappMessage }),
+        api.put('/api/settings', { key: 'work_start', value: workStart }),
+        api.put('/api/settings', { key: 'work_end', value: workEnd }),
+        api.put('/api/settings', { key: 'slot_interval', value: slotInterval }),
+        api.put('/api/settings', { key: 'work_days', value: JSON.stringify(workDays) }),
+        api.put('/api/settings', { key: 'whatsapp_number', value: whatsappNumber }),
+        api.put('/api/settings', { key: 'allow_online_booking', value: String(allowOnlineBooking) }),
+        api.put('/api/settings', { key: 'max_advance_days', value: maxAdvanceDays }),
       ]);
       openModal({ title: 'Sucesso!', message: 'Todas as configurações foram salvas com sucesso!', type: 'success', confirmText: 'Ótimo' });
     } catch (err) { 
