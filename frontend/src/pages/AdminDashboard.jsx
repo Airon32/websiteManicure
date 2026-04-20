@@ -42,7 +42,7 @@ export default function AdminDashboard() {
   const [newStaff, setNewStaff] = useState({ name: '', specialty: '', avatar: '', username: '', password: '' });
 
   const [showAddAppt, setShowAddAppt] = useState(false);
-  const [newAppt, setNewAppt] = useState({ client_name: '', client_phone: '', service_id: '', professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
+  const [newAppt, setNewAppt] = useState({ client_name: '', client_phone: '', service_ids: [], professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
 
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [newBlock, setNewBlock] = useState({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '', duration: '30', description: '' });
@@ -349,12 +349,20 @@ export default function AdminDashboard() {
   const handleAddAppt = async (e) => {
     e.preventDefault();
     try {
-      let payload = { ...newAppt };
+      if (newAppt.service_ids.length === 0) {
+        openModal({ title: 'Atenção', message: 'Por favor, selecione pelo menos um serviço.', type: 'info' });
+        return;
+      }
+
+      let payload = { 
+        ...newAppt,
+        service_id: newAppt.service_ids[0]
+      };
       if (user.role !== 'admin') payload.professional_id = user.id;
 
       await api.post('/api/appointments', payload);
       setShowAddAppt(false);
-      setNewAppt({ client_name: '', client_phone: '', service_id: '', professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
+      setNewAppt({ client_name: '', client_phone: '', service_ids: [], professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
       loadData(user);
     } catch (err) { 
       openModal({ 
@@ -781,10 +789,38 @@ export default function AdminDashboard() {
                   )}
                 </div>
                 <input className="input-field" placeholder="Telefone" value={newAppt.client_phone} onChange={e => setNewAppt({ ...newAppt, client_phone: e.target.value })} required />
-                <select className="input-field" value={newAppt.service_id} onChange={e => setNewAppt({ ...newAppt, service_id: e.target.value })} required>
-                  <option value="" disabled>Qual o Serviço?</option>
-                  {services.map(s => <option key={s.id} value={s.id}>{s.name} (R$ {s.price})</option>)}
-                </select>
+                <div className="md:col-span-3 border border-border/50 rounded-xl p-4 bg-background/50">
+                  <p className="text-xs font-bold text-primary uppercase tracking-widest mb-3">Serviços Selecionados</p>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {services.map(s => {
+                      const isSelected = newAppt.service_ids.includes(s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setNewAppt(prev => ({ ...prev, service_ids: prev.service_ids.filter(id => id !== s.id) }));
+                            } else {
+                              setNewAppt(prev => ({ ...prev, service_ids: [...prev.service_ids, s.id] }));
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-muted/10 text-muted border-border hover:border-primary/50'}`}
+                        >
+                          {s.name} (R$ {s.price})
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {newAppt.service_ids.length > 0 && (
+                    <div className="text-xs text-muted flex justify-between pt-2 border-t border-border/30">
+                      <span>Total: {newAppt.service_ids.length} serviços</span>
+                      <span className="font-bold text-primary">
+                        R$ {services.filter(s => newAppt.service_ids.includes(s.id)).reduce((acc, curr) => acc + (Number(curr.price) || 0), 0).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 {isAdmin && (
                   <select className="input-field" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
                     <option value="" disabled>Profissional Designado</option>

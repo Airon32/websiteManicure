@@ -562,7 +562,6 @@ app.get('/api/appointments', async (req, res) => {
         query = query.ilike('client_phone', `%${cleanPhone}%`);
     }
     
-    // Ordenar por data e hora (mais recentes em cima se for busca de cliente)
     query = query.order('date', { ascending: false }).order('time', { ascending: false });
 
     const { data, error } = await query;
@@ -571,16 +570,32 @@ app.get('/api/appointments', async (req, res) => {
     const formatted = data.map(app => {
         let duration = app.service?.duration;
         let sName = app.service?.name;
+        let sPrice = app.service?.price;
         
-        if (!duration && app.notes && typeof app.notes === 'string' && app.notes.startsWith('BLOCK:')) {
+        // Suporte a múltiplos serviços via campo 'notes'
+        if (app.notes && typeof app.notes === 'string' && app.notes.startsWith('MULTI_SERVICES:')) {
+            try {
+                const parts = app.notes.split('|');
+                const jsonPart = parts.find(p => p.startsWith('MULTI_SERVICES:')).replace('MULTI_SERVICES:', '');
+                const multiData = JSON.parse(jsonPart);
+                
+                sName = multiData.map(s => s.name).join(' + ');
+                duration = multiData.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+                sPrice = multiData.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+            } catch (e) {
+                console.error('Erro ao parsear MULTI_SERVICES:', e);
+            }
+        } 
+        else if (!duration && app.notes && typeof app.notes === 'string' && app.notes.startsWith('BLOCK:')) {
             duration = parseInt(app.notes.split(':')[1], 10);
             sName = "⏳ Agenda Fechada";
+            sPrice = 0;
         }
         
         return {
             ...app,
             service_name: sName,
-            service_price: app.service?.price,
+            service_price: sPrice,
             service_duration: duration,
             professional_name: app.professional?.name
         };
@@ -590,20 +605,31 @@ app.get('/api/appointments', async (req, res) => {
 });
 
 app.post('/api/appointments', async (req, res) => {
-    const { client_name, client_phone, service_id, professional_id, date, time, notes } = req.body;
+    const { client_name, client_phone, service_id, service_ids, professional_id, date, time, notes } = req.body;
     
-    // 1. Buscar a duração do serviço
-    const { data: service, error: sErr } = await supabase
+    let consolidatedServices = [];
+    let primaryServiceId = service_id;
+
+    // 1. Buscar os serviços (suporte a múltiplos ou único)
+    const idsToSearch = service_ids && Array.isArray(service_ids) ? service_ids : (service_id ? [service_id] : []);
+    
+    if (idsToSearch.length === 0) return res.status(400).json({"error": "Nenhum serviço selecionado."});
+
+    const { data: services, error: sErr } = await supabase
         .from('services')
-        .select('duration')
-        .eq('id', service_id)
-        .single();
+        .select('*')
+        .in('id', idsToSearch);
     
-    if (sErr || !service) return res.status(400).json({"error": "Serviço inválido."});
+    if (sErr || !services || services.length === 0) return res.status(400).json({"error": "Serviço(s) inválido(s)."});
     
-    const newDuration = service.duration;
+    consolidatedServices = services;
+    if (!primaryServiceId) primaryServiceId = services[0].id;
+
+    const totalDuration = services.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+    const totalPrice = services.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+
     const newStart = timeToMinutes(time);
-    const newEnd = newStart + newDuration;
+    const newEnd = newStart + totalDuration;
 
     try {
         const settingsMap = await loadSettingsMap();
@@ -611,7 +637,7 @@ app.post('/api/appointments', async (req, res) => {
         const scheduleValidation = validateAppointmentAgainstSchedule({
             date,
             time,
-            duration: newDuration,
+            duration: totalDuration,
             schedule: professionalSchedule
         });
 
@@ -623,12 +649,11 @@ app.post('/api/appointments', async (req, res) => {
     }
 
     // 2. Buscar agendamentos existentes para o profissional no dia
-    // Nota: Mudamos para 'services!inner' ou aliasing se necessário, 
-    // mas aqui buscamos o objeto service completo para garantir.
     const { data: existing, error: eErr } = await supabase
         .from('appointments')
         .select(`
             time,
+            notes,
             service:services(duration)
         `)
         .eq('professional_id', professional_id)
@@ -638,47 +663,71 @@ app.post('/api/appointments', async (req, res) => {
     if (eErr) return res.status(500).json({"error": eErr.message});
 
     // 3. Verificar sobreposição
-    // (InícioA < FimB) && (FimA > InícioB)
     const conflict = existing.some(app => {
         const exStart = timeToMinutes(app.time);
-        const exDuration = app.service?.duration || 30;
-        const exEnd = exStart + exDuration;
+        let exDuration = app.service?.duration || 30;
 
-        const isOverlapping = (newStart < exEnd && newEnd > exStart);
-        return isOverlapping;
+        // Se for um agendamento multi-serviços, extrair a duração total do notes
+        if (app.notes && typeof app.notes === 'string') {
+            if (app.notes.startsWith('MULTI_SERVICES:')) {
+                try {
+                    const parts = app.notes.split('|');
+                    const jsonPart = parts.find(p => p.startsWith('MULTI_SERVICES:')).replace('MULTI_SERVICES:', '');
+                    const multiData = JSON.parse(jsonPart);
+                    exDuration = multiData.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+                } catch (e) {}
+            } else if (app.notes.startsWith('BLOCK:')) {
+                exDuration = parseInt(app.notes.split(':')[1], 10);
+            }
+        }
+
+        const exEnd = exStart + exDuration;
+        return (newStart < exEnd && newEnd > exStart);
     });
 
     if (conflict) {
         return res.status(400).json({"error": "Ops! Esse horário ou parte dele já está ocupado por outro atendimento. Por favor, escolha outro horário."});
     }
 
-    // 4. Inserir Agendamento
+    // 4. Preparar notas com dados de multi-serviços se necessário
+    let finalNotes = notes || '';
+    if (services.length > 1) {
+        const multiInfo = services.map(s => ({ id: s.id, name: s.name, duration: s.duration, price: s.price }));
+        const multiTag = `MULTI_SERVICES:${JSON.stringify(multiInfo)}`;
+        finalNotes = finalNotes ? `${finalNotes}|${multiTag}` : multiTag;
+    }
+
+    // 5. Inserir Agendamento
     const { data, error } = await supabase
         .from('appointments')
-        .insert([{ client_name, client_phone, service_id, professional_id, date, time, status: 'agendado', notes }])
+        .insert([{ 
+            client_name, 
+            client_phone, 
+            service_id: primaryServiceId, 
+            professional_id, 
+            date, 
+            time, 
+            status: 'agendado', 
+            notes: finalNotes 
+        }])
         .select();
 
     if (error) return res.status(400).json({ "error": error.message });
 
-    // 5. SINCRONIZAÇÃO DE CLIENTE (Upsert)
-    // Usa telefone limpo (só números) para busca e inserção, evitando duplicatas
+    // 6. SINCRONIZAÇÃO DE CLIENTE (Upsert)
     try {
         const cleanPhone = client_phone.replace(/\D/g, "");
-        // Busca pelo telefone limpo OU pelo formato original para cobrir registros antigos
         const { data: byClean } = await supabase.from('clients').select('id').eq('phone', cleanPhone).maybeSingle();
         const { data: byOriginal } = !byClean ? await supabase.from('clients').select('id').eq('phone', client_phone).maybeSingle() : { data: null };
         const existingClient = byClean || byOriginal;
         
         if (existingClient) {
-            // Atualiza nome e normaliza o telefone para o formato limpo
             await supabase.from('clients').update({ name: client_name, phone: cleanPhone }).eq('id', existingClient.id);
         } else {
-            // Insere com telefone limpo (sem formatação)
             await supabase.from('clients').insert([{ name: client_name, phone: cleanPhone }]);
         }
     } catch (clientErr) {
         console.error('Erro ao sincronizar cliente:', clientErr);
-        // Não bloqueia o agendamento se der erro aqui
     }
 
     res.json({ "message": "success", "data": data[0] });

@@ -32,7 +32,7 @@ export default function ClientPortal() {
   const [allSettings, setAllSettings] = useState([]);
   const [businessName, setBusinessName] = useState('Mary Esmalteria');
   const [whatsappTemplate, setWhatsappTemplate] = useState('Olá! Gostaria de confirmar meu agendamento.\n\n*Serviço:* {servico}\n*Profissional:* {profissional}\n*Data:* {data}\n*Horário:* {hora}\n*Nome:* {cliente}');
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedServices, setSelectedServices] = useState([]);
   const [selectedPro, setSelectedPro] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
@@ -143,6 +143,9 @@ export default function ClientPortal() {
     setSelectedDate(null);
   }, [allSettings, selectedPro]);
 
+  const totalDuration = useMemo(() => selectedServices.reduce((sum, s) => sum + (Number(s.duration) || 0), 0), [selectedServices]);
+  const totalPrice = useMemo(() => selectedServices.reduce((sum, s) => sum + (Number(s.price) || 0), 0), [selectedServices]);
+
 
   const loadMyAppointments = (phone, name = "") => {
     setLoadingHistory(true);
@@ -186,7 +189,8 @@ export default function ClientPortal() {
     const payload = {
       client_name: clientData.name,
       client_phone: clientData.phone,
-      service_id: selectedService.id,
+      service_id: selectedServices[0]?.id,
+      service_ids: selectedServices.map(s => s.id),
       professional_id: selectedPro.id,
       date: format(selectedDate, 'yyyy-MM-dd'),
       time: selectedTime,
@@ -218,7 +222,7 @@ export default function ClientPortal() {
       const { serviceId, professionalId } = location.state;
       if (services.length > 0) {
         const s = services.find(srv => srv.id === serviceId);
-        if (s) setSelectedService(s);
+        if (s) setSelectedServices([s]);
       }
       if (professionals.length > 0) {
         const p = professionals.find(pro => pro.id === professionalId);
@@ -245,12 +249,11 @@ export default function ClientPortal() {
 
   const filteredTimeSlots = useMemo(() => {
     return timeSlots.filter(slot => {
-      // Se não escolheu serviço ou profissional, não filtra por conflito ainda
-      if (!selectedService || !selectedPro) return true;
+      // Se não escolheu serviços ou profissional, não filtra por conflito ainda
+      if (selectedServices.length === 0 || !selectedPro) return true;
       
       const slotStart = timeToMinutes(slot);
-      const serviceDuration = Number(selectedService.duration) || 30;
-      const slotEnd = slotStart + serviceDuration;
+      const slotEnd = slotStart + totalDuration;
       const scheduleEnd = timeToMinutes(workEnd);
 
       if (slotEnd > scheduleEnd) return false;
@@ -269,12 +272,12 @@ export default function ClientPortal() {
       
       return !hasConflict;
     });
-  }, [timeSlots, busyAppointments, selectedService, selectedPro, workEnd]);
+  }, [timeSlots, busyAppointments, selectedServices, totalDuration, selectedPro, workEnd]);
 
   const handleWhatsApp = () => {
     let msg = whatsappTemplate
       .replace(/{cliente}/g, clientData.name)
-      .replace(/{servico}/g, selectedService?.name || '')
+      .replace(/{servico}/g, selectedServices.map(s => s.name).join(' + '))
       .replace(/{profissional}/g, selectedPro?.name || '')
       .replace(/{data}/g, selectedDate ? format(selectedDate, "dd/MM/yyyy") : '')
       .replace(/{hora}/g, selectedTime || '');
@@ -606,34 +609,43 @@ export default function ClientPortal() {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {catServices.map(s => (
-                            <div 
-                              key={s.id} 
-                              className={`p-5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden group ${selectedService?.id === s.id ? 'border-primary bg-primary/10 ring-1 ring-primary/20' : 'border-border bg-background/50 hover:border-primary/30'}`}
-                              onClick={() => setSelectedService(s)}
-                            >
-                              {selectedService?.id === s.id && (
-                                <div className="absolute top-2 right-2 text-primary animate-in zoom-in duration-300">
-                                  <CheckCircle2 size={24} />
+                          {catServices.map(s => {
+                            const isSelected = selectedServices.some(item => item.id === s.id);
+                            return (
+                              <div 
+                                key={s.id} 
+                                className={`p-5 rounded-2xl border cursor-pointer transition-all relative overflow-hidden group ${isSelected ? 'border-primary bg-primary/10 ring-1 ring-primary/20' : 'border-border bg-background/50 hover:border-primary/30'}`}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedServices(prev => prev.filter(item => item.id !== s.id));
+                                  } else {
+                                    setSelectedServices(prev => [...prev, s]);
+                                  }
+                                }}
+                              >
+                                {isSelected && (
+                                  <div className="absolute top-2 right-2 text-primary animate-in zoom-in duration-300">
+                                    <CheckCircle2 size={24} />
+                                  </div>
+                                )}
+                                <div className="flex justify-between items-start mb-2 pr-8">
+                                  <h4 className="text-lg font-serif font-medium text-foreground leading-tight">{s.name}</h4>
+                                  <span className="text-xl font-bold text-primary">R$ {Number(s.price).toFixed(2)}</span>
                                 </div>
-                              )}
-                              <div className="flex justify-between items-start mb-2 pr-8">
-                                <h4 className="text-lg font-serif font-medium text-foreground leading-tight">{s.name}</h4>
-                                <span className="text-xl font-bold text-primary">R$ {Number(s.price).toFixed(2)}</span>
-                              </div>
-                              {s.description && (
-                                <p className="text-sm text-muted mb-4 italic line-clamp-2">
-                                  {s.description}
-                                </p>
-                              )}
-                              <div className="text-muted flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
-                                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                                  <Clock size={12} />
+                                {s.description && (
+                                  <p className="text-sm text-muted mb-4 italic line-clamp-2">
+                                    {s.description}
+                                  </p>
+                                )}
+                                <div className="text-muted flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
+                                  <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                                    <Clock size={12} />
+                                  </div>
+                                  {s.duration} minutos
                                 </div>
-                                {s.duration} minutos
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -737,8 +749,9 @@ export default function ClientPortal() {
                       Sua reserva foi confirmada com sucesso em nossa base de dados.
                     </p>
                     
-                    <div className="bg-primary/5 border border-primary/20 rounded-2xl p-8 mb-8 inline-block text-left text-foreground">
-                       <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Serviço:</strong> {selectedService?.name}</p>
+                    <div className="bg-primary/5 border border-primary/20 rounded-2xl p-8 mb-8 inline-block text-left text-foreground w-full">
+                       <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Serviços:</strong> {selectedServices.map(s => s.name).join(' + ')}</p>
+                       <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Total:</strong> R$ {totalPrice.toFixed(2)} ({totalDuration} min)</p>
                        <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Profissional:</strong> {selectedPro?.name}</p>
                        <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Data:</strong> {selectedDate ? format(selectedDate, "dd 'de' MMMM, yyyy", {locale: ptBR}) : ''}</p>
                        <p><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Horário:</strong> {selectedTime}</p>
@@ -777,7 +790,7 @@ export default function ClientPortal() {
                     }} 
                     disabled={
                       (step === 1 && (!clientData.name || clientData.phone.replace(/\D/g, '').length < 10)) ||
-                      (step === 2 && !selectedService) || 
+                      (step === 2 && selectedServices.length === 0) || 
                       (step === 3 && !selectedPro) || 
                       (step === 4 && (!selectedDate || !selectedTime))
                     } 
