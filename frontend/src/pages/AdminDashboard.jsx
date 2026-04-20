@@ -225,7 +225,8 @@ export default function AdminDashboard() {
         specialty: newStaff.specialty.trim(),
         avatar: newStaff.avatar.trim(),
         username: newStaff.username.trim(),
-        password: newStaff.password.trim()
+        password: newStaff.password.trim(),
+        status: 'ativo'
       };
       await api.post('/api/professionals', trimmedStaff);
       setShowAddStaff(false);
@@ -1256,6 +1257,7 @@ export default function AdminDashboard() {
                                 <div className="flex-1">
                                   <h4 className="text-lg font-medium text-foreground">{pro.name}</h4>
                                   <p className="text-sm text-muted">{pro.specialty}</p>
+                                  <p className="text-xs text-primary font-bold mt-1">Login: {pro.username}</p>
                                 </div>
                               </div>
                               <div className="mt-auto border-t border-border pt-4 flex justify-between items-center">

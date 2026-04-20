@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
@@ -133,10 +134,17 @@ app.post('/api/login', async (req, res) => {
         return res.status(500).json({"error": "Erro interno no servidor de banco de dados."});
     }
     
-    if (!data || data.password !== rawPassword) {
-        console.log(`[Login Failed] Usuário "${rawUsername}" não encontrado ou senha incorreta.`);
+    if (!data) {
+        console.log(`[Login Failed] Usuário "${rawUsername}" não encontrado no banco.`);
         return res.status(401).json({"error": "Usuário ou senha incorretos."});
     }
+
+    if (data.password !== rawPassword) {
+        console.log(`[Login Failed] Senha incorreta para o usuário "${rawUsername}".`);
+        return res.status(401).json({"error": "Usuário ou senha incorretos."});
+    }
+
+    console.log(`[Login Success] Bem-vindo, "${data.name}"!`);
 
     // Remove a senha antes de enviar para o cliente
     const { password, ...userWithoutPassword } = data;

@@ -19,7 +19,11 @@ export default function Login() {
       navigate('/admin');
     } catch (err) {
       console.error('Login error:', err);
-      setError('Credenciais incorretas.');
+      if (!err.response) {
+        setError('Erro de conexão: O servidor está offline.');
+      } else {
+        setError('Credenciais incorretas.');
+      }
     }
   };
 
@@ -29,20 +33,24 @@ export default function Login() {
       
       <div className="glass-card w-full max-w-md p-8 relative z-10 fade-in-up border-border">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-xl bg-primary flex items-center justify-center text-white font-bold text-3xl mx-auto mb-4">A</div>
+          <img src="/assets/images/logo.png" alt="Mary Esmalteria" className="w-20 h-20 rounded-full mx-auto mb-4 object-contain shadow-md" />
           <h2 className="text-2xl font-serif text-foreground">Acesso Restrito</h2>
           <p className="text-muted mt-2">Área para profissionais e gestão</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
-          {error && <div className="bg-red-500/10 text-red-500 p-3 rounded-lg border border-red-500/20 text-sm text-center">{error}</div>}
+          {error && (
+            <div className="bg-red-500/10 text-red-500 p-3 rounded-lg border border-red-500/20 text-sm text-center animate-in shake duration-500">
+              {error}
+            </div>
+          )}
           
           <div className="relative">
             <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted" size={18} />
             <input 
               type="text" 
               className="input-field pl-10" 
-              placeholder="Usuário" 
+              placeholder="Nome de Usuário" 
               value={username}
               onChange={e => setUsername(e.target.value)}
               required
@@ -54,7 +62,7 @@ export default function Login() {
             <input 
               type="password" 
               className="input-field pl-10" 
-              placeholder="Senha" 
+              placeholder="Senha de Acesso" 
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
@@ -66,7 +74,7 @@ export default function Login() {
           </button>
         </form>
         <div className="text-center mt-6">
-          <button onClick={() => navigate('/')} className="text-sm text-muted hover:text-foreground transition-colors">Voltar para o site</button>
+          <button onClick={() => navigate('/')} className="text-sm text-muted hover:text-foreground transition-colors font-medium">Voltar para o site principal</button>
         </div>
       </div>
     </div>
