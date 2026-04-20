@@ -220,7 +220,14 @@ export default function AdminDashboard() {
   const handleAddStaff = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/api/professionals', newStaff);
+      const trimmedStaff = {
+        name: newStaff.name.trim(),
+        specialty: newStaff.specialty.trim(),
+        avatar: newStaff.avatar.trim(),
+        username: newStaff.username.trim(),
+        password: newStaff.password.trim()
+      };
+      await api.post('/api/professionals', trimmedStaff);
       setShowAddStaff(false);
       setNewStaff({ name: '', specialty: '', avatar: '', username: '', password: '' });
       loadData(user);

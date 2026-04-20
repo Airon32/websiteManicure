@@ -200,8 +200,7 @@ export default function ClientPortal() {
     api.post('/api/appointments', payload).then(() => {
       // Pequeno delay para garantir que o banco processou antes de dar o OK visual final
       setTimeout(() => {
-        if (step === 3) setStep(5);
-        else handleNext();
+        setStep(6);
       }, 800);
     }).catch(err => {
       const errorMsg = err.response?.data?.error || 'Ops! Não foi possível confirmar seu agendamento. Por favor, tente novamente.';
@@ -225,7 +224,7 @@ export default function ClientPortal() {
         const p = professionals.find(pro => pro.id === professionalId);
         if (p) setSelectedPro(p);
       }
-      setStep(2); // Vai direto para a escolha da data
+      setStep(4); // Vai direto para a escolha da data (novo fluxo: 1=ID, 2=Serviço, 3=Pro, 4=Data)
     }
   }, [location.state, services, professionals]);
 
@@ -417,7 +416,7 @@ export default function ClientPortal() {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-6 relative z-10">
+      <main className="flex-1 flex flex-col items-center justify-center p-6 relative z-10 w-full overflow-x-hidden">
         
         {step === 0 && (
           <div className="w-full max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12 lg:gap-20 py-10 lg:py-20 animate-in fade-in duration-1000">
@@ -439,13 +438,13 @@ export default function ClientPortal() {
               </p>
               
               <div className="flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start">
-                <button onClick={() => { if(clientData.phone) setShowAccountModal(true); handleNext(); }} className="btn-primary text-lg px-10 py-5 flex items-center gap-3 shadow-2xl shadow-primary/40 hover:-translate-y-1 transition-all group">
+                <button onClick={() => { if(clientData.phone) setShowAccountModal(true); setStep(1); }} className="btn-primary text-lg px-10 py-5 flex items-center gap-3 shadow-2xl shadow-primary/40 hover:-translate-y-1 transition-all group">
                   Agendar Agora <ChevronRight size={22} className="group-hover:translate-x-1 transition-transform" />
                 </button>
                 <div className="flex -space-x-3">
                   {[1,2,3,4].map(i => (
-                    <div key={i} className="w-10 h-10 rounded-full border-2 border-background bg-muted">
-                      <img src={`/assets/images/gallery/nail${i}.jpg`} alt="Client" className="w-full h-full object-cover rounded-full" />
+                    <div key={i} className="w-10 h-10 rounded-full border-2 border-background bg-muted overflow-hidden">
+                      <div className="w-full h-full bg-primary/10 flex items-center justify-center text-[8px] text-primary">Pic</div>
                     </div>
                   ))}
                   <div className="w-10 h-10 rounded-full border-2 border-background bg-primary-light flex items-center justify-center text-[10px] font-bold text-primary">+500</div>
@@ -492,30 +491,104 @@ export default function ClientPortal() {
 
         {step > 0 && (
           <div className="w-full max-w-4xl fade-in-up">
-            <div className="glass-card p-6 md:p-10">
+            <div className="glass-card p-6 md:p-10 mb-20 bg-card/80 backdrop-blur-xl border border-border shadow-2xl rounded-3xl">
               
+              {/* Stepper Navigator */}
               <div className="flex items-center justify-between gap-2 mb-10 text-[10px] md:text-sm font-bold uppercase tracking-[0.15em] text-muted/60 border-b border-border/50 pb-6 overflow-x-auto no-scrollbar">
-                <div className={`flex items-center gap-2 ${step >= 1 ? "text-primary" : ""}`}>
-                  <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${step >= 1 ? "border-primary bg-primary/10" : "border-border"}`}>1</span>
+                <div className={`flex items-center gap-2 shrink-0 ${step === 1 ? "text-primary scale-105" : step > 1 ? "text-green-500" : ""}`}>
+                  <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${step === 1 ? "border-primary bg-primary/10" : step > 1 ? "border-green-500 bg-green-500 text-white" : "border-border"}`}>
+                    {step > 1 ? <Check size={14} /> : "1"}
+                  </span>
+                  <span>Identificação</span>
+                </div>
+                <div className="h-px w-4 md:w-8 bg-border shrink-0"></div>
+                
+                <div className={`flex items-center gap-2 shrink-0 ${step === 2 ? "text-primary scale-105" : step > 2 ? "text-green-500" : ""}`}>
+                  <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${step === 2 ? "border-primary bg-primary/10" : step > 2 ? "border-green-500 bg-green-500 text-white" : "border-border"}`}>
+                    {step > 2 ? <Check size={14} /> : "2"}
+                  </span>
                   <span>Serviço</span>
                 </div>
-                <div className="h-px w-4 md:w-8 bg-border"></div>
-                <div className={`flex items-center gap-2 ${step >= 2 ? "text-primary" : ""}`}>
-                  <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${step >= 2 ? "border-primary bg-primary/10" : "border-border"}`}>2</span>
+                <div className="h-px w-4 md:w-8 bg-border shrink-0"></div>
+                
+                <div className={`flex items-center gap-2 shrink-0 ${step === 3 ? "text-primary scale-105" : step > 3 ? "text-green-500" : ""}`}>
+                  <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${step === 3 ? "border-primary bg-primary/10" : step > 3 ? "border-green-500 bg-green-500 text-white" : "border-border"}`}>
+                    {step > 3 ? <Check size={14} /> : "3"}
+                  </span>
                   <span>Profissional</span>
                 </div>
-                <div className="h-px w-4 md:w-8 bg-border"></div>
-                <div className={`flex items-center gap-2 ${step >= 3 ? "text-primary" : ""}`}>
-                  <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${step >= 3 ? "border-primary bg-primary/10" : "border-border"}`}>3</span>
+                <div className="h-px w-4 md:w-8 bg-border shrink-0"></div>
+                
+                <div className={`flex items-center gap-2 shrink-0 ${step === 4 ? "text-primary scale-105" : step > 4 ? "text-green-500" : ""}`}>
+                  <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${step === 4 ? "border-primary bg-primary/10" : step > 4 ? "border-green-500 bg-green-500 text-white" : "border-border"}`}>
+                    {step > 4 ? <Check size={14} /> : "4"}
+                  </span>
                   <span>Data/Hora</span>
                 </div>
               </div>
 
+              {/* Step 1: Identification */}
               {step === 1 && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-sm mx-auto text-center">
+                   <div className="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <User size={32} />
+                   </div>
+                   <h3 className="text-2xl font-serif text-foreground mb-2">Identificação</h3>
+                   <p className="text-muted text-sm mb-8">Digite seu WhatsApp para {clientData.name ? 'confirmar seu perfil' : 'começar seu agendamento'}.</p>
+                   
+                   <div className="space-y-4 text-left">
+                      <div>
+                        <label className="text-[10px] uppercase font-black text-primary tracking-widest ml-2 mb-1 block">WhatsApp</label>
+                        <input 
+                          type="tel" 
+                          className="input-field text-center text-lg tracking-widest w-full" 
+                          placeholder="(00) 00000-0000"
+                          value={clientData.phone}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setClientData(prev => ({...prev, phone: val}));
+                            if (val.replace(/\D/g, '').length >= 10) {
+                              api.get(`/api/clients/check/${val.replace(/\D/g, '')}`)
+                                .then(res => {
+                                  if (res.data.exists) {
+                                    setClientData(prev => ({...prev, name: res.data.data.name}));
+                                  }
+                                }).catch(console.error);
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {clientData.phone.replace(/\D/g, '').length >= 10 && (
+                        <div className="animate-in fade-in zoom-in-95 duration-500">
+                          {clientData.name ? (
+                            <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-4">
+                              <p className="text-sm text-primary font-medium">👋 Olá, <span className="font-black">{clientData.name}</span>!</p>
+                              <p className="text-[10px] text-muted uppercase mt-1">Que bom ver você de volta.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <label className="text-[10px] uppercase font-black text-primary tracking-widest ml-2 mb-1 block">Seu Nome Completo</label>
+                              <input 
+                                type="text" 
+                                className="input-field w-full" 
+                                placeholder="Como podemos te chamar?"
+                                value={clientData.name}
+                                onChange={(e) => setClientData(prev => ({...prev, name: e.target.value}))}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                   </div>
+                </div>
+              )}
+
+              {/* Step 2: Service Selection */}
+              {step === 2 && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <h3 className="text-xl md:text-3xl font-serif text-foreground mb-8 text-center lg:text-left">Qual serviço deseja realizar?</h3>
-                  
-                  <div className="space-y-10">
+                  <h3 className="text-2xl font-serif text-foreground mb-6">Escolha o Serviço</h3>
+                  <div className="space-y-10 custom-scrollbar max-h-[500px] overflow-y-auto pr-2">
                     {Object.entries(
                       services.reduce((acc, s) => {
                         const cat = s.category || 'Geral';
@@ -545,12 +618,14 @@ export default function ClientPortal() {
                                 </div>
                               )}
                               <div className="flex justify-between items-start mb-2 pr-8">
-                                <h4 className="text-lg font-serif font-medium text-foreground">{s.name}</h4>
-                                <span className="text-xl font-bold text-primary">R$ {s.price?.toFixed(2) || '0.00'}</span>
+                                <h4 className="text-lg font-serif font-medium text-foreground leading-tight">{s.name}</h4>
+                                <span className="text-xl font-bold text-primary">R$ {Number(s.price).toFixed(2)}</span>
                               </div>
-                              <p className="text-sm text-muted mb-4 italic line-clamp-2">
-                                {s.description}
-                              </p>
+                              {s.description && (
+                                <p className="text-sm text-muted mb-4 italic line-clamp-2">
+                                  {s.description}
+                                </p>
+                              )}
                               <div className="text-muted flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
                                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                                   <Clock size={12} />
@@ -566,29 +641,39 @@ export default function ClientPortal() {
                 </div>
               )}
 
-              {step === 2 && (
+              {/* Step 3: Professional Selection */}
+              {step === 3 && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <h3 className="text-2xl font-serif text-foreground mb-6">Escolha a Profissional</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {professionals.map(p => (
+                  <h3 className="text-2xl font-serif text-foreground mb-6">Escolha o Profissional</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {professionals.map(pro => (
                       <div 
-                        key={p.id} 
-                        className={`p-6 rounded-xl border text-center cursor-pointer transition-all ${selectedPro?.id === p.id ? 'border-primary bg-primary/10' : 'border-border bg-background/50 hover:border-muted'}`}
-                        onClick={() => setSelectedPro(p)}
+                        key={pro.id}
+                        className={`p-6 rounded-2xl border cursor-pointer transition-all relative group ${selectedPro?.id === pro.id ? 'border-primary bg-primary/10 ring-1 ring-primary/20' : 'border-border bg-background/50 hover:border-primary/30'}`}
+                        onClick={() => setSelectedPro(pro)}
                       >
-                        <div className="w-16 h-16 rounded-full bg-border text-foreground flex items-center justify-center text-xl font-bold mx-auto mb-4">
-                          {p.avatar}
+                        <div className="flex flex-col items-center text-center">
+                          <div className={`w-20 h-20 rounded-full mb-4 border-2 flex items-center justify-center text-2xl font-bold transition-all ${selectedPro?.id === pro.id ? 'border-primary bg-primary text-white scale-110 shadow-lg' : 'border-border bg-muted/20 text-muted'}`}>
+                            {pro.avatar || pro.name.charAt(0)}
+                          </div>
+                          <h4 className="text-xl font-serif text-foreground mb-1">{pro.name}</h4>
+                          <p className="text-[10px] text-primary font-bold uppercase tracking-widest">{pro.specialty}</p>
+                          
+                          {selectedPro?.id === pro.id && (
+                            <div className="absolute top-4 right-4 text-primary animate-in zoom-in duration-300">
+                              <CheckCircle2 size={24} />
+                            </div>
+                          )}
                         </div>
-                        <h4 className="text-lg font-medium text-foreground">{p.name}</h4>
-                        <p className="text-muted text-sm">{p.specialty}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {step === 3 && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 grid md:grid-cols-2 gap-10">
+              {/* Step 4: Date & Time Selection */}
+              {step === 4 && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 grid grid-cols-1 lg:grid-cols-2 gap-10">
                   <div>
                     <h3 className="text-lg md:text-xl font-serif text-foreground mb-6">📅 Selecione o Melhor Dia</h3>
                     <div className="space-y-6 max-h-[350px] overflow-y-auto pr-3 custom-scrollbar">
@@ -630,7 +715,7 @@ export default function ClientPortal() {
                        ) : (
                          <div className="col-span-full py-10 text-center opacity-40">
                             <Clock size={32} className="mx-auto mb-2" />
-                            <p className="text-sm">Nenhum horário disponível para este dia.</p>
+                            <p className="text-sm">Nenhum horário disponível.</p>
                          </div>
                        )}
                     </div>
@@ -638,23 +723,8 @@ export default function ClientPortal() {
                 </div>
               )}
 
-              {step === 4 && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-md mx-auto">
-                   <h3 className="text-2xl font-serif text-foreground mb-6 text-center">Seus Dados</h3>
-                   <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-muted mb-1">Nome Completo</label>
-                        <input type="text" className="input-field" value={clientData.name} onChange={(e) => setClientData({...clientData, name: e.target.value})} placeholder="Ex: Maria Clara" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-muted mb-1">Telefone / WhatsApp</label>
-                        <input type="text" className="input-field" value={clientData.phone} onChange={(e) => setClientData({...clientData, phone: e.target.value})} placeholder="(11) 99999-9999" />
-                      </div>
-                   </div>
-                </div>
-              )}
-
-              {step === 5 && (
+              {/* Step 6: Success Screen (Internal use 6 for post-booking) */}
+              {step === 6 && (
                   <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-center py-10">
                     <div className="relative inline-block mb-6">
                       <CheckCircle2 size={64} className="text-green-500" />
@@ -664,57 +734,58 @@ export default function ClientPortal() {
                     </div>
                     <h3 className="text-3xl font-serif text-foreground mb-2">Agendamento Realizado!</h3>
                     <p className="text-muted mb-8 max-w-sm mx-auto">
-                      Estamos processando sua reserva. Seu horário aparecerá no histórico em alguns segundos.
+                      Sua reserva foi confirmada com sucesso em nossa base de dados.
                     </p>
                     
-                    <div className="glass-card p-6 mb-8 inline-block text-left text-foreground border-primary/30 bg-primary/5">
-                       <p className="mb-2"><strong className="text-muted">Serviço:</strong> {selectedService.name}</p>
-                       <p className="mb-2"><strong className="text-muted">Profissional:</strong> {selectedPro.name}</p>
-                       <p className="mb-2"><strong className="text-muted">Data:</strong> {format(selectedDate, "dd 'de' MMMM, yyyy", {locale: ptBR})}</p>
-                       <p><strong className="text-muted">Horário:</strong> {selectedTime}</p>
+                    <div className="bg-primary/5 border border-primary/20 rounded-2xl p-8 mb-8 inline-block text-left text-foreground">
+                       <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Serviço:</strong> {selectedService?.name}</p>
+                       <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Profissional:</strong> {selectedPro?.name}</p>
+                       <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Data:</strong> {selectedDate ? format(selectedDate, "dd 'de' MMMM, yyyy", {locale: ptBR}) : ''}</p>
+                       <p><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Horário:</strong> {selectedTime}</p>
                     </div>
 
                      <div className="flex flex-col gap-3 items-center">
-                       <button onClick={handleWhatsApp} className="btn-primary w-full max-w-sm flex justify-center items-center gap-2 py-4">
+                       <button onClick={handleWhatsApp} className="btn-primary w-full max-w-sm flex justify-center items-center gap-2 py-4 shadow-xl shadow-primary/30">
                          Receber no WhatsApp
                        </button>
-                       <button onClick={() => setStep(0)} className="text-muted hover:text-foreground text-sm font-medium transition-colors border-b border-transparent hover:border-muted">
-                         Voltar para o Início
+                       <button onClick={() => setStep(0)} className="text-muted hover:text-foreground text-sm font-bold uppercase tracking-widest transition-colors mt-4">
+                         Finalizar e Voltar
                        </button>
                      </div>
-                 </div>
+                  </div>
               )}
 
-               {/* Alerta de Erro no Agendamento */}
-               {confirmError && (
-                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
-                   <X size={20} className="text-red-500 shrink-0" />
-                   <p className="text-sm text-red-500 font-medium">{confirmError}</p>
-                   <button onClick={() => setConfirmError(null)} className="ml-auto text-red-400 hover:text-red-600 shrink-0"><X size={16} /></button>
-                 </div>
-               )}
+              {/* Error Alert */}
+              {confirmError && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <X size={20} className="text-red-500 shrink-0" />
+                  <p className="text-sm text-red-500 font-medium">{confirmError}</p>
+                  <button onClick={() => setConfirmError(null)} className="ml-auto text-red-400 hover:text-red-600 shrink-0"><X size={16} /></button>
+                </div>
+              )}
 
-               {/* Controles */}
+              {/* Stepper Controls */}
               {step > 0 && step < 5 && (
-                 <div className="flex justify-between items-center mt-10 pt-6 border-t border-border border-dashed">
-                   <button onClick={handleBack} className="text-muted hover:text-foreground flex items-center gap-2 transition-colors">
-                                          <ArrowLeft size={18} /> Voltar
-                   </button>
-                   <button 
-                     onClick={() => {
-                        if (step === 3 && clientData.name && clientData.phone) {
-                            handleConfirm();
-                        } else {
-                            if (step === 4) handleConfirm();
-                            else handleNext();
-                        }
-                     }} 
-                     disabled={(step === 1 && !selectedService) || (step === 2 && !selectedPro) || (step === 3 && (!selectedDate || !selectedTime)) || (step === 4 && (!clientData.name || !clientData.phone))} 
-                     className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                   >
-                     {(step === 4 || (step === 3 && clientData.name && clientData.phone)) ? 'Confirmar Agendamento' : 'Próximo Passo'} <ChevronRight size={18} />
-                   </button>
-                 </div>
+                <div className="flex justify-between items-center mt-10 pt-6 border-t border-border border-dashed">
+                  <button onClick={handleBack} className="text-muted hover:text-foreground flex items-center gap-2 transition-colors font-bold uppercase tracking-widest text-[10px]">
+                    <ArrowLeft size={18} /> Voltar
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (step === 4) handleConfirm();
+                      else handleNext();
+                    }} 
+                    disabled={
+                      (step === 1 && (!clientData.name || clientData.phone.replace(/\D/g, '').length < 10)) ||
+                      (step === 2 && !selectedService) || 
+                      (step === 3 && !selectedPro) || 
+                      (step === 4 && (!selectedDate || !selectedTime))
+                    } 
+                    className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {step === 4 ? 'Confirmar Agendamento' : 'Próximo Passo'} <ChevronRight size={18} />
+                  </button>
+                </div>
               )}
 
             </div>

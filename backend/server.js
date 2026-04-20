@@ -111,32 +111,36 @@ function validateAppointmentAgainstSchedule({ date, time, duration, schedule }) 
 
 // --- ROTA DE LOGIN ---
 app.post('/api/login', async (req, res) => {
-    const username = String(req.body.username || '').trim();
-    const password = String(req.body.password || '').trim();
+    const rawUsername = String(req.body.username || '').trim();
+    const rawPassword = String(req.body.password || '').trim();
     
-    console.log(`[Tentativa de Login] UsuÃ¡rio: "${username}"`);
+    console.log(`[Tentativa de Login] Usuário: "${rawUsername}"`);
 
+    // Usando ilike para ser insensível a maiúsculas/minúsculas
     const { data, error } = await supabase
         .from('professionals')
-        .select('id, name, role, avatar, username, specialty')
-        .eq('username', username)
-        .eq('password', password)
-        .single();
+        .select('id, name, role, avatar, username, password, specialty, status')
+        .ilike('username', rawUsername)
+        .eq('status', 'ativo')
+        .maybeSingle();
 
     if (error) {
-        console.error('[Login Error]:', error.message);
-        // Se for um erro de autenticaÃ§Ã£o com o Supabase (chave errada), avisamos no log
-        if (error.code === 'PGRST301' || error.message.includes('JWT')) {
-            return res.status(500).json({"error": "Erro de conexÃ£o com o banco (verificar chaves no Vercel)."});
-        }
-        return res.status(401).json({"error": "UsuÃ¡rio ou senha incorretos."});
+        console.error('[Login Error Debug]:', {
+            message: error.message,
+            code: error.code,
+            hint: error.hint
+        });
+        return res.status(500).json({"error": "Erro interno no servidor de banco de dados."});
     }
     
-    if (!data) {
-        return res.status(401).json({"error": "UsuÃ¡rio ou senha incorretos."});
+    if (!data || data.password !== rawPassword) {
+        console.log(`[Login Failed] Usuário "${rawUsername}" não encontrado ou senha incorreta.`);
+        return res.status(401).json({"error": "Usuário ou senha incorretos."});
     }
 
-    res.json({"message": "success", "data": data});
+    // Remove a senha antes de enviar para o cliente
+    const { password, ...userWithoutPassword } = data;
+    res.json({"message": "success", "data": userWithoutPassword });
 });
 
 // --- ROTAS DE SERVIÇOS ---
@@ -243,9 +247,15 @@ app.get('/api/professionals/:id', async (req, res) => {
 });
 
 app.post('/api/professionals', async (req, res) => {
-    const { name, avatar, specialty, username, password } = req.body;
+    const name = String(req.body.name || '').trim();
+    const avatar = String(req.body.avatar || '').trim();
+    const specialty = String(req.body.specialty || '').trim();
+    const username = String(req.body.username || '').trim();
+    const password = String(req.body.password || '').trim();
     
-    // Buscar o maior ID existente para evitar conflito de sequência
+    if (!username || !password) {
+        return res.status(400).json({ "error": "Usuário e senha são obrigatórios." });
+    }
     const { data: maxRow } = await supabase
         .from('professionals')
         .select('id')
@@ -315,6 +325,26 @@ app.delete('/api/professionals/:id', async (req, res) => {
 });
 
 // --- ROTAS DE CLIENTES ---
+app.get('/api/clients/check/:phone', async (req, res) => {
+    const { phone } = req.params;
+    const cleanPhone = phone.replace(/\D/g, "");
+    
+    // Tenta exato ou limpo
+    const { data: client, error } = await supabase
+        .from('clients')
+        .select('*')
+        .or(`phone.eq.${phone},phone.eq.${cleanPhone}`)
+        .maybeSingle();
+
+    if (error) return res.status(400).json({"error": error.message});
+    
+    if (!client) {
+        return res.json({ "message": "new", "exists": false });
+    }
+    
+    res.json({ "message": "found", "exists": true, "data": client });
+});
+
 app.get('/api/clients', async (req, res) => {
     const { data, error } = await supabase.from('clients').select('*').order('name');
     if (error) return res.status(400).json({"error": error.message});
