@@ -30,7 +30,7 @@ export default function ClientPortal() {
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
   const [allSettings, setAllSettings] = useState([]);
-  const [businessName, setBusinessName] = useState('Ateliê Pink');
+  const [businessName, setBusinessName] = useState('Mary Esmalteria');
   const [whatsappTemplate, setWhatsappTemplate] = useState('Olá! Gostaria de confirmar meu agendamento.\n\n*Serviço:* {servico}\n*Profissional:* {profissional}\n*Data:* {data}\n*Horário:* {hora}\n*Nome:* {cliente}');
   const [selectedService, setSelectedService] = useState(null);
   const [selectedPro, setSelectedPro] = useState(null);
@@ -402,7 +402,7 @@ export default function ClientPortal() {
 
       <header className="py-6 px-10 border-b border-border/50 relative z-10 flex justify-between items-center bg-background/80 backdrop-blur">
         <h1 className="text-2xl font-serif text-foreground tracking-widest flex items-center gap-3">
-          <span className="w-8 h-8 rounded bg-primary text-white flex items-center justify-center font-bold">{businessName.charAt(0).toUpperCase()}</span>
+          <img src="/assets/images/logo.png" alt="Mary Esmalteria" className="w-10 h-10 rounded-full object-contain" />
           {businessName}
         </h1>
         <div className="flex items-center gap-4 md:gap-6">
@@ -444,7 +444,7 @@ export default function ClientPortal() {
                 <div className="flex -space-x-3">
                   {[1,2,3,4].map(i => (
                     <div key={i} className="w-10 h-10 rounded-full border-2 border-background bg-muted overflow-hidden">
-                      <div className="w-full h-full bg-primary/10 flex items-center justify-center text-[8px] text-primary">Pic</div>
+                      <img src={`/assets/images/gallery/nail${i}.jpg`} alt="Cliente" className="w-full h-full object-cover" />
                     </div>
                   ))}
                   <div className="w-10 h-10 rounded-full border-2 border-background bg-primary-light flex items-center justify-center text-[10px] font-bold text-primary">+500</div>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Circular border -->
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#E8A0BF" stroke-width="1"/>
+  
+  <!-- ME Monogram -->
+  <text x="100" y="118" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="72" font-weight="bold" fill="#1a1a1a" letter-spacing="-4">ME</text>
+  
+  <!-- Curved text top: mary-esmalteria -->
+  <path id="topArc" d="M 30,100 a 70,70 0 0,1 140,0" fill="none"/>
+  <text font-family="Arial, sans-serif" font-size="9" fill="#333" letter-spacing="3.5" font-weight="500">
+    <textPath href="#topArc" startOffset="50%" text-anchor="middle">MARY - ESMALTERIA</textPath>
+  </text>
+  
+  <!-- Curved text bottom -->
+  <path id="bottomArc" d="M 35,110 a 65,65 0 0,0 130,0" fill="none"/>
+  <text font-family="Arial, sans-serif" font-size="8" fill="#333" letter-spacing="2.5" font-weight="500">
+    <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">DEPILAÇÃO E PEDICURE</textPath>
+  </text>
+  
+  <!-- Desde 2009 -->
+  <text x="100" y="160" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#999" letter-spacing="3" font-weight="400">DESDE 2009</text>
+  
+  <!-- Small hearts -->
+  <text x="28" y="108" font-size="8" fill="#E8A0BF">♥</text>
+  <text x="168" y="108" font-size="8" fill="#E8A0BF">♥</text>
+</svg>

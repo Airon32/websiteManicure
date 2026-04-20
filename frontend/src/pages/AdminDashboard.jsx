@@ -52,7 +52,7 @@ export default function AdminDashboard() {
   const [newService, setNewService] = useState({ name: '', duration: '', price: '', category: '', description: '' });
   const [editingService, setEditingService] = useState(null);
 
-  const [businessName, setBusinessName] = useState('Ateliê Pink');
+  const [businessName, setBusinessName] = useState('Mary Esmalteria');
   const [whatsappMessage, setWhatsappMessage] = useState('');
 
   // Configurações Avançadas
