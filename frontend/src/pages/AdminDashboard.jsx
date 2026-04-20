@@ -47,9 +47,10 @@ export default function AdminDashboard() {
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [newBlock, setNewBlock] = useState({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '', duration: '30', description: '' });
 
-  // Add Service State
+  // Add/Edit Service State
   const [showAddService, setShowAddService] = useState(false);
   const [newService, setNewService] = useState({ name: '', duration: '', price: '', category: '', description: '' });
+  const [editingService, setEditingService] = useState(null);
 
   const [businessName, setBusinessName] = useState('Ateliê Pink');
   const [whatsappMessage, setWhatsappMessage] = useState('');
@@ -306,6 +307,17 @@ export default function AdminDashboard() {
       loadData(user);
     } catch (err) { 
       openModal({ title: 'Falha no Catálogo', message: 'Erro ao registrar serviço. Verifique a conexão.', type: 'error', confirmText: 'Tentar Novamente' });
+    }
+  };
+
+  const handleUpdateService = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/api/services/${editingService.id}`, editingService);
+      setEditingService(null);
+      loadData(user);
+    } catch (err) {
+      openModal({ title: 'Falha na Atualização', message: 'Erro ao salvar alterações. Verifique a conexão.', type: 'error', confirmText: 'Tentar Novamente' });
     }
   };
 
@@ -1083,6 +1095,57 @@ export default function AdminDashboard() {
                           </form>
                         )}
 
+                        {editingService && (
+                          <form onSubmit={handleUpdateService} className="bg-primary/5 border border-primary/20 rounded-2xl p-8 mb-12 animate-in slide-in-from-top-4 duration-300">
+                             <div className="flex items-center justify-between mb-6">
+                               <h3 className="text-2xl font-serif text-primary">Editar Serviço</h3>
+                               <button type="button" onClick={() => setEditingService(null)} className="text-muted hover:text-foreground">
+                                 <X size={24} />
+                               </button>
+                             </div>
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                               <div className="space-y-1">
+                                 <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">Nome</label>
+                                 <input className="input-field" placeholder="Nome do Serviço" type="text" required value={editingService.name} onChange={e => setEditingService({ ...editingService, name: e.target.value })} />
+                               </div>
+                               <div className="space-y-1">
+                                 <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">Categoria</label>
+                                 <select className="input-field" value={editingService.category} onChange={e => setEditingService({ ...editingService, category: e.target.value })}>
+                                   <option value="">Selecione...</option>
+                                   <option value="Manicure">Manicure</option>
+                                   <option value="Pedicure">Pedicure</option>
+                                   <option value="Depilação">Depilação</option>
+                                   <option value="Sobrancelha">Sobrancelha</option>
+                                   <option value="Cílios">Cílios</option>
+                                   <option value="Cabelo">Cabelo</option>
+                                   <option value="Geral">Geral</option>
+                                 </select>
+                               </div>
+                               <div className="space-y-1">
+                                 <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">Minutos</label>
+                                 <input className="input-field" placeholder="Duração" type="number" required value={editingService.duration} onChange={e => setEditingService({ ...editingService, duration: e.target.value })} />
+                               </div>
+                               <div className="space-y-1">
+                                 <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">Preço (R$)</label>
+                                 <input className="input-field" placeholder="Preço" type="number" step="0.01" required value={editingService.price} onChange={e => setEditingService({ ...editingService, price: e.target.value })} />
+                               </div>
+                             </div>
+                             <div className="mb-6">
+                               <label className="block text-xs font-bold text-primary/60 uppercase tracking-widest mb-2 ml-2">Descrição Completa (Vínculo com o Banco)</label>
+                               <textarea 
+                                 className="input-field w-full h-32 resize-none" 
+                                 placeholder="Descreva o que está incluso neste serviço... Esta informação aparecerá no Portal da Cliente." 
+                                 value={editingService.description || ''} 
+                                 onChange={e => setEditingService({ ...editingService, description: e.target.value })}
+                               />
+                             </div>
+                             <div className="flex gap-4">
+                               <button type="submit" className="bg-primary hover:bg-primary-dark text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-primary/20">Salvar Alterações</button>
+                               <button type="button" onClick={() => setEditingService(null)} className="border border-border text-muted font-bold px-6 py-3 rounded-xl hover:bg-muted/10 transition-all">Cancelar</button>
+                             </div>
+                          </form>
+                        )}
+
                         <div className="space-y-10">
                           {Object.entries(
                             services.reduce((acc, srv) => {
@@ -1117,13 +1180,22 @@ export default function AdminDashboard() {
                                     <p className="text-sm text-muted mb-4">{srv.duration} minutos</p>
                                     <p className="text-2xl font-bold text-primary mt-auto">R$ {srv.price.toFixed(2)}</p>
 
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleDeleteService(srv.id); }}
-                                      className="absolute top-4 right-4 text-red-500 bg-red-500/10 hover:bg-red-500/20 p-2 rounded transition-colors z-20 shadow-sm"
-                                      title="Apagar Serviço"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
+                                    <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteService(srv.id); }}
+                                        className="text-red-500 bg-red-500/10 hover:bg-red-500/20 p-2 rounded transition-colors shadow-sm"
+                                        title="Apagar Serviço"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setEditingService({...srv}); }}
+                                        className="text-primary bg-primary/10 hover:bg-primary/20 p-2 rounded transition-colors shadow-sm"
+                                        title="Editar Serviço"
+                                      >
+                                        <Scissors size={16} />
+                                      </button>
+                                    </div>
                                   </div>
                                 ))}
                               </div>

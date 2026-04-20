@@ -182,6 +182,18 @@ app.delete('/api/services/:id', async (req, res) => {
     res.json({ "message": "success" });
 });
 
+app.put('/api/services/:id', async (req, res) => {
+    const { name, duration, price, category, description } = req.body;
+    const { data, error } = await supabase
+        .from('services')
+        .update({ name, duration, price, category, description })
+        .eq('id', req.params.id)
+        .select();
+        
+    if (error) return res.status(400).json({"error": error.message});
+    res.json({ "message": "success", "data": data[0] });
+});
+
 // --- ROTAS DE PROFISSIONAIS ---
 app.get('/api/professionals', async (req, res) => {
     const { data, error } = await supabase

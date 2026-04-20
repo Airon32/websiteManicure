@@ -549,7 +549,7 @@ export default function ClientPortal() {
                                 <span className="text-xl font-bold text-primary">R$ {s.price?.toFixed(2) || '0.00'}</span>
                               </div>
                               <p className="text-sm text-muted mb-4 italic line-clamp-2">
-                                {s.description || 'Experiência exclusiva e personalizada.'}
+                                {s.description}
                               </p>
                               <div className="text-muted flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
                                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -654,6 +654,7 @@ export default function ClientPortal() {
                 </div>
               )}
 
+              {step === 5 && (
                   <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-center py-10">
                     <div className="relative inline-block mb-6">
                       <CheckCircle2 size={64} className="text-green-500" />
