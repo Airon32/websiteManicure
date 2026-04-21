@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* LIGHT MODE (Branco e Minimalista) - Valores RGB puros para suportar opacidade do Tailwind */
+    --color-bg: 255 255 255;
+    --color-card: 250 250 250;
+    --color-border: 229 231 235;
+    --color-text: 31 41 55;
+    --color-muted: 107 114 128;
+  }
+
+  .dark {
+    /* DARK MODE (Carvão) */
+    --color-bg: 15 15 17;
+    --color-card: 26 26 29;
+    --color-border: 45 45 51;
+    --color-text: 243 244 246;
+    --color-muted: 156 163 175;
+  }
+
+  body {
+    background-color: rgb(var(--color-bg));
+    color: rgb(var(--color-text));
+    @apply font-sans antialiased overflow-x-hidden transition-colors duration-300;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background-color: rgb(var(--color-bg));
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--color-border));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary;
+  }
+
+  /* Corrige fundo amarelo do autofill do navegador */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px rgb(var(--color-bg)) inset !important;
+    -webkit-text-fill-color: rgb(var(--color-text)) !important;
+    caret-color: rgb(var(--color-text)) !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-md border border-border shadow-md rounded-2xl transition-colors duration-300;
+  }
+  .btn-primary {
+    @apply bg-primary text-white font-semibold px-6 py-3 rounded-lg shadow-lg shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 transform hover:-translate-y-0.5;
+  }
+  .btn-outline {
+    @apply border border-primary text-primary font-medium px-6 py-3 rounded-lg hover:bg-primary/10 transition-colors duration-300;
+  }
+  .input-field {
+    @apply w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200;
+  }
+}
+
+@layer utilities {
+  .fade-in-up {
+    animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  @keyframes fadeInUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .reveal-img {
+    animation: reveal 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    transform: scale(0.95) translateY(30px);
+  }
+
+  @keyframes reveal {
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .glass-card-no-blur {
+     @apply bg-card border border-border transition-colors duration-300;
+  }
+
+  .bg-grid-pattern {
+    background-image: linear-gradient(to bottom, rgb(var(--color-border)) 1px, transparent 1px);
+    background-size: 100% 80px;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
