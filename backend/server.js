@@ -11,10 +11,7 @@ if (!supabaseUrl || !supabaseKey) {
     console.warn('[SUPABASE] ALERTA: SUPABASE_URL ou SUPABASE_KEY não foram encontradas no process.env!');
 }
 
-const supabaseInstance = createClient(supabaseUrl || '', supabaseKey || '');
-
-// Garantia para o Bundler do Vercel
-const supabase = supabaseInstance.default || supabaseInstance;
+const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 if (typeof supabase.from !== 'function') {
     console.error('[SUPABASE DIAGNOSTIC] Erro Crítico: supabase.from não é uma função!', {
@@ -239,7 +236,7 @@ app.get('/api/professionals/:id', async (req, res) => {
         .eq('id', id)
         .single();
 
-    if (error) return res.status(404).json({ "error": "Profissional nÃ£o encontrado." });
+    if (error) return res.status(404).json({ "error": "Profissional não encontrado." });
 
     try {
         const settingsMap = await loadSettingsMap();
@@ -290,7 +287,7 @@ app.put('/api/professionals/:id', async (req, res) => {
     const password = String(req.body.password || '').trim();
 
     if (!name || !specialty || !avatar || !username) {
-        return res.status(400).json({ "error": "Nome, especialidade, iniciais e usuÃ¡rio sÃ£o obrigatÃ³rios." });
+        return res.status(400).json({ "error": "Nome, especialidade, iniciais e usuário são obrigatórios." });
     }
 
     const { data: existingUsername, error: usernameError } = await supabase
@@ -305,7 +302,7 @@ app.put('/api/professionals/:id', async (req, res) => {
     }
 
     if (existingUsername && existingUsername.length > 0) {
-        return res.status(400).json({ "error": "Este nome de usuÃ¡rio jÃ¡ estÃ¡ em uso." });
+        return res.status(400).json({ "error": "Este nome de usuário já está em uso." });
     }
 
     const updatePayload = { name, specialty, avatar, username };
@@ -757,7 +754,7 @@ app.post('/api/appointments/block', async (req, res) => {
             .select(`
                 time, 
                 notes,
-                services!left(duration)
+                service:services(duration)
             `)
             .eq('professional_id', professional_id)
             .eq('date', date)
@@ -768,8 +765,8 @@ app.post('/api/appointments/block', async (req, res) => {
                 const exStart = timeToMinutes(app.time);
                 
                 let exDuration = 30;
-                if (app.services && app.services.duration) {
-                    exDuration = Number(app.services.duration);
+                if (app.service && app.service.duration) {
+                    exDuration = Number(app.service.duration);
                 } else if (app.notes && typeof app.notes === 'string' && app.notes.startsWith('BLOCK:')) {
                     exDuration = parseInt(app.notes.split(':')[1], 10);
                 }
@@ -786,6 +783,7 @@ app.post('/api/appointments/block', async (req, res) => {
         const { data: insertData, error: insertError } = await supabase.from('appointments').insert([{
             client_name: description ? `Bloqueio: ${description}` : 'Bloqueio de Agenda',
             client_phone: '00000000000',
+            service_id: null,
             professional_id,
             date,
             time,

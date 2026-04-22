@@ -6,9 +6,13 @@ import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOf
 import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey } from '../utils/schedule';
 
-function TimelineView({ selectedDate, appointments, professionals, currentUser, isAdmin, onCancel, workStart, workEnd, slotInterval }) {
-  const dateStr = format(selectedDate, 'yyyy-MM-dd');
+function TimelineView({ selectedDate, setSelectedDate, appointments, professionals, currentUser, isAdmin, onCancel, workStart, workEnd, slotInterval }) {
+  const [timelineMode, setTimelineMode] = useState('dia'); // 'dia' ou 'semana'
+  const [selectedProfId, setSelectedProfId] = useState('all');
+
   const timeSlots = buildTimeSlots(workStart, workEnd, slotInterval);
+  const currentWeekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
+  const weekDays = eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 6) });
   
   // Filtrar profissionais: Eu + quem é público (ou todos se eu for Admin)
   const visibleProfessionals = professionals.filter(p => 
@@ -30,25 +34,84 @@ function TimelineView({ selectedDate, appointments, professionals, currentUser, 
     return ((totalMin - dayStartMin) / Number(slotInterval)) * 80;
   })();
 
+  const columns = timelineMode === 'dia' ? visibleProfessionals : weekDays;
+
   return (
     <div className="glass-card p-0 overflow-hidden border-border/50 shadow-2xl flex flex-col h-[70vh]">
-      {/* Header com Profissionais */}
+      
+      {/* NAVBAR DE CONTROLE DE DIAS */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-3 bg-background border-b border-border">
+        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 w-full md:w-auto">
+          <div className="flex rounded-lg border border-primary overflow-hidden shrink-0">
+            <button onClick={() => setTimelineMode('dia')} className={`px-4 py-1.5 text-sm font-bold transition-colors ${timelineMode === 'dia' ? 'bg-primary text-white' : 'bg-transparent text-primary hover:bg-primary/10'}`}>Dia</button>
+            <button onClick={() => setTimelineMode('semana')} className={`px-4 py-1.5 text-sm font-bold transition-colors ${timelineMode === 'semana' ? 'bg-primary text-white' : 'bg-transparent text-primary hover:bg-primary/10'}`}>Semana</button>
+          </div>
+          <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+            <button onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? -7 : -1))} className="px-3 py-1.5 hover:bg-border/50 text-muted transition-colors"><ChevronLeft size={16}/></button>
+            <button onClick={() => setSelectedDate(startOfToday())} className="px-4 py-1.5 text-sm font-bold hover:bg-border/50 text-foreground transition-colors uppercase tracking-widest">Hoje</button>
+            <button onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? 7 : 1))} className="px-3 py-1.5 hover:bg-border/50 text-muted transition-colors"><ChevronRight size={16}/></button>
+          </div>
+          <div className="p-2 text-primary hidden lg:block">
+            <CalendarIcon size={20} />
+          </div>
+        </div>
+
+        {timelineMode === 'dia' && (
+          <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-full pb-1 md:pb-0 w-full md:w-auto justify-start md:justify-end">
+            {weekDays.map(d => (
+              <button 
+                key={d.toISOString()} 
+                onClick={() => setSelectedDate(d)}
+                className={`px-3 py-1.5 rounded-lg border text-sm transition-all whitespace-nowrap shrink-0 ${isSameDay(d, selectedDate) ? 'bg-primary border-primary text-white font-bold shadow-md shadow-primary/20 scale-105' : 'border-border bg-background/50 hover:border-primary/50 text-muted font-medium hover:text-foreground'}`}
+              >
+                {format(d, 'EEE, dd/MM', {locale: ptBR})}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {timelineMode === 'semana' && isAdmin && (
+          <select 
+            className="input-field py-1.5 text-sm min-w-[200px] w-full md:w-auto" 
+            value={selectedProfId} 
+            onChange={e => setSelectedProfId(e.target.value)}
+          >
+            <option value="all">Toda a Equipe (Visão Geral)</option>
+            {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Header com Colunas */}
       <div className="flex bg-muted/30 border-b border-border sticky top-0 z-20">
-        <div className="w-20 flex-shrink-0 border-r border-border bg-background/50 backdrop-blur flex items-center justify-center text-[10px] font-bold text-muted uppercase tracking-widest">
+        <div className="w-16 md:w-20 flex-shrink-0 border-r border-border bg-background/50 backdrop-blur flex items-center justify-center text-[10px] font-bold text-muted uppercase tracking-widest">
           Hora
         </div>
-        <div className="flex flex-1 overflow-x-auto no-scrollbar">
-          {visibleProfessionals.map(p => (
-            <div key={p.id} className="min-w-[200px] flex-1 border-r border-border/50 py-4 px-3 flex items-center gap-3 bg-background/20 backdrop-blur">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
-                {p.avatar}
+        <div className="flex flex-1 overflow-x-auto no-scrollbar snap-x snap-mandatory">
+          {columns.map((col, idx) => {
+            const isDia = timelineMode === 'dia';
+            const key = isDia ? col.id : col.toISOString();
+            return (
+              <div key={key} className="min-w-[160px] md:min-w-[200px] snap-start flex-1 border-r border-border/50 py-3 px-3 flex items-center justify-center gap-3 bg-background/20 backdrop-blur">
+                {isDia ? (
+                  <>
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                      {col.avatar}
+                    </div>
+                    <div className="overflow-hidden text-left w-full">
+                      <p className="text-sm font-bold text-foreground truncate">{col.name}</p>
+                      <p className="text-[10px] text-muted truncate">{col.specialty}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className={`text-center w-full ${isSameDay(col, startOfToday()) ? 'text-primary' : 'text-foreground'}`}>
+                    <p className="text-xs uppercase font-bold tracking-wider">{format(col, 'EEEE', {locale: ptBR})}</p>
+                    <p className="text-sm font-medium opacity-80">{format(col, 'dd/MM', {locale: ptBR})}</p>
+                  </div>
+                )}
               </div>
-              <div className="overflow-hidden">
-                <p className="text-sm font-bold text-foreground truncate">{p.name}</p>
-                <p className="text-[10px] text-muted truncate">{p.specialty}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -56,18 +119,18 @@ function TimelineView({ selectedDate, appointments, professionals, currentUser, 
       <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-background/30">
         <div className="flex relative min-h-full">
           {/* Coluna de Horas */}
-          <div className="w-20 flex-shrink-0 border-r border-border bg-background/50 sticky left-0 z-10">
+          <div className="w-16 md:w-20 flex-shrink-0 border-r border-border bg-background/50 sticky left-0 z-10">
             {timeSlots.map(slot => (
               <div key={slot} className="h-20 border-b border-border/30 flex items-start justify-center pt-2">
-                <span className="text-[11px] font-bold text-muted/60">{slot}</span>
+                <span className="text-[10px] md:text-[11px] font-bold text-muted/60">{slot}</span>
               </div>
             ))}
           </div>
 
           {/* Colunas de Agendamentos */}
-          <div className="flex flex-1 overflow-x-auto no-scrollbar relative">
+          <div className="flex flex-1 overflow-x-auto no-scrollbar relative snap-x snap-mandatory">
             {/* Linha de Tempo Atual */}
-            {isToday && currentTimeTop >= 0 && (
+            {((timelineMode === 'dia' && isToday) || (timelineMode === 'semana' && weekDays.some(d => isSameDay(d, now)))) && currentTimeTop >= 0 && (
               <div 
                 className="absolute left-0 right-0 z-30 pointer-events-none flex items-center"
                 style={{ top: `${currentTimeTop}px` }}
@@ -77,44 +140,76 @@ function TimelineView({ selectedDate, appointments, professionals, currentUser, 
               </div>
             )}
 
-            {visibleProfessionals.map(p => {
-              const proApps = appointments.filter(a => a.date === dateStr && String(a.professional_id) === String(p.id));
+            {columns.map((col, idx) => {
+              const isDia = timelineMode === 'dia';
+              const key = isDia ? col.id : col.toISOString();
+              
+              const colApps = appointments.filter(a => {
+                if (isDia) {
+                  return a.date === format(selectedDate, 'yyyy-MM-dd') && String(a.professional_id) === String(col.id);
+                } else {
+                  if (a.date !== format(col, 'yyyy-MM-dd')) return false;
+                  const profTarget = !isAdmin ? currentUser.id : selectedProfId;
+                  if (profTarget !== 'all' && String(a.professional_id) !== String(profTarget)) return false;
+                  if (profTarget === 'all' && !visibleProfessionals.some(p => String(p.id) === String(a.professional_id))) return false;
+                  return true;
+                }
+              });
+
+              const sortedApps = [...colApps].sort((a,b) => a.time.localeCompare(b.time));
               
               return (
-                <div key={p.id} className="min-w-[200px] flex-1 border-r border-border/30 relative bg-grid-pattern">
+                <div key={key} className="min-w-[160px] md:min-w-[200px] snap-start flex-1 border-r border-border/30 relative bg-grid-pattern">
                   {timeSlots.map(slot => (
                     <div key={slot} className="h-20 border-b border-border/10"></div>
                   ))}
                   
-                  {/* Cards de Agendamento Posicionados */}
-                  {proApps.map(app => {
-                    const startMin = app.time.split(':').reduce((h, m) => h * 60 + Number(m));
-                    const dayStartMin = workStart.split(':').reduce((h, m) => h * 60 + Number(m));
-                    const top = ((startMin - dayStartMin) / Number(slotInterval)) * 80; // 80px é a altura de um slot
+                  {/* Cards de Agendamento */}
+                  {sortedApps.map(app => {
+                    const [h, m] = app.time.split(':').map(Number);
+                    const startMin = h * 60 + m;
+                    const [dh, dm] = workStart.split(':').map(Number);
+                    const dayStartMin = dh * 60 + dm;
+                    const top = ((startMin - dayStartMin) / Number(slotInterval)) * 80;
                     const height = (Number(app.service_duration || 30) / Number(slotInterval)) * 80;
                     const isBlock = app.notes?.startsWith('BLOCK:');
+
+                    const totalOverlaps = sortedApps.filter(a => a.time === app.time).length;
+                    const overlappingIndex = sortedApps.filter(a => a.time === app.time).findIndex(a => a.id === app.id);
+                    
+                    const widthCalc = totalOverlaps > 1 ? `calc(${100 / totalOverlaps}% - 8px)` : 'auto';
+                    const leftCalc = totalOverlaps > 1 ? `calc(${(100 / totalOverlaps) * overlappingIndex}% + 4px)` : '4px';
+                    const rightCalc = totalOverlaps > 1 ? 'auto' : '4px';
 
                     return (
                       <div 
                         key={app.id}
-                        className={`absolute left-1 right-1 rounded-xl p-2.5 shadow-lg border-l-4 transition-all hover:z-10 cursor-pointer overflow-hidden ${
+                        className={`absolute rounded-xl p-1.5 md:p-2.5 shadow-lg border-l-4 transition-all hover:z-50 cursor-pointer overflow-hidden ${
                           isBlock 
                           ? 'bg-orange-500/10 border-orange-500 text-orange-700' 
-                          : 'bg-primary/10 border-primary text-primary-foreground shadow-primary/10'
+                          : 'bg-primary/10 border-primary text-primary-foreground shadow-primary/10 hover:bg-primary hover:text-white group'
                         }`}
-                        style={{ top: `${top}px`, height: `${height - 4}px` }}
+                        style={{ top: `${top}px`, height: `${height - 4}px`, width: widthCalc, left: leftCalc, right: rightCalc }}
                       >
-                        <div className="flex flex-col h-full">
+                        <div className="flex flex-col h-full relative">
                           <div className="flex justify-between items-start gap-1">
-                            <span className="text-[10px] font-black opacity-60 bg-background/40 px-1.5 rounded uppercase">{app.time}</span>
+                            <span className={`text-[9px] md:text-[10px] font-black uppercase rounded px-1 ${isBlock ? 'opacity-60 bg-background/40' : 'bg-primary/20 text-primary group-hover:bg-white/20 group-hover:text-white'}`}>
+                              {app.time}
+                            </span>
                             {!isBlock && (
-                              <button onClick={(e) => { e.stopPropagation(); onCancel(app.id); }} className="text-red-500 hover:bg-red-500/20 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={(e) => { e.stopPropagation(); onCancel(app.id); }} className="text-red-500 hover:bg-red-500/20 group-hover:text-white group-hover:hover:bg-white/30 p-1 rounded-md opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 <X size={12} />
                               </button>
                             )}
                           </div>
-                          <p className="text-xs font-bold mt-1.5 truncate text-foreground">{app.client_name}</p>
-                          <p className="text-[10px] opacity-70 truncate font-medium">{app.service_name}</p>
+                          <p className="text-[10px] md:text-xs font-bold mt-1 md:mt-1.5 truncate text-foreground group-hover:text-white">{app.client_name}</p>
+                          <p className="text-[9px] md:text-[10px] opacity-70 truncate font-medium group-hover:text-white">{app.service_name}</p>
+                          
+                          {!isDia && isAdmin && selectedProfId === 'all' && !isBlock && (
+                            <div className="absolute bottom-0 right-0 bg-background/80 group-hover:bg-black/20 text-[8px] font-bold px-1 rounded-sm backdrop-blur truncate max-w-[60px] text-foreground group-hover:text-white">
+                              {app.professional_name}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -187,6 +282,7 @@ export default function AdminDashboard() {
   const [allowOnlineBooking, setAllowOnlineBooking] = useState(true);
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' ou 'timeline'
   const [isPublicAgenda, setIsPublicAgenda] = useState(false);
+
   const [maxAdvanceDays, setMaxAdvanceDays] = useState('60');
   const [profileForm, setProfileForm] = useState({
     name: '',
@@ -308,6 +404,7 @@ export default function AdminDashboard() {
         setSlotInterval(professionalSchedule.slotInterval);
         setWorkDays(professionalSchedule.workDays);
         setIsPublicAgenda(professionalSchedule.is_public_agenda || false);
+
       }
 
       const bName = incomingSettings.find(s => s.key === 'business_name');
@@ -473,7 +570,7 @@ export default function AdminDashboard() {
   };
 
   const handleAddAppt = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     try {
       if (newAppt.service_ids.length === 0) {
         openModal({ title: 'Atenção', message: 'Por favor, selecione pelo menos um serviço.', type: 'info' });
@@ -637,6 +734,7 @@ export default function AdminDashboard() {
         { key: getProfessionalSettingKey(user.id, 'slot_interval'), value: String(slotInterval) },
         { key: getProfessionalSettingKey(user.id, 'work_days'), value: JSON.stringify(workDays) },
         { key: getProfessionalSettingKey(user.id, 'is_public_agenda'), value: String(isPublicAgenda) }
+
       ];
 
       const [res] = await Promise.all([
@@ -882,87 +980,137 @@ export default function AdminDashboard() {
         <div className="p-8">
 
           {showAddAppt && (
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 mb-8 slide-in-from-top-4 animate-in duration-300">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-serif text-foreground">Novo Agendamento Presencial/Telefone</h3>
-                <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground"><X size={20} /></button>
-              </div>
-              <form onSubmit={handleAddAppt} className="grid grid-cols-1 md:grid-cols-3 gap-4 relative">
-                <div className="relative">
-                  <input 
-                    className="input-field w-full" 
-                    placeholder="Nome do Cliente" 
-                    value={newAppt.client_name} 
-                    onChange={e => setNewAppt({ ...newAppt, client_name: e.target.value })} 
-                    onFocus={() => setShowSuggestions(filteredClients.length > 0)}
-                    required 
-                  />
-                  {showSuggestions && (
-                    <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border shadow-xl rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                      {filteredClients.map(c => (
-                        <div 
-                          key={c.id} 
-                          className="p-3 hover:bg-primary/10 cursor-pointer flex justify-between items-center transition-colors border-b border-border last:border-0"
-                          onClick={() => selectSuggestedClient(c)}
-                        >
-                          <div>
-                            <p className="text-foreground font-medium text-sm">{c.name}</p>
-                            <p className="text-muted text-xs">{c.phone}</p>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+              <div className="bg-card border border-primary/20 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="flex justify-between items-center p-6 border-b border-border/50 bg-muted/10 shrink-0">
+                  <h3 className="text-xl font-serif text-foreground">Novo Agendamento</h3>
+                  <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground hover:bg-muted/20 p-2 rounded-full transition-colors"><X size={20} /></button>
+                </div>
+                
+                <form onSubmit={handleAddAppt} className="flex flex-col md:flex-row flex-1 overflow-hidden">
+                  {/* Esquerda: Cliente e Serviços (Com Scroll) */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6 border-b md:border-b-0 md:border-r border-border/50 space-y-6">
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="relative">
+                        <input 
+                          className="input-field w-full" 
+                          placeholder="Nome do Cliente" 
+                          value={newAppt.client_name} 
+                          onChange={e => setNewAppt({ ...newAppt, client_name: e.target.value })} 
+                          onFocus={() => setShowSuggestions(filteredClients.length > 0)}
+                          required 
+                        />
+                        {showSuggestions && (
+                          <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border shadow-xl rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                            {filteredClients.map(c => (
+                              <div 
+                                key={c.id} 
+                                className="p-3 hover:bg-primary/10 cursor-pointer flex justify-between items-center transition-colors border-b border-border last:border-0"
+                                onClick={() => selectSuggestedClient(c)}
+                              >
+                                <div>
+                                  <p className="text-foreground font-medium text-sm">{c.name}</p>
+                                  <p className="text-muted text-xs">{c.phone}</p>
+                                </div>
+                                <Plus size={14} className="text-primary" />
+                              </div>
+                            ))}
                           </div>
-                          <Plus size={14} className="text-primary" />
-                        </div>
-                      ))}
+                        )}
+                      </div>
+                      <input className="input-field" placeholder="Telefone" value={newAppt.client_phone} onChange={e => setNewAppt({ ...newAppt, client_phone: e.target.value })} required />
                     </div>
-                  )}
-                </div>
-                <input className="input-field" placeholder="Telefone" value={newAppt.client_phone} onChange={e => setNewAppt({ ...newAppt, client_phone: e.target.value })} required />
-                <div className="md:col-span-3 border border-border/50 rounded-xl p-4 bg-background/50">
-                  <p className="text-xs font-bold text-primary uppercase tracking-widest mb-3">Serviços Selecionados</p>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {services.map(s => {
-                      const isSelected = newAppt.service_ids.includes(s.id);
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setNewAppt(prev => ({ ...prev, service_ids: prev.service_ids.filter(id => id !== s.id) }));
-                            } else {
-                              setNewAppt(prev => ({ ...prev, service_ids: [...prev.service_ids, s.id] }));
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-muted/10 text-muted border-border hover:border-primary/50'}`}
-                        >
-                          {s.name} (R$ {s.price})
-                        </button>
-                      );
-                    })}
+
+                    <div>
+                      <p className="text-sm font-bold text-primary uppercase tracking-widest mb-4">Serviços</p>
+                      <div className="space-y-6">
+                        {Object.entries(
+                          services.reduce((acc, s) => {
+                            const cat = s.category || 'Geral';
+                            if (!acc[cat]) acc[cat] = [];
+                            acc[cat].push(s);
+                            return acc;
+                          }, {})
+                        ).map(([category, catServices]) => (
+                          <div key={category}>
+                            <div className="flex items-center gap-3 mb-3">
+                              <h4 className="text-xs font-bold uppercase text-muted bg-muted/10 px-2 py-1 rounded">{category}</h4>
+                              <div className="h-px flex-1 bg-border/40"></div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {catServices.map(s => {
+                                const isSelected = newAppt.service_ids.includes(s.id);
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setNewAppt(prev => ({ ...prev, service_ids: prev.service_ids.filter(id => id !== s.id) }));
+                                      } else {
+                                        setNewAppt(prev => ({ ...prev, service_ids: [...prev.service_ids, s.id] }));
+                                      }
+                                    }}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isSelected ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-105' : 'bg-background text-muted border-border hover:border-primary/50'}`}
+                                  >
+                                    {s.name} (R$ {s.price})
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  {newAppt.service_ids.length > 0 && (
-                    <div className="text-xs text-muted flex justify-between pt-2 border-t border-border/30">
-                      <span>Total: {newAppt.service_ids.length} serviços</span>
-                      <span className="font-bold text-primary">
-                        R$ {services.filter(s => newAppt.service_ids.includes(s.id)).reduce((acc, curr) => acc + (Number(curr.price) || 0), 0).toFixed(2)}
-                      </span>
+
+                  {/* Direita: Data, Horário e Resumo (Fixo) */}
+                  <div className="w-full md:w-80 bg-muted/5 p-6 flex flex-col gap-6 shrink-0 overflow-y-auto">
+                    <div className="space-y-4">
+                      {isAdmin && (
+                        <div>
+                          <label className="text-xs font-medium text-muted block mb-1">Profissional</label>
+                          <select className="input-field w-full" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
+                            <option value="" disabled>Selecione</option>
+                            {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs font-medium text-muted block mb-1">Data</label>
+                        <input type="date" className="input-field w-full" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} min={format(subYears(startOfToday(), 1), 'yyyy-MM-dd')} max={format(addYears(startOfToday(), 1), 'yyyy-MM-dd')} required />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted block mb-1">Horário</label>
+                        <select className="input-field w-full" value={newAppt.time} onChange={e => setNewAppt({ ...newAppt, time: e.target.value })} required>
+                          <option value="" disabled>Selecione</option>
+                          {appointmentTimeSlots.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
                     </div>
-                  )}
-                </div>
-                {isAdmin && (
-                  <select className="input-field" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
-                    <option value="" disabled>Profissional Designado</option>
-                    {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                )}
-                <input type="date" className="input-field" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} min={format(subYears(startOfToday(), 1), 'yyyy-MM-dd')} max={format(addYears(startOfToday(), 1), 'yyyy-MM-dd')} required />
-                <select className="input-field" value={newAppt.time} onChange={e => setNewAppt({ ...newAppt, time: e.target.value })} required>
-                  <option value="" disabled>Horário</option>
-                  {appointmentTimeSlots.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <div className="md:col-span-3 flex justify-end mt-4">
-                  <button type="submit" className="btn-primary">Marcar na Agenda</button>
-                </div>
-              </form>
+
+                    <div className="mt-auto pt-6">
+                      <div className="bg-background border border-border/50 rounded-xl p-4 mb-4">
+                        <p className="text-xs text-muted mb-2">Resumo da Reserva</p>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium text-foreground">{newAppt.service_ids.length} serviços</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-border/30 mt-2">
+                          <span className="text-xs font-bold text-muted uppercase">Total</span>
+                          <span className="text-lg font-bold text-primary">
+                            R$ {services.filter(s => newAppt.service_ids.includes(s.id)).reduce((acc, curr) => acc + (Number(curr.price) || 0), 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <button type="submit" className="btn-primary w-full py-3 text-sm flex justify-center items-center gap-2">
+                        <CalendarIcon size={16} /> Marcar na Agenda
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
@@ -1136,8 +1284,8 @@ export default function AdminDashboard() {
                       </div>
                     </>
                )}
-                  </div>
-                )}
+            </div>
+          )}
 
 
                 {activeTab === 'agenda' && (
@@ -1161,6 +1309,7 @@ export default function AdminDashboard() {
 
                       {viewMode === 'calendar' ? (
                         <div className="flex flex-col xl:flex-row gap-8 items-start">
+
 
                         <div className="glass-card p-4 md:p-6 flex-2 xl:w-2/3 w-full">
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -1245,6 +1394,7 @@ export default function AdminDashboard() {
                     ) : (
                       <TimelineView 
                         selectedDate={selectedCalendarDate} 
+                        setSelectedDate={setSelectedCalendarDate}
                         appointments={activeAppointments}
                         professionals={professionals}
                         currentUser={user}
@@ -1257,6 +1407,7 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 )}
+
 
                   {activeTab === 'catalog' && isAdmin && (
                     <div className="fade-in-up duration-500">
@@ -1380,7 +1531,7 @@ export default function AdminDashboard() {
                                       {srv.description || 'Sem descrição cadastrada.'}
                                     </p>
                                     <p className="text-sm text-muted mb-4">{srv.duration} minutos</p>
-                                    <p className="text-2xl font-bold text-primary mt-auto">R$ {srv.price.toFixed(2)}</p>
+                                    <p className="text-2xl font-bold text-primary mt-auto">R$ {Number(srv.price).toFixed(2)}</p>
 
                                     <div className="absolute top-4 right-4 flex flex-col gap-2 z-20">
                                       <button
@@ -1522,7 +1673,8 @@ export default function AdminDashboard() {
                       <div className="flex justify-between items-center mb-6">
                         <h3 className="text-2xl font-serif text-foreground">Base de Clientes</h3>
                       </div>
-                      <table className="w-full text-left border-collapse">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse min-w-[500px]">
                         <thead>
                           <tr className="border-b border-border/50 text-muted text-sm capitalize">
                             <th className="py-3 px-4 font-medium">Nome</th>
@@ -1558,6 +1710,7 @@ export default function AdminDashboard() {
                           )}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   )}
 

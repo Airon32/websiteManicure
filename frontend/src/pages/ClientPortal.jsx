@@ -389,7 +389,7 @@ export default function ClientPortal() {
                                              <span className="font-medium">{app.professional_name}</span>
                                           </div>
                                           <div className="text-primary font-bold text-sm">
-                                             R$ {app.service_price?.toFixed(2) || '0.00'}
+                                             R$ {Number(app.service_price || 0).toFixed(2)}
                                           </div>
                                        </div>
                                     </div>

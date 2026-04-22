@@ -15,7 +15,8 @@ export default {
         muted: 'rgb(var(--color-muted) / <alpha-value>)',
         primary: {
           DEFAULT: '#F472B6', 
-          hover: '#EC4899',   
+          hover: '#EC4899',
+          dark: '#DB2777',
           light: '#FBCFE8'    
         }
       },

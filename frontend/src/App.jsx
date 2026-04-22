@@ -13,7 +13,7 @@ function PrivateRoute({ children }) {
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-premium-dark flex flex-col">
+      <div className="min-h-screen bg-background flex flex-col">
         <Routes>
           <Route path="/" element={<ClientPortal />} />
           <Route path="/login" element={<Login />} />

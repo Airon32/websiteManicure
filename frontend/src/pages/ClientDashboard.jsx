@@ -80,7 +80,8 @@ const ClientDashboard = () => {
       return;
     }
     fetchAppointments();
-  }, [clientData, navigate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientData?.phone, navigate]);
 
   const fetchAppointments = async () => {
     try {
