@@ -24,10 +24,11 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
   const currentWeekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
   const weekDays = eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 6) });
   
-  // Filtrar profissionais: Eu + quem é público (ou todos se eu for Admin)
-  const visibleProfessionals = professionals.filter(p => 
-    isAdmin || p.id === currentUser.id || p.is_public_agenda
-  );
+  const visibleProfessionals = professionals.filter(p => {
+    const isSocio = p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio');
+    if (isSocio) return false;
+    return isAdmin || p.id === currentUser.id || p.is_public_agenda;
+  });
 
   const [now, setNow] = useState(new Date());
 
@@ -41,223 +42,231 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
     const totalMin = now.getHours() * 60 + now.getMinutes();
     const [startH, startM] = (workStart || '09:00').split(':').map(Number);
     const dayStartMin = startH * 60 + startM;
-    return ((totalMin - dayStartMin) / Number(slotInterval)) * 80;
+    const slotHeight = 64; // Reduzido de 80 para 64 para menos zoom no mobile
+    return ((totalMin - dayStartMin) / Number(slotInterval)) * slotHeight;
   })();
 
   const columns = timelineMode === 'dia' ? visibleProfessionals : weekDays;
 
   return (
-    <div className="glass-card p-0 overflow-hidden border-border/50 shadow-2xl flex flex-col min-h-[calc(100vh-150px)] h-fit mb-20">
+    <div className="md:glass-card md:rounded-[2.5rem] p-0 md:overflow-hidden border-white/5 md:shadow-2xl flex flex-col h-[calc(100vh-140px)] md:h-fit md:min-h-[70vh] mb-0 md:mb-20 bg-background md:bg-transparent">
       
-      {/* NAVBAR DE CONTROLE DE DIAS */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-3 bg-background border-b border-border">
-        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 w-full md:w-auto">
-          <div className="flex rounded-lg border border-primary overflow-hidden shrink-0 scale-90 md:scale-100">
-            <button onClick={() => setTimelineMode('dia')} className={`px-4 py-1.5 text-xs md:text-sm font-bold transition-colors ${timelineMode === 'dia' ? 'bg-primary text-white' : 'bg-transparent text-primary hover:bg-primary/10'}`}>Dia</button>
-            <button onClick={() => setTimelineMode('semana')} className={`px-4 py-1.5 text-xs md:text-sm font-bold transition-colors ${timelineMode === 'semana' ? 'bg-primary text-white' : 'bg-transparent text-primary hover:bg-primary/10'}`}>Semana</button>
+      {/* NAVBAR DE CONTROLE DE DIAS - PREMIUM MOBILE REDESIGN */}
+      <div className="flex flex-col items-center gap-2 p-2 md:p-5 bg-card/30 border-b border-white/5 relative z-30 shrink-0">
+        <div className="flex items-center justify-between w-full gap-2">
+          <div className="flex bg-background/50 p-1 rounded-lg md:rounded-2xl border border-white/5 flex-1">
+            <button 
+              onClick={() => setTimelineMode('dia')} 
+              className={`flex-1 py-2 md:px-6 md:py-2.5 rounded-md md:rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all ${timelineMode === 'dia' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
+            >
+              Dia
+            </button>
+            <button 
+              onClick={() => setTimelineMode('semana')} 
+              className={`flex-1 py-2 md:px-6 md:py-2.5 rounded-md md:rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all ${timelineMode === 'semana' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
+            >
+              Semana
+            </button>
           </div>
-          <div className="flex rounded-lg border border-border overflow-hidden shrink-0 scale-90 md:scale-100">
-            <button onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? -7 : -1))} className="px-3 py-1.5 hover:bg-border/50 text-muted transition-colors"><ChevronLeft size={16}/></button>
-            <button onClick={() => setSelectedDate(startOfToday())} className="px-4 py-1.5 text-xs md:text-sm font-bold hover:bg-border/50 text-foreground transition-colors uppercase tracking-widest">Hoje</button>
-            <button onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? 7 : 1))} className="px-3 py-1.5 hover:bg-border/50 text-muted transition-colors"><ChevronRight size={16}/></button>
-          </div>
-          <div className="p-2 text-primary hidden lg:block">
-            <CalendarIcon size={20} />
+          
+          <div className="flex items-center gap-1 md:gap-2">
+            <button 
+              onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? -7 : -1))} 
+              className="p-2 md:p-2.5 rounded-lg md:rounded-xl bg-background/50 border border-white/5 text-muted hover:text-primary transition-colors"
+            >
+              <ChevronLeft size={14}/>
+            </button>
+            <button 
+              onClick={() => setSelectedDate(startOfToday())} 
+              className="px-2 py-2 md:px-5 md:py-2.5 rounded-lg md:rounded-xl bg-background/50 border border-white/5 text-[8px] md:text-[10px] font-black uppercase tracking-widest text-foreground hover:bg-primary/10 transition-colors"
+            >
+              Hoje
+            </button>
+            <button 
+              onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? 7 : 1))} 
+              className="p-2 md:p-2.5 rounded-lg md:rounded-xl bg-background/50 border border-white/5 text-muted hover:text-primary transition-colors"
+            >
+              <ChevronRight size={14}/>
+            </button>
           </div>
         </div>
 
         {timelineMode === 'dia' && (
-          <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-full pb-1 md:pb-0 w-full md:w-auto justify-start md:justify-end">
+          <div className="flex gap-1 overflow-x-auto no-scrollbar w-full py-0.5">
             {weekDays.map(d => (
               <button 
                 key={d.toISOString()} 
                 onClick={() => setSelectedDate(d)}
-                className={`px-3 py-1.5 rounded-lg border text-sm transition-all whitespace-nowrap shrink-0 ${isSameDay(d, selectedDate) ? 'bg-primary border-primary text-white font-bold shadow-md shadow-primary/20 scale-105' : 'border-border bg-background/50 hover:border-primary/50 text-muted font-medium hover:text-foreground'}`}
+                className={`px-2 py-1.5 md:px-5 md:py-3 rounded-lg md:rounded-2xl border transition-all whitespace-nowrap shrink-0 flex flex-col items-center min-w-[50px] md:min-w-[70px] ${isSameDay(d, selectedDate) ? 'bg-primary/20 border-primary text-primary font-black scale-105' : 'border-white/5 bg-card/20 text-muted font-bold'}`}
               >
-                {format(d, 'EEE, dd/MM', {locale: ptBR})}
+                <span className="opacity-60 uppercase text-[6px] md:text-[8px] mb-0.5">{format(d, 'EEE', {locale: ptBR})}</span>
+                <span className="text-[10px] md:text-sm">{format(d, 'dd/MM')}</span>
               </button>
             ))}
           </div>
         )}
 
         {timelineMode === 'semana' && isAdmin && (
-          <select 
-            className="input-field py-1.5 text-sm min-w-[200px] w-full md:w-auto" 
-            value={selectedProfId} 
-            onChange={e => setSelectedProfId(e.target.value)}
-          >
-            <option value="all">Toda a Equipe (Visão Geral)</option>
-            {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <div className="w-full">
+            <select 
+              className="input-field py-2.5 text-xs font-bold uppercase tracking-wider" 
+              value={selectedProfId} 
+              onChange={e => setSelectedProfId(e.target.value)}
+            >
+              <option value="all">Toda a Equipe</option>
+              {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio'))).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
         )}
       </div>
 
-      {/* Header com Colunas */}
-      <div className="flex bg-muted/30 border-b border-border sticky top-0 z-20">
-        <div className="w-16 md:w-20 flex-shrink-0 border-r border-border bg-background/50 backdrop-blur flex items-center justify-center text-[10px] font-bold text-muted uppercase tracking-widest">
-          Hora
-        </div>
-        <div className="flex flex-1 overflow-x-auto no-scrollbar snap-x snap-mandatory">
-          {columns.map((col, idx) => {
-            const isDia = timelineMode === 'dia';
-            const key = isDia ? col.id : col.toISOString();
-            return (
-              <div key={key} className="min-w-[280px] md:min-w-[200px] snap-start flex-1 border-r border-border/50 py-3 px-3 flex items-center justify-center gap-3 bg-background/20 backdrop-blur">
-                {isDia ? (
-                  <>
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                      {col.avatar}
-                    </div>
-                    <div className="overflow-hidden text-left w-full">
-                      <p className="text-sm font-bold text-foreground truncate">{col.name}</p>
-                      <p className="text-[10px] text-muted truncate">{col.specialty}</p>
-                    </div>
-                  </>
-                ) : (
-                  <div className={`text-center w-full ${isSameDay(col, startOfToday()) ? 'text-primary' : 'text-foreground'}`}>
-                    <p className="text-xs uppercase font-bold tracking-wider">{format(col, 'EEEE', {locale: ptBR})}</p>
-                    <p className="text-sm font-medium opacity-80">{format(col, 'dd/MM', {locale: ptBR})}</p>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Grid de Horários */}
-      <div className="overflow-x-hidden bg-background/30 relative">
-        <div className="flex relative min-h-full">
-          {/* Coluna de Horas */}
-          <div className="w-16 md:w-20 flex-shrink-0 border-r border-border bg-background/50 sticky left-0 z-10">
-            {timeSlots.map(slot => (
-              <div key={slot} className="h-20 border-b border-border/30 flex items-start justify-center pt-2">
-                <span className="text-[10px] md:text-[11px] font-bold text-muted/60">{slot}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Colunas de Agendamentos */}
-          <div className="flex flex-1 overflow-x-auto no-scrollbar relative snap-x snap-mandatory">
-            {/* Linha de Tempo Atual */}
-            {((timelineMode === 'dia' && isToday) || (timelineMode === 'semana' && weekDays.some(d => isSameDay(d, now)))) && currentTimeTop >= 0 && (
-              <div 
-                className="absolute left-0 right-0 z-30 pointer-events-none flex items-center"
-                style={{ top: `${currentTimeTop}px` }}
-              >
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] -ml-[5px] z-40"></div>
-                <div className="flex-1 h-[2px] bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.4)]"></div>
-              </div>
-            )}
-
+      {/* Grid com Sticky Header e Sticky Column - ESTILO APP NATIVO */}
+      <div className="flex-1 overflow-auto relative no-scrollbar">
+        <div className="inline-flex flex-col min-w-full">
+          
+          {/* Header de Colunas (Profissionais/Dias) */}
+          <div className="flex sticky top-0 z-40 bg-card/90 backdrop-blur-xl border-b border-white/5">
+            <div className="w-12 md:w-20 flex-shrink-0 border-r border-white/5 bg-background/95 flex items-center justify-center text-[8px] md:text-[9px] font-black text-primary uppercase tracking-[0.2em] sticky left-0 z-50">
+              Hora
+            </div>
             {columns.map((col, idx) => {
               const isDia = timelineMode === 'dia';
               const key = isDia ? col.id : col.toISOString();
-              
-              const colApps = appointments.filter(a => {
-                if (isDia) {
-                  return a.date === format(selectedDate, 'yyyy-MM-dd') && String(a.professional_id) === String(col.id);
-                } else {
-                  if (a.date !== format(col, 'yyyy-MM-dd')) return false;
-                  const profTarget = !isAdmin ? currentUser.id : selectedProfId;
-                  if (profTarget !== 'all' && String(a.professional_id) !== String(profTarget)) return false;
-                  if (profTarget === 'all' && !visibleProfessionals.some(p => String(p.id) === String(a.professional_id))) return false;
-                  return true;
-                }
-              });
-
-              const sortedApps = [...colApps].sort((a,b) => a.time.localeCompare(b.time));
-              
               return (
-                <div key={key} className="min-w-[280px] md:min-w-[200px] snap-start flex-1 border-r border-border/30 relative bg-grid-pattern">
-                  {timeSlots.map(slot => (
-                    <div 
-                      key={slot} 
-                      className="h-20 border-b border-border/10"
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const appId = e.dataTransfer.getData('appId');
-                        if (appId && onDropAppt) onDropAppt(appId, slot, col, timelineMode);
-                      }}
-                    ></div>
-                  ))}
-                  
-                  {/* Cards de Agendamento */}
-                  {sortedApps.map(app => {
-                    const [h, m] = app.time.split(':').map(Number);
-                    const startMin = h * 60 + m;
-                    const [dh, dm] = workStart.split(':').map(Number);
-                    const dayStartMin = dh * 60 + dm;
-                    const top = ((startMin - dayStartMin) / Number(slotInterval)) * 80;
-                    const height = (Number(app.service_duration || 30) / Number(slotInterval)) * 80;
-                    const isBlock = app.notes?.startsWith('BLOCK:');
-
-                    const totalOverlaps = sortedApps.filter(a => a.time === app.time).length;
-                    const overlappingIndex = sortedApps.filter(a => a.time === app.time).findIndex(a => a.id === app.id);
-                    
-                    const widthCalc = totalOverlaps > 1 ? `calc(${100 / totalOverlaps}% - 8px)` : 'auto';
-                    const leftCalc = totalOverlaps > 1 ? `calc(${(100 / totalOverlaps) * overlappingIndex}% + 4px)` : '4px';
-                    const rightCalc = totalOverlaps > 1 ? 'auto' : '4px';
-
-                    return (
-                      <div 
-                        key={app.id}
-                        draggable
-                        onDragStart={(e) => { e.dataTransfer.setData('appId', app.id); }}
-                        onClick={(e) => { e.stopPropagation(); if (onSelectAppt) onSelectAppt(app); }}
-                        className={`absolute rounded-xl p-1.5 md:p-2.5 shadow-lg border-l-4 transition-all hover:z-50 cursor-pointer overflow-hidden ${
-                          isBlock 
-                          ? 'bg-orange-500/10 border-orange-500 text-orange-700' 
-                          : app.status === 'concluído'
-                          ? 'bg-green-500/10 border-green-500 text-green-700 shadow-green-500/10 hover:bg-green-500 hover:text-white group'
-                          : app.status === 'confirmado'
-                          ? 'bg-blue-500/10 border-blue-500 text-blue-700 shadow-blue-500/10 hover:bg-blue-500 hover:text-white group'
-                          : 'bg-primary/10 border-primary text-primary-foreground shadow-primary/10 hover:bg-primary hover:text-white group'
-                        }`}
-                        style={{ top: `${top}px`, height: `${height - 4}px`, width: widthCalc, left: leftCalc, right: rightCalc }}
-                      >
-                        <div className="flex flex-col h-full relative">
-                          <div className="flex justify-between items-start gap-1">
-                            <span className={`text-[9px] md:text-[10px] font-black uppercase rounded px-1 ${
-                                isBlock ? 'opacity-60 bg-background/40' : 
-                                app.status === 'concluído' ? 'bg-green-500/20 text-green-700 group-hover:bg-white/20 group-hover:text-white' :
-                                app.status === 'confirmado' ? 'bg-blue-500/20 text-blue-700 group-hover:bg-white/20 group-hover:text-white' :
-                                'bg-primary/20 text-primary group-hover:bg-white/20 group-hover:text-white'
-                              }`}>
-                              {app.time} - {calculateEndTime(app.time, app.service_duration)}
-                            </span>
-                            {!isBlock && app.status !== 'concluído' && (
-                              <div className="flex gap-0.5 opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                <button onClick={(e) => { e.stopPropagation(); onComplete(app.id); }} className="text-green-500 hover:bg-green-500/20 group-hover:text-white group-hover:hover:bg-white/30 p-1 rounded-md" title="Concluir">
-                                  <CheckCircle size={12} />
-                                </button>
-                                <button onClick={(e) => { e.stopPropagation(); onCancel(app.id); }} className="text-red-500 hover:bg-red-500/20 group-hover:text-white group-hover:hover:bg-white/30 p-1 rounded-md" title="Cancelar">
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            )}
-                            {!isBlock && app.status === 'concluído' && (
-                              <div className="opacity-100 p-1 text-green-500 group-hover:text-white" title="Pago/Concluído">
-                                <CheckCircle size={12} />
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-[10px] md:text-xs font-bold mt-1 md:mt-1.5 truncate text-foreground group-hover:text-white">{app.client_name}</p>
-                          <p className="text-[9px] md:text-[10px] opacity-70 truncate font-medium group-hover:text-white">{app.service_name}</p>
-                          
-                          {!isDia && isAdmin && selectedProfId === 'all' && !isBlock && (
-                            <div className="absolute bottom-0 right-0 bg-background/80 group-hover:bg-black/20 text-[8px] font-bold px-1 rounded-sm backdrop-blur truncate max-w-[60px] text-foreground group-hover:text-white">
-                              {app.professional_name}
-                            </div>
-                          )}
-                        </div>
+                <div key={key} className="min-w-[240px] md:min-w-[220px] flex-1 border-r border-white/5 py-3 md:py-4 px-3 md:px-4 flex items-center gap-3 md:gap-4 bg-background/20">
+                  {isDia ? (
+                    <>
+                      <div className="w-8 h-8 md:w-11 md:h-11 rounded-lg md:rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white flex items-center justify-center font-black text-[10px] md:text-sm shadow-lg glow-primary shrink-0">
+                        {col.avatar}
                       </div>
-                    );
-                  })}
+                      <div className="overflow-hidden text-left">
+                        <p className="text-[10px] md:text-sm font-black text-foreground truncate uppercase tracking-wide">{col.name}</p>
+                        <p className="text-[8px] md:text-[10px] text-primary/60 font-bold truncate uppercase">{col.specialty}</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className={`text-left w-full flex items-center gap-2 md:gap-3 ${isSameDay(col, startOfToday()) ? 'text-primary' : 'text-foreground'}`}>
+                      <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-2xl flex items-center justify-center font-black text-xs md:text-sm border-2 ${isSameDay(col, startOfToday()) ? 'bg-primary text-white border-primary shadow-lg glow-primary' : 'bg-card/50 border-white/10 text-muted'}`}>
+                        {format(col, 'dd')}
+                      </div>
+                      <div>
+                        <p className="text-[8px] md:text-[10px] uppercase font-black tracking-widest opacity-60">{format(col, 'EEE', {locale: ptBR})}</p>
+                        <p className="text-[10px] md:text-sm font-black uppercase">{format(col, 'MMM', {locale: ptBR})}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
+          </div>
+
+          {/* Corpo da Grid */}
+          <div className="flex relative">
+            {/* Coluna de Horas Sticky */}
+            <div className="w-12 md:w-20 flex-shrink-0 border-r border-white/5 bg-background/95 sticky left-0 z-30">
+              {timeSlots.map(slot => (
+                <div key={slot} className="h-16 md:h-20 border-b border-white/5 flex items-start justify-center pt-2 md:pt-3 bg-background/80">
+                  <span className="text-[9px] md:text-[10px] font-black text-foreground tracking-tighter bg-primary/10 px-1 rounded shadow-sm">{slot}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Grid de Agendamentos */}
+            <div className="flex flex-1 relative">
+               {/* Linha de Tempo Atual */}
+               {((timelineMode === 'dia' && isToday) || (timelineMode === 'semana' && weekDays.some(d => isSameDay(d, now)))) && currentTimeTop >= 0 && (
+                <div 
+                  className="absolute left-0 right-0 z-30 pointer-events-none flex items-center"
+                  style={{ top: `${currentTimeTop}px` }}
+                >
+                  <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_15px_rgba(244,114,182,0.8)] -ml-[4px] z-40 border-2 border-white"></div>
+                  <div className="flex-1 h-[2px] bg-gradient-to-r from-primary to-transparent opacity-50"></div>
+                </div>
+              )}
+
+              {columns.map((col, idx) => {
+                const isDia = timelineMode === 'dia';
+                const key = isDia ? col.id : col.toISOString();
+                
+                const colApps = appointments.filter(a => {
+                  if (isDia) {
+                    return a.date === format(selectedDate, 'yyyy-MM-dd') && String(a.professional_id) === String(col.id);
+                  } else {
+                    if (a.date !== format(col, 'yyyy-MM-dd')) return false;
+                    const profTarget = !isAdmin ? currentUser.id : selectedProfId;
+                    if (profTarget !== 'all' && String(a.professional_id) !== String(profTarget)) return false;
+                    if (profTarget === 'all' && !visibleProfessionals.some(p => String(p.id) === String(a.professional_id))) return false;
+                    return true;
+                  }
+                });
+
+                const sortedApps = [...colApps].sort((a,b) => a.time.localeCompare(b.time));
+                
+                return (
+                  <div key={key} className="min-w-[240px] md:min-w-[220px] flex-1 border-r border-white/5 relative bg-grid-pattern opacity-80" style={{ backgroundSize: '100% 64px' }}>
+                    {timeSlots.map(slot => (
+                      <div 
+                        key={slot} 
+                        className="h-16 md:h-20 border-b border-white/5"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const appId = e.dataTransfer.getData('appId');
+                          if (appId && onDropAppt) onDropAppt(appId, slot, col, timelineMode);
+                        }}
+                      ></div>
+                    ))}
+                    
+                    {sortedApps.map(app => {
+                      const [h, m] = app.time.split(':').map(Number);
+                      const startMin = h * 60 + m;
+                      const [dh, dm] = workStart.split(':').map(Number);
+                      const dayStartMin = dh * 60 + dm;
+                      const slotHeight = 64; 
+                      const top = ((startMin - dayStartMin) / Number(slotInterval)) * slotHeight;
+                      const height = (Number(app.service_duration || 30) / Number(slotInterval)) * slotHeight;
+                      const isBlock = app.notes?.startsWith('BLOCK:');
+
+                      const totalOverlaps = sortedApps.filter(a => a.time === app.time).length;
+                      const overlappingIndex = sortedApps.filter(a => a.time === app.time).findIndex(a => a.id === app.id);
+                      
+                      const widthCalc = totalOverlaps > 1 ? `calc(${100 / totalOverlaps}% - 12px)` : 'auto';
+                      const leftCalc = totalOverlaps > 1 ? `calc(${(100 / totalOverlaps) * overlappingIndex}% + 6px)` : '6px';
+                      const rightCalc = totalOverlaps > 1 ? 'auto' : '6px';
+
+                      return (
+                        <div 
+                          key={app.id}
+                          draggable
+                          onDragStart={(e) => { e.dataTransfer.setData('appId', app.id); }}
+                          onClick={(e) => { e.stopPropagation(); if (onSelectAppt) onSelectAppt(app); }}
+                          className={`absolute rounded-xl p-2 shadow-xl border-l-4 transition-all hover:scale-[1.02] hover:z-50 cursor-pointer overflow-hidden backdrop-blur-md ${
+                            isBlock 
+                            ? 'bg-orange-500/10 border-orange-500 text-orange-200' 
+                            : app.status === 'concluído'
+                            ? 'bg-green-500/10 border-green-500 text-green-200 shadow-green-500/5' 
+                            : app.status === 'confirmado'
+                            ? 'bg-blue-500/10 border-blue-500 text-blue-200 shadow-blue-500/5' 
+                            : 'bg-primary/20 border-primary text-white shadow-primary/20'
+                          }`}
+                          style={{ top: `${top + 4}px`, height: `${height - 8}px`, width: widthCalc, left: leftCalc, right: rightCalc }}
+                        >
+                          <div className="flex flex-col h-full relative">
+                            <div className="flex justify-between items-start gap-1 mb-0.5">
+                              <span className={`text-[8px] font-black uppercase rounded px-1.5 py-0.5 bg-white/10 backdrop-blur-md`}>
+                                {app.time}
+                              </span>
+                            </div>
+                            <p className="text-[9px] md:text-xs font-black uppercase tracking-tight truncate leading-tight mb-0.5">{app.client_name}</p>
+                            <p className="text-[7px] md:text-[10px] opacity-60 font-bold truncate uppercase">{app.service_name}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -1203,235 +1212,267 @@ export default function AdminDashboard() {
         />
       )}
 
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 lg:static w-64 border-r border-border bg-card flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-6 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-white font-bold">G</div>
-            <span className="text-foreground font-serif tracking-wider text-xl">Gestão</span>
+      {/* Sidebar - PREMIUM REDESIGN */}
+      <aside className={`fixed inset-y-0 left-0 lg:static w-72 border-r border-white/5 bg-card flex flex-col z-50 transform transition-transform duration-500 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="p-8 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-black shadow-lg glow-primary">M</div>
+            <span className="text-foreground font-serif tracking-widest text-2xl font-black italic">MARY</span>
           </div>
-          <button className="lg:hidden text-muted hover:text-foreground" onClick={() => setIsMobileMenuOpen(false)}>
-            <X size={24} />
+          <button className="lg:hidden text-muted hover:text-foreground p-2 rounded-xl bg-background/50 border border-white/5" onClick={() => setIsMobileMenuOpen(false)}>
+            <X size={20} />
           </button>
         </div>
 
         {/* User Card */}
-        <div className="p-4 border-b border-border bg-background/50 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary-light/50 text-primary flex items-center justify-center font-bold">{user.avatar}</div>
+        <div className="p-6 border-b border-white/5 bg-background/30 backdrop-blur-md flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-primary/20 border-2 border-primary/50 text-primary flex items-center justify-center font-black shadow-lg">{user.avatar}</div>
           <div className="overflow-hidden">
-            <div className="text-foreground font-medium truncate">{user.name}</div>
-            <div className="text-xs text-primary uppercase font-semibold">{user.role}</div>
+            <div className="text-foreground font-black uppercase text-sm truncate tracking-wide">{user.name}</div>
+            <div className="text-[10px] text-primary/70 uppercase font-black tracking-[0.2em]">{user.role}</div>
           </div>
         </div>
 
-        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 py-8 px-4 space-y-3 overflow-y-auto custom-scrollbar">
           <SidebarItem icon={LayoutDashboard} label="Dashboard" id="dashboard" />
           <SidebarItem icon={CalendarIcon} label="Super Agenda" id="agenda" />
-          <SidebarItem icon={Users} label="Base de Clientes" id="clients" />
-          <SidebarItem icon={Scissors} label="Catálogo de Serviços" id="catalog" adminOnly={true} />
+          <SidebarItem icon={Users} label="Clientes" id="clients" />
+          <SidebarItem icon={Scissors} label="Serviços" id="catalog" adminOnly={true} />
           <SidebarItem icon={Briefcase} label="Gestão & RH" id="staff" adminOnly={true} />
           <SidebarItem icon={Activity} label="Desempenho" id="stats" adminOnly={true} />
           <SidebarItem icon={Settings} label="Configurações" id="settings" />
         </nav>
-        <div className="p-4 border-t border-border text-center">
-          <button onClick={handleLogout} className="text-muted hover:text-red-400 flex items-center justify-center gap-2 w-full p-2 transition-colors">
-            <LogOut size={16} /> Encerrar Sessão
+        
+        <div className="p-6 border-t border-white/5">
+          <button onClick={handleLogout} className="text-muted/60 hover:text-red-400 flex items-center justify-center gap-3 w-full p-4 rounded-2xl bg-red-500/5 hover:bg-red-500/10 transition-all font-black uppercase text-[10px] tracking-widest">
+            <LogOut size={14} /> Encerrar Sessão
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-y-auto relative bg-background w-full">
-        <header className="h-16 border-b border-border flex items-center justify-between px-4 lg:px-8 bg-background/80 backdrop-blur sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <button className="lg:hidden text-muted hover:text-foreground p-1" onClick={() => setIsMobileMenuOpen(true)}>
-              <Menu size={24} />
+        <header className="h-16 md:h-20 border-b border-white/5 flex items-center justify-between px-4 md:px-10 bg-background/60 backdrop-blur-2xl sticky top-0 z-40">
+          <div className="flex items-center gap-3 md:gap-4">
+            <button className="lg:hidden text-muted hover:text-primary p-2 rounded-xl bg-card/50 border border-white/5 transition-all" onClick={() => setIsMobileMenuOpen(true)}>
+              <Menu size={20} />
             </button>
-            <h2 className="text-lg lg:text-xl font-serif text-foreground truncate max-w-[150px] sm:max-w-xs">{getPageTitle()}</h2>
+            <h2 className="text-sm md:text-2xl font-black text-foreground truncate uppercase tracking-widest hidden sm:block">{getPageTitle()}</h2>
           </div>
-          <div className="flex items-center gap-2 lg:gap-4 truncate">
-            <button onClick={() => setIsDark(!isDark)} className="text-muted hover:text-foreground transition-colors p-2 rounded-full hover:bg-border/50">
-              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+          
+          <div className="flex items-center gap-2 md:gap-3">
+            <button onClick={() => setIsDark(!isDark)} className="text-muted hover:text-primary transition-all p-2 md:p-3 rounded-xl md:rounded-2xl bg-card/50 border border-white/5">
+              {isDark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <button onClick={() => { setShowBlockModal(true); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-secondary py-1.5 px-3 lg:px-4 text-sm flex items-center gap-2 border border-border">
-              <Lock size={16} /> <span className="hidden sm:inline">Fechar Horário</span>
-            </button>
-            <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary py-1.5 px-3 lg:px-4 text-sm flex items-center gap-2">
-              {showAddAppt ? <X size={16} /> : <Plus size={16} />} <span className="hidden sm:inline">Marcar Cliente</span>
-            </button>
+            
+            <div className="h-6 md:h-8 w-px bg-white/5 mx-1 hidden sm:block"></div>
+
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <button onClick={() => { setShowBlockModal(true); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-500 hover:bg-orange-500 hover:text-white transition-all shadow-lg shadow-orange-500/5" title="Fechar Horário">
+                <Lock size={16} />
+              </button>
+              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary !p-2 md:!p-3 !px-4 md:!px-5 !rounded-xl md:!rounded-2xl !text-[10px] md:!text-sm glow-primary">
+                {showAddAppt ? <X size={18} /> : <Plus size={18} />}
+                <span className="hidden md:inline ml-1 uppercase font-black tracking-widest">Marcar</span>
+              </button>
+            </div>
           </div>
         </header>
 
-        <div className="p-4 md:p-8">
+        <div className={`${activeTab === 'agenda' ? 'p-0' : 'p-4 md:p-8'}`}>
 
           {showAddAppt && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <div className="bg-card border border-primary/20 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-                <div className="flex justify-between items-center p-6 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent shrink-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
-                      <Plus size={24} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 animate-in fade-in duration-300">
+              <div className="bg-card border border-primary/20 rounded-xl md:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="flex justify-between items-center p-4 md:p-6 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent shrink-0">
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
+                      <Plus size={20} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-serif text-foreground">Novo Agendamento</h3>
-                      <p className="text-xs text-muted">Preencha os dados para reservar o horário</p>
+                      <h3 className="text-base md:text-xl font-serif text-foreground">Novo Agendamento</h3>
+                      <p className="text-[10px] text-muted">Preencha os dados abaixo</p>
                     </div>
                   </div>
-                  <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground hover:bg-muted/20 p-2 rounded-full transition-colors"><X size={20} /></button>
+                  <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground hover:bg-muted/20 p-1.5 md:p-2 rounded-full transition-colors"><X size={18} /></button>
                 </div>
                 
-                <form onSubmit={handleAddAppt} className="flex flex-col md:flex-row flex-1 overflow-hidden">
-                  {/* Esquerda: Cliente e Serviços (Com Scroll) */}
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6 border-b md:border-b-0 md:border-r border-border/50 space-y-6">
-                    
-                    {noShowCount >= 2 && (
-                      <div className="bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-lg flex items-start gap-3 fade-in-up">
-                        <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={20} />
-                        <div>
-                          <p className="text-sm text-red-500 font-bold mb-1">ALERTA DE HISTÓRICO (ANTI-CALOTE)</p>
-                          <p className="text-xs text-red-500/80 font-medium">
-                            Este cliente possui <strong>{noShowCount} cancelamentos</strong> registrados. Sugerimos solicitar um sinal via PIX para confirmar este horário.
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                <form onSubmit={handleAddAppt} className="flex flex-col flex-1 overflow-hidden relative">
+                  {/* Área Rolável */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-28 md:pb-32">
+                    <div className="flex flex-col md:flex-row gap-6">
+                      
+                      {/* Esquerda: Cliente e Serviços */}
+                      <div className="flex-1 space-y-4 md:space-y-6">
+                        {noShowCount >= 2 && (
+                          <div className="bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-lg flex items-start gap-3 fade-in-up">
+                            <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={20} />
+                            <div>
+                              <p className="text-sm text-red-500 font-bold mb-1">ALERTA DE HISTÓRICO (ANTI-CALOTE)</p>
+                              <p className="text-xs text-red-500/80 font-medium">
+                                Este cliente possui <strong>{noShowCount} cancelamentos</strong> registrados. Sugerimos solicitar um sinal via PIX para confirmar este horário.
+                              </p>
+                            </div>
+                          </div>
+                        )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="relative">
-                        <input 
-                          className="input-field w-full" 
-                          placeholder="Nome do Cliente" 
-                          value={newAppt.client_name} 
-                          onChange={e => setNewAppt({ ...newAppt, client_name: e.target.value })} 
-                          onFocus={() => setShowSuggestions(filteredClients.length > 0)}
-                          required 
-                        />
-                        {showSuggestions && (
-                          <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border shadow-xl rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-                            {filteredClients.map(c => (
-                              <div 
-                                key={c.id} 
-                                className="p-3 hover:bg-primary/10 cursor-pointer flex justify-between items-center transition-colors border-b border-border last:border-0"
-                                onClick={() => selectSuggestedClient(c)}
-                              >
-                                <div>
-                                  <p className="text-foreground font-medium text-sm">{c.name}</p>
-                                  <p className="text-muted text-xs">{c.phone}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="relative">
+                            <input 
+                              className="input-field w-full" 
+                              placeholder="Nome do Cliente" 
+                              value={newAppt.client_name} 
+                              onChange={e => setNewAppt({ ...newAppt, client_name: e.target.value })} 
+                              onFocus={() => setShowSuggestions(filteredClients.length > 0)}
+                              required 
+                            />
+                            {showSuggestions && (
+                              <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border shadow-xl rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                                {filteredClients.map(c => (
+                                  <div 
+                                    key={c.id} 
+                                    className="p-3 hover:bg-primary/10 cursor-pointer flex justify-between items-center transition-colors border-b border-border last:border-0"
+                                    onClick={() => selectSuggestedClient(c)}
+                                  >
+                                    <div>
+                                      <p className="text-foreground font-medium text-sm">{c.name}</p>
+                                      <p className="text-muted text-xs">{c.phone}</p>
+                                    </div>
+                                    <Plus size={14} className="text-primary" />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <input className="input-field" placeholder="Telefone" value={newAppt.client_phone} onChange={e => setNewAppt({ ...newAppt, client_phone: e.target.value })} required />
+                        </div>
+
+                        {/* Campos de Data/Hora (No mobile, movemos para cima dos serviços para melhor fluxo) */}
+                        <div className="grid grid-cols-1 md:hidden gap-4 bg-muted/5 p-4 rounded-xl border border-border/30">
+                           {isAdmin && (
+                            <div>
+                              <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Profissional</label>
+                              <select className="input-field w-full text-sm" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
+                                <option value="" disabled>Selecione</option>
+                                {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio'))).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Data</label>
+                              <input type="date" className="input-field w-full text-sm" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} min={format(subYears(startOfToday(), 1), 'yyyy-MM-dd')} max={format(addYears(startOfToday(), 1), 'yyyy-MM-dd')} required />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Horário</label>
+                              <select className="input-field w-full text-sm" value={newAppt.time} onChange={e => setNewAppt({ ...newAppt, time: e.target.value })} required>
+                                <option value="" disabled>Selecione</option>
+                                {appointmentTimeSlots.map(t => {
+                                  const duration = services
+                                    .filter(s => newAppt.service_ids.includes(s.id))
+                                    .reduce((acc, curr) => acc + (Number(curr.duration) || 30), 0);
+                                  return <option key={t} value={t}>{t} - {calculateEndTime(t, duration)}</option>
+                                })}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-bold text-primary uppercase tracking-widest mb-3 md:mb-4">Serviços</p>
+                          <div className="space-y-4 md:space-y-6">
+                            {Object.entries(
+                              services.reduce((acc, s) => {
+                                const cat = s.category || 'Geral';
+                                if (!acc[cat]) acc[cat] = [];
+                                acc[cat].push(s);
+                                return acc;
+                              }, {})
+                            ).map(([category, catServices]) => (
+                              <div key={category} className="bg-muted/5 p-3 md:p-4 rounded-xl md:rounded-2xl border border-border/30 hover:border-primary/20 transition-colors">
+                                <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
+                                  <div className="w-1 h-4 md:w-1.5 md:h-6 bg-primary rounded-full"></div>
+                                  <h4 className="text-[10px] md:text-xs font-black uppercase text-foreground tracking-tighter">{category}</h4>
+                                  <div className="h-px flex-1 bg-border/40"></div>
                                 </div>
-                                <Plus size={14} className="text-primary" />
+                                <div className="flex flex-wrap gap-2">
+                                  {catServices.map(s => {
+                                    const isSelected = newAppt.service_ids.includes(s.id);
+                                    return (
+                                      <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => {
+                                          if (isSelected) {
+                                            setNewAppt(prev => ({ ...prev, service_ids: prev.service_ids.filter(id => id !== s.id) }));
+                                          } else {
+                                            setNewAppt(prev => ({ ...prev, service_ids: [...prev.service_ids, s.id] }));
+                                          }
+                                        }}
+                                        className={`px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold border transition-all duration-300 ${isSelected ? 'bg-primary text-white border-primary shadow-[0_5px_15px_rgba(236,72,153,0.3)] scale-105' : 'bg-background text-muted border-border hover:border-primary/50 hover:text-foreground'}`}
+                                      >
+                                        <span className="flex items-center gap-1.5 md:gap-2">
+                                          {s.name}
+                                          <span className={`px-1.5 py-0.5 rounded-md text-[9px] md:text-[10px] ${isSelected ? 'bg-white/20' : 'bg-muted/10'}`}>R$ {s.price}</span>
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             ))}
                           </div>
-                        )}
+                        </div>
                       </div>
-                      <input className="input-field" placeholder="Telefone" value={newAppt.client_phone} onChange={e => setNewAppt({ ...newAppt, client_phone: e.target.value })} required />
-                    </div>
 
-                    <div>
-                      <p className="text-sm font-bold text-primary uppercase tracking-widest mb-4">Serviços</p>
-                      <div className="space-y-6">
-                        {Object.entries(
-                          services.reduce((acc, s) => {
-                            const cat = s.category || 'Geral';
-                            if (!acc[cat]) acc[cat] = [];
-                            acc[cat].push(s);
-                            return acc;
-                          }, {})
-                        ).map(([category, catServices]) => (
-                          <div key={category} className="bg-muted/5 p-4 rounded-2xl border border-border/30 hover:border-primary/20 transition-colors">
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="w-1.5 h-6 bg-primary rounded-full"></div>
-                              <h4 className="text-xs font-black uppercase text-foreground tracking-tighter">{category}</h4>
-                              <div className="h-px flex-1 bg-border/40"></div>
+                      {/* Direita: Data, Horário e Resumo (Escondido no mobile, mostrado no Desktop) */}
+                      <div className="hidden md:flex w-full md:w-80 bg-muted/5 p-4 md:p-6 flex-col gap-4 md:gap-6 shrink-0 rounded-2xl border border-border/30 h-fit">
+                        <div className="space-y-4">
+                          {isAdmin && (
+                            <div>
+                              <label className="text-[10px] md:text-xs font-bold text-primary uppercase tracking-widest block mb-1">Profissional</label>
+                              <select className="input-field w-full" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
+                                <option value="" disabled>Selecione</option>
+                                {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio'))).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                              {catServices.map(s => {
-                                const isSelected = newAppt.service_ids.includes(s.id);
-                                return (
-                                  <button
-                                    key={s.id}
-                                    type="button"
-                                    onClick={() => {
-                                      if (isSelected) {
-                                        setNewAppt(prev => ({ ...prev, service_ids: prev.service_ids.filter(id => id !== s.id) }));
-                                      } else {
-                                        setNewAppt(prev => ({ ...prev, service_ids: [...prev.service_ids, s.id] }));
-                                      }
-                                    }}
-                                    className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all duration-300 ${isSelected ? 'bg-primary text-white border-primary shadow-[0_5px_15px_rgba(236,72,153,0.3)] scale-105' : 'bg-background text-muted border-border hover:border-primary/50 hover:text-foreground'}`}
-                                  >
-                                    <span className="flex items-center gap-2">
-                                      {s.name}
-                                      <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${isSelected ? 'bg-white/20' : 'bg-muted/10'}`}>R$ {s.price}</span>
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                          )}
+                          <div>
+                            <label className="text-[10px] md:text-xs font-bold text-primary uppercase tracking-widest block mb-1">Data</label>
+                            <input type="date" className="input-field w-full" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} min={format(subYears(startOfToday(), 1), 'yyyy-MM-dd')} max={format(addYears(startOfToday(), 1), 'yyyy-MM-dd')} required />
                           </div>
-                        ))}
+                          <div>
+                            <label className="text-[10px] md:text-xs font-bold text-primary uppercase tracking-widest block mb-1">Horário</label>
+                            <select className="input-field w-full" value={newAppt.time} onChange={e => setNewAppt({ ...newAppt, time: e.target.value })} required>
+                              <option value="" disabled>Selecione</option>
+                              {appointmentTimeSlots.map(t => {
+                                const duration = services
+                                  .filter(s => newAppt.service_ids.includes(s.id))
+                                  .reduce((acc, curr) => acc + (Number(curr.duration) || 30), 0);
+                                return <option key={t} value={t}>{t} - {calculateEndTime(t, duration)}</option>
+                              })}
+                            </select>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Direita: Data, Horário e Resumo (Fixo) */}
-                  <div className="w-full md:w-80 bg-muted/5 p-6 flex flex-col gap-6 shrink-0 overflow-y-auto">
-                    <div className="space-y-4">
-                      {isAdmin && (
-                        <div>
-                          <label className="text-xs font-medium text-muted block mb-1">Profissional</label>
-                          <select className="input-field w-full" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
-                            <option value="" disabled>Selecione</option>
-                            {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                        </div>
-                      )}
-                      <div>
-                        <label className="text-xs font-medium text-muted block mb-1">Data</label>
-                        <input type="date" className="input-field w-full" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} min={format(subYears(startOfToday(), 1), 'yyyy-MM-dd')} max={format(addYears(startOfToday(), 1), 'yyyy-MM-dd')} required />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-muted block mb-1">Horário</label>
-                        <select className="input-field w-full" value={newAppt.time} onChange={e => setNewAppt({ ...newAppt, time: e.target.value })} required>
-                          <option value="" disabled>Selecione</option>
-                          {appointmentTimeSlots.map(t => {
-                            const duration = services
-                              .filter(s => newAppt.service_ids.includes(s.id))
-                              .reduce((acc, curr) => acc + (Number(curr.duration) || 30), 0);
-                            return <option key={t} value={t}>{t} - {calculateEndTime(t, duration)}</option>
-                          })}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="mt-auto pt-6">
-                      <div className="bg-background/50 backdrop-blur border border-primary/20 rounded-2xl p-5 mb-4 shadow-xl">
-                        <div className="flex items-center gap-2 mb-4">
-                          <FileText size={16} className="text-primary" />
-                          <p className="text-xs font-bold text-muted uppercase tracking-widest">Resumo da Reserva</p>
-                        </div>
-                        
-                        <div className="space-y-2 mb-4">
-                          {services.filter(s => newAppt.service_ids.includes(s.id)).map(s => (
-                            <div key={s.id} className="flex justify-between items-center text-xs">
-                              <span className="text-muted">{s.name}</span>
-                              <span className="font-medium">R$ {s.price}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="pt-4 border-t border-border/50">
-                          <div className="flex justify-between items-center">
-                            <span className="text-xs font-black text-muted uppercase">Total</span>
-                            <span className="text-2xl font-serif font-bold text-primary">
-                              R$ {services.filter(s => newAppt.service_ids.includes(s.id)).reduce((acc, curr) => acc + (Number(curr.price) || 0), 0).toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
+                  {/* Footer Fixo: Resumo e Botão Marcar */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-primary/20 p-4 md:p-6 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-20">
+                    <div className="flex justify-between items-center w-full max-w-4xl mx-auto gap-4">
+                      <div className="flex-shrink-0">
+                        <p className="text-[9px] md:text-[10px] text-primary font-black uppercase tracking-widest mb-0.5">Total</p>
+                        <p className="text-lg md:text-2xl font-serif font-bold text-foreground">
+                          R$ {services.filter(s => newAppt.service_ids.includes(s.id)).reduce((acc, curr) => acc + (Number(curr.price) || 0), 0).toFixed(2)}
+                        </p>
+                        <p className="text-[9px] text-muted hidden md:block">
+                          {services.filter(s => newAppt.service_ids.includes(s.id)).length} serviço(s) selecionado(s)
+                        </p>
                       </div>
                       
-                      <button type="submit" className="w-full py-4 rounded-2xl bg-gradient-to-r from-primary to-pink-500 text-white text-sm font-bold flex justify-center items-center gap-3 shadow-[0_10px_20px_rgba(236,72,153,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all">
-                        <CheckCircle size={20} /> Marcar na Agenda
+                      <button type="submit" className="flex-1 md:flex-none md:px-10 py-3 md:py-4 rounded-xl md:rounded-2xl bg-gradient-to-r from-primary to-pink-500 text-white text-[12px] md:text-sm font-black uppercase tracking-wider flex justify-center items-center gap-2 shadow-[0_10px_20px_rgba(236,72,153,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all">
+                        <CheckCircle size={18} /> Marcar<span className="hidden md:inline"> na Agenda</span>
                       </button>
                     </div>
                   </div>
@@ -1444,31 +1485,43 @@ export default function AdminDashboard() {
             <div className="fade-in-up duration-500">
               {isAdmin ? (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div className="glass-card p-6 flex flex-col justify-between">
-                      <div className="flex justify-between items-start">
-                        <p className="text-muted text-sm mb-1">Total de Fluxo</p>
-                        <Activity size={18} className="text-primary" />
-                      </div>
-                      <p className="text-3xl items-baseline gap-2 font-serif text-foreground flex">{appointments.length} <span className="text-sm font-sans font-medium text-muted">Apt.</span></p>
-                    </div>
-                    <div className="glass-card p-6 flex flex-col justify-between border-t-4 border-t-primary">
-                      <div className="flex justify-between items-start">
-                        <p className="text-muted text-sm mb-1">Receita Real Bruta</p>
-                        <DollarSign size={18} className="text-primary" />
-                      </div>
-                      <p className="text-3xl font-serif text-primary">R$ {totalRevenue.toFixed(2)}</p>
-                    </div>
-                    <div className="glass-card p-6 md:col-span-2">
-                      <p className="text-muted text-sm mb-4">Métricas de Equipe Activa</p>
-                      <div className="flex flex-wrap gap-4 md:gap-8">
-                        <div>
-                          <p className="text-2xl font-serif text-foreground">{professionals.length} <span className="text-sm text-primary font-sans font-semibold block sm:inline">Profissionais</span></p>
-                        </div>
-                        <div>
-                          <p className="text-2xl font-serif text-foreground">{services.length} <span className="text-sm text-primary font-sans font-semibold block sm:inline">Servicos</span></p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-10">
+                    <div className="glass-card p-5 md:p-8 flex flex-col justify-between group">
+                      <div className="flex justify-between items-start mb-4 md:mb-6">
+                        <p className="text-primary/60 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em]">Agendamentos</p>
+                        <div className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-lg shadow-primary/5">
+                           <Activity size={18} md:size={20} />
                         </div>
                       </div>
+                      <p className="text-2xl md:text-4xl font-black text-foreground flex items-baseline gap-2">{appointments.length} <span className="text-[10px] font-black text-muted/40 uppercase">Total</span></p>
+                    </div>
+
+                    <div className="glass-card p-5 md:p-8 flex flex-col justify-between border-l-4 md:border-l-[6px] border-l-primary group">
+                      <div className="flex justify-between items-start mb-4 md:mb-6">
+                        <p className="text-primary/60 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em]">Faturamento</p>
+                        <div className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-lg shadow-primary/5">
+                           <DollarSign size={18} md:size={20} />
+                        </div>
+                      </div>
+                      <p className="text-2xl md:text-4xl font-black text-primary flex items-baseline gap-1 tracking-tighter">
+                        <span className="text-sm md:text-lg font-bold">R$</span> {totalRevenue.toFixed(2)}
+                      </p>
+                    </div>
+
+                    <div className="glass-card p-8 lg:col-span-2 flex flex-col justify-between relative overflow-hidden">
+                       <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none"></div>
+                       <p className="text-primary/60 text-[10px] font-black uppercase tracking-[0.2em] mb-6">Equipe & Operação</p>
+                       <div className="flex items-center gap-10">
+                          <div className="flex flex-col">
+                             <span className="text-4xl font-black text-foreground">{professionals.length}</span>
+                             <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Profissionais</span>
+                          </div>
+                          <div className="w-px h-12 bg-white/5"></div>
+                          <div className="flex flex-col">
+                             <span className="text-4xl font-black text-foreground">{services.length}</span>
+                             <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Serviços</span>
+                          </div>
+                       </div>
                     </div>
                   </div>
 
@@ -1625,19 +1678,19 @@ export default function AdminDashboard() {
 
                 {activeTab === 'agenda' && (
                     <div className="fade-in-up duration-500">
-                      <div className="flex justify-center mb-6">
-                        <div className="bg-card border border-border/50 p-1 rounded-xl flex gap-1">
+                      <div className="flex justify-center mb-6 md:mb-10">
+                        <div className="bg-card/50 backdrop-blur-md border border-white/5 p-1 rounded-xl md:rounded-[1.5rem] flex gap-1 md:gap-2 shadow-2xl">
                           <button 
                             onClick={() => setViewMode('calendar')}
-                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'calendar' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted hover:text-foreground'}`}
+                            className={`px-5 py-2 md:px-8 md:py-3 rounded-lg md:rounded-[1.1rem] text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'calendar' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
                           >
                             Calendário
                           </button>
                           <button 
                             onClick={() => setViewMode('timeline')}
-                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'timeline' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted hover:text-foreground'}`}
+                            className={`px-5 py-2 md:px-8 md:py-3 rounded-lg md:rounded-[1.1rem] text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'timeline' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
                           >
-                            Timeline (Equipe)
+                            Timeline
                           </button>
                         </div>
                       </div>

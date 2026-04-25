@@ -658,7 +658,7 @@ export default function ClientPortal() {
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h3 className="text-2xl font-serif text-foreground mb-6">Escolha o Profissional</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {professionals.map(pro => (
+                    {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio'))).map(pro => (
                       <div 
                         key={pro.id}
                         className={`p-6 rounded-2xl border cursor-pointer transition-all relative group ${selectedPro?.id === pro.id ? 'border-primary bg-primary/10 ring-1 ring-primary/20' : 'border-border bg-background/50 hover:border-primary/30'}`}

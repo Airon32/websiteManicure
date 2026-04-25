@@ -15,12 +15,12 @@
   }
 
   .dark {
-    /* DARK MODE (Carvão) */
-    --color-bg: 15 15 17;
-    --color-card: 26 26 29;
-    --color-border: 45 45 51;
-    --color-text: 243 244 246;
-    --color-muted: 156 163 175;
+    /* DARK MODE (Carvão Premium) */
+    --color-bg: 10 10 12;
+    --color-card: 22 22 26;
+    --color-border: 38 38 45;
+    --color-text: 245 245 250;
+    --color-muted: 140 145 160;
   }
 
   body {
@@ -63,16 +63,23 @@
 
 @layer components {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-md border border-border shadow-md rounded-2xl transition-colors duration-300;
+    @apply bg-card/60 backdrop-blur-2xl border border-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] rounded-[1.5rem] md:rounded-[2.5rem] transition-all duration-500 hover:border-primary/20;
   }
   .btn-primary {
-    @apply bg-primary text-white font-semibold px-6 py-3 rounded-lg shadow-lg shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 transform hover:-translate-y-0.5;
+    @apply bg-primary text-white font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] md:text-sm tracking-widest;
   }
   .btn-outline {
-    @apply border border-primary text-primary font-medium px-6 py-3 rounded-lg hover:bg-primary/10 transition-colors duration-300;
+    @apply border-2 border-primary/50 text-primary font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-primary/10 transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] md:text-sm tracking-widest;
+  }
+  .btn-secondary {
+    @apply bg-card/50 backdrop-blur-lg border border-border text-muted font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-border/30 hover:text-foreground transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] md:text-sm tracking-widest;
   }
   .input-field {
-    @apply w-full bg-background border border-border rounded-lg px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors duration-200;
+    @apply w-full bg-background/50 border border-border/50 rounded-xl md:rounded-2xl px-4 py-3 md:py-3.5 text-sm md:text-base text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300;
+  }
+  
+  .glow-primary {
+    @apply shadow-[0_0_15px_rgba(244,114,182,0.4)];
   }
 }
 

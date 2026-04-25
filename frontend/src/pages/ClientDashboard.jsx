@@ -239,24 +239,24 @@ const ClientDashboard = () => {
 
       <main className="max-w-4xl mx-auto px-6 pt-8">
         {/* Perfil Header */}
-        <div className="bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 rounded-3xl p-8 mb-10 shadow-sm relative overflow-hidden">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
-              <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-white text-3xl font-serif shadow-lg shadow-primary/30">
+        <div className="bg-gradient-to-br from-primary/10 to-transparent border border-primary/20 rounded-3xl p-6 md:p-8 mb-10 shadow-sm relative overflow-hidden">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 md:gap-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5 w-full">
+              <div className="w-16 h-16 md:w-20 md:h-20 shrink-0 rounded-full bg-primary flex items-center justify-center text-white text-2xl md:text-3xl font-serif shadow-lg shadow-primary/30">
                 {clientData.name?.charAt(0) || <User size={32} />}
               </div>
-              <div>
-                <p className="text-primary font-bold uppercase tracking-widest text-xs mb-1">Bem-vinda de volta</p>
-                <h2 className="text-3xl font-serif text-foreground">{clientData.name}</h2>
-                <p className="text-muted text-sm mt-1">{clientData.phone}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-primary font-bold uppercase tracking-widest text-[10px] md:text-xs mb-1">Bem-vinda de volta</p>
+                <h2 className="text-2xl md:text-3xl font-serif text-foreground break-words leading-tight">{clientData.name}</h2>
+                <p className="text-muted text-xs md:text-sm mt-1">{clientData.phone}</p>
               </div>
             </div>
             <button 
               onClick={() => navigate('/')}
-              className="btn-primary flex items-center gap-2 px-6"
+              className="btn-primary flex items-center justify-center gap-2 px-6 py-3 md:py-4 w-full md:w-auto shrink-0 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95"
             >
               <PlusCircle size={18} />
-              Novo Agendamento
+              <span className="font-bold text-sm uppercase tracking-wider">Novo Agendamento</span>
             </button>
           </div>
           <Scissors className="absolute -bottom-6 -right-6 text-primary/5 w-48 h-48 rotate-12" />
@@ -300,17 +300,17 @@ const ClientDashboard = () => {
 
         {/* Filtros para Próximos */}
         {activeTab === 'upcoming' && (
-          <div className="glass-filter-card rounded-[2rem] p-8 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+          <div className="glass-filter-card rounded-[2rem] p-6 md:p-8 mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 md:gap-8">
               <div className="space-y-1">
                 <div className="flex items-center gap-3 text-primary">
-                  <span className="p-2 rounded-lg bg-primary/10"><Filter size={20} /></span>
-                  <h3 className="text-xl font-serif text-foreground tracking-tight">O que quer ver hoje?</h3>
+                  <span className="p-2 rounded-lg bg-primary/10 shrink-0"><Filter size={20} /></span>
+                  <h3 className="text-lg md:text-xl font-serif text-foreground tracking-tight leading-tight">O que quer ver hoje?</h3>
                 </div>
-                <p className="text-xs text-muted font-medium ml-12">Personalize sua visualização</p>
+                <p className="text-[10px] md:text-xs text-muted font-medium ml-11 md:ml-12">Personalize sua visualização</p>
               </div>
               
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2 md:gap-3 w-full lg:w-auto">
                 {[
                   { id: '20days', label: 'Próximos 20 dias' },
                   { id: 'all', label: 'Ver Tudo' },
@@ -319,7 +319,7 @@ const ClientDashboard = () => {
                   <button
                     key={mode.id}
                     onClick={() => setViewMode(mode.id)}
-                    className={`px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-wider border transition-all duration-300 mode-button ${
+                    className={`flex-1 sm:flex-none px-4 py-3 md:px-5 md:py-2.5 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-black uppercase tracking-wider border transition-all duration-300 mode-button ${
                       viewMode === mode.id 
                         ? 'mode-button-active shadow-md' 
                         : 'border-border/60 text-muted hover:border-primary/40 hover:text-foreground hover:bg-white/5'
@@ -386,12 +386,15 @@ const ClientDashboard = () => {
                 Se você acabou de agendar, aguarde alguns segundos e clique em atualizar. Novos dados podem levar um momento para sincronizar.
               </p>
               {activeTab === 'upcoming' && (
-                <button 
-                  onClick={() => navigate('/')}
-                  className="btn-primary px-8 py-3 rounded-2xl shadow-xl shadow-primary/10 hover:shadow-primary/20 transition-all hover:scale-105 active:scale-95"
-                >
-                  Novo Agendamento
-                </button>
+                <div className="flex justify-center mt-6">
+                  <button 
+                    onClick={() => navigate('/')}
+                    className="btn-primary flex items-center justify-center gap-2 px-8 py-4 rounded-2xl shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
+                  >
+                    <PlusCircle size={18} />
+                    <span className="font-bold text-sm uppercase tracking-wider">Novo Agendamento</span>
+                  </button>
+                </div>
               )}
             </div>
           ) : (
