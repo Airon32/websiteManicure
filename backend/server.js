@@ -986,6 +986,10 @@ app.put('/api/settings', async (req, res) => {
     res.json({ "message": "success" });
 });
 
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT} com Supabase`);
-});
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Servidor rodando na porta ${PORT} com Supabase`);
+    });
+}
+
+module.exports = app;
