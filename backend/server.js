@@ -247,7 +247,6 @@ app.get('/api/professionals', async (req, res) => {
     const { data, error } = await supabase
         .from('professionals')
         .select('id, name, role, avatar, specialty, username, status')
-        .neq('role', 'admin')
         .eq('status', 'ativo')
         .order('name');
     

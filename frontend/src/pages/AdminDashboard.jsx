@@ -441,7 +441,7 @@ export default function AdminDashboard() {
       } else {
         const currentProfile = profileRes.data.data;
         const professionalSchedule = buildEffectiveSchedule(incomingSettings, loggedUser.id);
-        setProfessionals([]);
+        setProfessionals([currentProfile]);
         setProfileForm(prev => ({
           ...prev,
           name: currentProfile.name || '',
