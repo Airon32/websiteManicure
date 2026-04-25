@@ -32,6 +32,7 @@ export default function ClientPortal() {
   const [allSettings, setAllSettings] = useState([]);
   const [businessName, setBusinessName] = useState('Mary Esmalteria');
   const [whatsappTemplate, setWhatsappTemplate] = useState('Olá! Gostaria de confirmar meu agendamento.\n\n*Serviço:* {servico}\n*Profissional:* {profissional}\n*Data:* {data}\n*Horário:* {hora}\n*Nome:* {cliente}');
+  const [serviceSearch, setServiceSearch] = useState('');
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedPro, setSelectedPro] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -590,10 +591,26 @@ export default function ClientPortal() {
               {/* Step 2: Service Selection */}
               {step === 2 && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <h3 className="text-2xl font-serif text-foreground mb-6">Escolha o Serviço</h3>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <h3 className="text-2xl font-serif text-foreground">Escolha o Serviço</h3>
+                    <div className="relative w-full md:w-64">
+                      <input 
+                        type="text" 
+                        placeholder="Buscar serviço..." 
+                        value={serviceSearch}
+                        onChange={(e) => setServiceSearch(e.target.value)}
+                        className="input-field w-full pl-10"
+                      />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted/50" size={16} />
+                    </div>
+                  </div>
                   <div className="space-y-10 custom-scrollbar max-h-[500px] overflow-y-auto pr-2">
                     {Object.entries(
-                      services.reduce((acc, s) => {
+                      services.filter(s => {
+                        if (!serviceSearch) return true;
+                        const term = serviceSearch.toLowerCase().trim();
+                        return s.name.toLowerCase().includes(term) || s.description?.toLowerCase().includes(term);
+                      }).reduce((acc, s) => {
                         const cat = s.category || 'Geral';
                         if (!acc[cat]) acc[cat] = [];
                         acc[cat].push(s);
