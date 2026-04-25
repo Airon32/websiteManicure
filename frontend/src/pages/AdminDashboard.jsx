@@ -563,10 +563,11 @@ export default function AdminDashboard() {
       return;
     }
 
-    const filtered = clients.filter(c => 
-      (c.name || '').toLowerCase().includes((newAppt.client_name || '').toLowerCase()) ||
-      (c.phone && c.phone.includes(newAppt.client_phone))
-    ).slice(0, 5);
+    const filtered = clients.filter(c => {
+      const nameMatch = newAppt.client_name && (c.name || '').toLowerCase().includes(newAppt.client_name.toLowerCase());
+      const phoneMatch = newAppt.client_phone && c.phone && c.phone.includes(newAppt.client_phone);
+      return nameMatch || phoneMatch;
+    }).slice(0, 5);
 
     setFilteredClients(filtered);
     setShowSuggestions(filtered.length > 0);
