@@ -4,9 +4,7 @@ import axios from 'axios';
 const isProd = import.meta.env.PROD;
 
 const api = axios.create({
-  // Se for produção, usamos o prefixo configurado no vercel.json
-  // Se for local, usamos o endereço padrão do servidor Express
-  baseURL: isProd ? '/_/_backend' : 'http://localhost:3001'
+  baseURL: isProd ? '/api' : 'http://localhost:3001'
 });
 
 // Adicionamos um interceptor para logs básicos de erro (opcional, mas ajuda a debugar)
