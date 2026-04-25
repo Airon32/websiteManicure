@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import ClientPortal from './pages/ClientPortal';
 import ClientDashboard from './pages/ClientDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import ConfirmAppointment from './pages/ConfirmAppointment';
 import Login from './pages/Login';
 
 // Rota protegida super simples para o painel
@@ -18,6 +19,7 @@ function App() {
           <Route path="/" element={<ClientPortal />} />
           <Route path="/login" element={<Login />} />
           <Route path="/meu-perfil" element={<ClientDashboard />} />
+          <Route path="/confirmar/:id" element={<ConfirmAppointment />} />
           <Route 
             path="/admin" 
             element={

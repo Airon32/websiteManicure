@@ -48,8 +48,46 @@ app.use((req, res, next) => {
 
 const PORT = 3001;
 const DEFAULT_WORK_START = '09:00';
-const DEFAULT_WORK_END = '18:00';
-const DEFAULT_SLOT_INTERVAL = 30;
+const DEFAULT_WORK_END = '20:00';
+const DEFAULT_SLOT_INTERVAL = '30';
+
+// Sistema de Notificações em Memória (Para agilidade e sem alterar DB)
+let notifications = [];
+
+// Rota para buscar notificações (DEDICADA - Busca da tabela 'notifications')
+app.get('/api/notifications', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50);
+            
+        if (error) {
+            console.error('[NOTIF] Erro ao buscar:', error.message);
+            return res.status(500).json({ error: error.message });
+        }
+        
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro interno' });
+    }
+});
+
+// Rota para limpar notificações (DEDICADA - Deleta da tabela 'notifications')
+app.post('/api/notifications/clear', async (req, res) => {
+    try {
+        const { error } = await supabase
+            .from('notifications')
+            .delete()
+            .neq('id', 0); // Deleta tudo (hack para bypassar RLS se necessário)
+            
+        if (error) throw error;
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 const DEFAULT_WORK_DAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
 const DAY_NAME_MAP = { 0: 'dom', 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sab' };
 
@@ -603,102 +641,70 @@ app.get('/api/appointments', async (req, res) => {
 });
 
 app.post('/api/appointments', async (req, res) => {
-    const { client_name, client_phone, service_id, service_ids, professional_id, date, time, notes } = req.body;
-    
-    let consolidatedServices = [];
-    let primaryServiceId = service_id;
-
-    // 1. Buscar os serviços (suporte a múltiplos ou único)
-    const idsToSearch = service_ids && Array.isArray(service_ids) ? service_ids : (service_id ? [service_id] : []);
-    
-    if (idsToSearch.length === 0) return res.status(400).json({"error": "Nenhum serviço selecionado."});
-
-    const { data: services, error: sErr } = await supabase
-        .from('services')
-        .select('*')
-        .in('id', idsToSearch);
-    
-    if (sErr || !services || services.length === 0) return res.status(400).json({"error": "Serviço(s) inválido(s)."});
-    
-    consolidatedServices = services;
-    if (!primaryServiceId) primaryServiceId = services[0].id;
-
-    const totalDuration = services.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
-    const totalPrice = services.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
-
-    const newStart = timeToMinutes(time);
-    const newEnd = newStart + totalDuration;
-
     try {
-        const settingsMap = await loadSettingsMap();
-        const professionalSchedule = buildProfessionalSchedule(settingsMap, professional_id);
-        const scheduleValidation = validateAppointmentAgainstSchedule({
-            date,
-            time,
-            duration: totalDuration,
-            schedule: professionalSchedule
-        });
+        const { client_name, client_phone, service_id, service_ids, professional_id, date, time, notes } = req.body;
+        console.log('[DEBUG APPT] === INÍCIO DE PROCESSO ===');
+        console.log('[DEBUG APPT] Payload:', { client_name, professional_id, date, time });
 
-        if (!scheduleValidation.valid) {
-            return res.status(400).json({ "error": scheduleValidation.error });
+        // 1. Buscar os serviços
+        const idsToSearch = (service_ids && Array.isArray(service_ids) ? service_ids : (service_id ? [service_id] : []));
+        const { data: services, error: sErr } = await supabase.from('services').select('*').in('id', idsToSearch);
+        
+        if (sErr || !services || services.length === 0) {
+            console.error('[DEBUG APPT] Falha nos serviços:', sErr || 'Vazio');
+            return res.status(400).json({"error": "Serviço(s) inválido(s)."});
         }
-    } catch (settingsError) {
-        return res.status(400).json({ "error": settingsError.message });
-    }
+        
+        const primaryServiceId = service_id || services[0].id;
+        const totalDuration = services.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+        const newStart = timeToMinutes(time);
+        const newEnd = newStart + totalDuration;
 
-    // 2. Buscar agendamentos existentes para o profissional no dia
-    const { data: existing, error: eErr } = await supabase
-        .from('appointments')
-        .select(`
-            time,
-            notes,
-            service:services(duration)
-        `)
-        .eq('professional_id', professional_id)
-        .eq('date', date)
-        .neq('status', 'cancelado');
-    
-    if (eErr) return res.status(500).json({"error": eErr.message});
+        // 2. Validar Horário de Trabalho
+        try {
+            const settingsMap = await loadSettingsMap();
+            const professionalSchedule = buildProfessionalSchedule(settingsMap, professional_id);
+            const validation = validateAppointmentAgainstSchedule({ date, time, duration: totalDuration, schedule: professionalSchedule });
+            
+            if (!validation.valid) {
+                console.warn('[DEBUG APPT] Bloqueado por Regras de Horário:', validation.error);
+                return res.status(400).json({ "error": validation.error });
+            }
+        } catch (e) {
+            console.error('[DEBUG APPT] Erro ao validar regras:', e.message);
+        }
 
-    // 3. Verificar sobreposição
-    const conflict = existing.some(app => {
-        const exStart = timeToMinutes(app.time);
-        let exDuration = app.service?.duration || 30;
+        // 3. Verificar Conflitos no Banco
+        const { data: existing, error: eErr } = await supabase.from('appointments')
+            .select('time, notes, service:services(duration)')
+            .eq('professional_id', professional_id).eq('date', date).neq('status', 'cancelado');
+        
+        if (eErr) {
+            console.error('[DEBUG APPT] Erro ao buscar conflitos:', eErr.message);
+            return res.status(500).json({"error": eErr.message});
+        }
 
-        // Se for um agendamento multi-serviços, extrair a duração total do notes
-        if (app.notes && typeof app.notes === 'string') {
-            if (app.notes.startsWith('MULTI_SERVICES:')) {
+        const conflict = existing.some(app => {
+            const exStart = timeToMinutes(app.time);
+            let exDuration = app.service?.duration || 30;
+            if (app.notes?.startsWith('MULTI_SERVICES:')) {
                 try {
-                    const parts = app.notes.split('|');
-                    const jsonPart = parts.find(p => p.startsWith('MULTI_SERVICES:')).replace('MULTI_SERVICES:', '');
-                    const multiData = JSON.parse(jsonPart);
+                    const multiData = JSON.parse(app.notes.split('|').find(p => p.startsWith('MULTI_SERVICES:')).replace('MULTI_SERVICES:', ''));
                     exDuration = multiData.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
                 } catch (e) {}
-            } else if (app.notes.startsWith('BLOCK:')) {
+            } else if (app.notes?.startsWith('BLOCK:')) {
                 exDuration = parseInt(app.notes.split(':')[1], 10);
             }
+            return (newStart < (exStart + exDuration) && (newStart + totalDuration) > exStart);
+        });
+
+        if (conflict) {
+            console.warn('[DEBUG APPT] BLOQUEADO: Conflito de horário detectado');
+            return res.status(400).json({"error": "Já existe um agendamento neste horário."});
         }
 
-        const exEnd = exStart + exDuration;
-        return (newStart < exEnd && newEnd > exStart);
-    });
-
-    if (conflict) {
-        return res.status(400).json({"error": "Ops! Esse horário ou parte dele já está ocupado por outro atendimento. Por favor, escolha outro horário."});
-    }
-
-    // 4. Preparar notas com dados de multi-serviços se necessário
-    let finalNotes = notes || '';
-    if (services.length > 1) {
-        const multiInfo = services.map(s => ({ id: s.id, name: s.name, duration: s.duration, price: s.price }));
-        const multiTag = `MULTI_SERVICES:${JSON.stringify(multiInfo)}`;
-        finalNotes = finalNotes ? `${finalNotes}|${multiTag}` : multiTag;
-    }
-
-    // 5. Inserir Agendamento
-    const { data, error } = await supabase
-        .from('appointments')
-        .insert([{ 
+        // 4. Inserir no Banco
+        const payloadToInsert = { 
             client_name, 
             client_phone, 
             service_id: primaryServiceId, 
@@ -706,29 +712,33 @@ app.post('/api/appointments', async (req, res) => {
             date, 
             time, 
             status: 'agendado', 
-            notes: finalNotes 
-        }])
-        .select();
+            notes: notes || '' 
+        };
 
-    if (error) return res.status(400).json({ "error": error.message });
-
-    // 6. SINCRONIZAÇÃO DE CLIENTE (Upsert)
-    try {
-        const cleanPhone = client_phone.replace(/\D/g, "");
-        const { data: byClean } = await supabase.from('clients').select('id').eq('phone', cleanPhone).maybeSingle();
-        const { data: byOriginal } = !byClean ? await supabase.from('clients').select('id').eq('phone', client_phone).maybeSingle() : { data: null };
-        const existingClient = byClean || byOriginal;
-        
-        if (existingClient) {
-            await supabase.from('clients').update({ name: client_name, phone: cleanPhone }).eq('id', existingClient.id);
-        } else {
-            await supabase.from('clients').insert([{ name: client_name, phone: cleanPhone }]);
+        if (services.length > 1) {
+            const multiInfo = services.map(s => ({ id: s.id, name: s.name, duration: s.duration, price: s.price }));
+            payloadToInsert.notes = (payloadToInsert.notes ? payloadToInsert.notes + '|' : '') + `MULTI_SERVICES:${JSON.stringify(multiInfo)}`;
         }
-    } catch (clientErr) {
-        console.error('Erro ao sincronizar cliente:', clientErr);
-    }
 
-    res.json({ "message": "success", "data": data[0] });
+        console.log('[DEBUG APPT] Tentando INSERT no Supabase...');
+        const { data, error } = await supabase.from('appointments').insert([payloadToInsert]).select();
+
+        if (error) {
+            console.error('[DEBUG APPT] ERRO NO INSERT:', error.message);
+            return res.status(400).json({ "error": error.message });
+        }
+
+        console.log('[DEBUG APPT] GRAVADO COM SUCESSO! ID:', data[0].id);
+
+        // 5. Notificação
+        await supabase.from('notifications').insert([{ client_name, service_name: services.map(s => s.name).join(', '), date, time, is_read: false }]);
+        
+        res.json({ "message": "success", "data": data[0] });
+
+    } catch (err) {
+        console.error('[DEBUG APPT] ERRO CRÍTICO:', err.message);
+        res.status(500).json({ error: 'Erro interno no servidor' });
+    }
 });
 
 // Criar um bloqueio de horário (Horário Fechado)
@@ -810,6 +820,38 @@ app.delete('/api/appointments/:id', async (req, res) => {
     res.json({ "message": "success" });
 });
 
+app.put('/api/appointments/:id', async (req, res) => {
+    const { id } = req.params;
+    const { date, time, professional_id, status, notes } = req.body;
+    
+    const updatePayload = {};
+    if (date !== undefined) updatePayload.date = date;
+    if (time !== undefined) updatePayload.time = time;
+    if (professional_id !== undefined) updatePayload.professional_id = professional_id;
+    if (status !== undefined) updatePayload.status = status;
+    if (notes !== undefined) updatePayload.notes = notes;
+
+    const { data, error } = await supabase
+        .from('appointments')
+        .update(updatePayload)
+        .eq('id', id)
+        .select();
+
+    if (error) return res.status(400).json({"error": error.message});
+    res.json({ "message": "success", "data": data[0] });
+});
+
+app.post('/api/appointments/:id/confirm', async (req, res) => {
+    const { id } = req.params;
+    const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'confirmado' })
+        .eq('id', id);
+
+    if (error) return res.status(400).json({"error": error.message});
+    res.json({ "message": "success" });
+});
+
 app.post('/api/appointments/:id/cancel', async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase
@@ -819,6 +861,112 @@ app.post('/api/appointments/:id/cancel', async (req, res) => {
 
     if (error) return res.status(400).json({"error": error.message});
     res.json({ "message": "success" });
+});
+
+app.post('/api/appointments/:id/complete', async (req, res) => {
+    const { id } = req.params;
+    const { error } = await supabase
+        .from('appointments')
+        .update({ status: 'concluído' })
+        .eq('id', id);
+
+    if (error) return res.status(400).json({"error": error.message});
+    res.json({ "message": "success" });
+});
+
+app.get('/api/financial/stats', async (req, res) => {
+    const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+            *,
+            service:services(price, duration),
+            professional:professionals(id, name)
+        `)
+        .neq('status', 'cancelado');
+
+    if (error) return res.status(400).json({"error": error.message});
+
+    const now = new Date();
+    // Ajustar para fuso horário local e montar string YYYY-MM-DD
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localNow = new Date(now.getTime() - tzOffset);
+    const todayStr = localNow.toISOString().split('T')[0];
+    
+    const dayOfWeek = localNow.getDay(); // 0 is Sunday
+    const startOfWeek = new Date(localNow);
+    startOfWeek.setDate(localNow.getDate() - dayOfWeek);
+    const startOfWeekStr = startOfWeek.toISOString().split('T')[0];
+    
+    const endOfWeek = new Date(localNow);
+    endOfWeek.setDate(localNow.getDate() + (6 - dayOfWeek));
+    const endOfWeekStr = endOfWeek.toISOString().split('T')[0];
+
+    const currentMonthPrefix = todayStr.substring(0, 7); // "YYYY-MM"
+
+    let todayTotal = 0;
+    let weekTotal = 0;
+    let monthTotal = 0;
+    const professionalStats = {}; 
+    const monthlyHistory = {}; 
+
+    data.forEach(app => {
+        if (app.notes && typeof app.notes === 'string' && app.notes.startsWith('BLOCK:')) return;
+        
+        // Apenas agendamentos que já passaram ou que foram marcados como concluídos
+        if (app.status !== 'concluído' && app.date > todayStr) return;
+
+        let price = app.service?.price || 0;
+        
+        if (app.notes && app.notes.startsWith('MULTI_SERVICES:')) {
+            try {
+                const parts = app.notes.split('|');
+                const jsonPart = parts.find(p => p.startsWith('MULTI_SERVICES:')).replace('MULTI_SERVICES:', '');
+                const multiData = JSON.parse(jsonPart);
+                price = multiData.reduce((sum, s) => sum + (Number(s.price) || 0), 0);
+            } catch (e) {}
+        }
+
+        price = Number(price);
+
+        if (app.date === todayStr) todayTotal += price;
+        if (app.date >= startOfWeekStr && app.date <= endOfWeekStr) weekTotal += price;
+        
+        const appMonth = app.date.substring(0, 7);
+        if (appMonth === currentMonthPrefix) monthTotal += price;
+
+        if (appMonth === currentMonthPrefix && app.professional) {
+            if (!professionalStats[app.professional.id]) {
+                professionalStats[app.professional.id] = { name: app.professional.name, total: 0 };
+            }
+            professionalStats[app.professional.id].total += price;
+        }
+
+        if (!monthlyHistory[appMonth]) monthlyHistory[appMonth] = 0;
+        monthlyHistory[appMonth] += price;
+    });
+
+    const profArray = Object.values(professionalStats).sort((a,b) => b.total - a.total);
+    const histArray = Object.keys(monthlyHistory).sort().reverse().map(m => {
+        const [year, month] = m.split('-');
+        const date = new Date(year, month - 1);
+        const monthName = date.toLocaleString('pt-BR', { month: 'long' });
+        return {
+            monthId: m,
+            label: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`,
+            total: monthlyHistory[m]
+        };
+    });
+
+    res.json({
+        message: "success",
+        data: {
+            today: todayTotal,
+            week: weekTotal,
+            month: monthTotal,
+            professionals: profArray,
+            history: histArray
+        }
+    });
 });
 
 // --- ROTAS DE CONFIGURAÇÃO ---

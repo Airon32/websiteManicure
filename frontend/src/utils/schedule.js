@@ -39,9 +39,11 @@ export function buildEffectiveSchedule(settings, professionalId = null) {
     ? getSettingValue(settings, getProfessionalSettingKey(professionalId, 'work_days')) || getSettingValue(settings, 'work_days')
     : getSettingValue(settings, 'work_days');
 
-  const isPublicAgenda = professionalId
-    ? getSettingValue(settings, getProfessionalSettingKey(professionalId, 'is_public_agenda')) === 'true'
-    : false;
+  const isPublicAgendaValue = professionalId
+    ? getSettingValue(settings, getProfessionalSettingKey(professionalId, 'is_public_agenda')) || getSettingValue(settings, 'is_public_agenda')
+    : getSettingValue(settings, 'is_public_agenda');
+
+  const isPublicAgenda = isPublicAgendaValue === 'true' || isPublicAgendaValue === true;
 
   return {
     workStart,
