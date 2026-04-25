@@ -564,7 +564,8 @@ export default function AdminDashboard() {
     }
 
     const filtered = clients.filter(c => {
-      const nameMatch = newAppt.client_name && (c.name || '').toLowerCase().includes(newAppt.client_name.toLowerCase());
+      const nameSearch = (newAppt.client_name || '').toLowerCase().trim();
+      const nameMatch = nameSearch && (c.name || '').toLowerCase().split(' ').some(word => word.startsWith(nameSearch));
       const phoneMatch = newAppt.client_phone && c.phone && c.phone.includes(newAppt.client_phone);
       return nameMatch || phoneMatch;
     }).slice(0, 5);
