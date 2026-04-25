@@ -4,7 +4,7 @@ import axios from 'axios';
 const isProd = import.meta.env.PROD;
 
 const api = axios.create({
-  baseURL: isProd ? '/api' : 'http://localhost:3001'
+  baseURL: isProd ? '/_/_backend' : 'http://localhost:3001'
 });
 
 // Adicionamos um interceptor para logs básicos de erro (opcional, mas ajuda a debugar)
