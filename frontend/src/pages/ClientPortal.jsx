@@ -527,10 +527,10 @@ export default function ClientPortal() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-x-hidden bg-background">
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-background text-foreground">
       {/* Background Orbs */}
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-primary-light/30 dark:bg-primary/5 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-primary-light/20 dark:bg-primary/5 rounded-full blur-[150px] pointer-events-none"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-primary-light/30 dark:bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-[-10%] w-[600px] h-[600px] bg-primary-light/20 dark:bg-primary/5 rounded-full blur-[150px] pointer-events-none" />
 
       {/* Auth / Minha Conta Modal */}
       {showAccountModal && (

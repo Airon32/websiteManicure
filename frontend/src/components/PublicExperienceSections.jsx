@@ -549,11 +549,11 @@ export function PublicFooter({
 }) {
   const year = new Date().getFullYear();
   return (
-    <footer className="bg-card/90 border-t border-border/80 px-6 pb-12 pt-16 text-foreground" aria-label="Rodapé">
-      <div className="mx-auto max-w-7xl">
-        <div className="grid gap-10 border-b border-border/70 pb-12 md:grid-cols-2 lg:grid-cols-4">
+    <footer className="w-full bg-background pt-16 pb-12 text-foreground border-t border-border/50 relative z-20" aria-label="Rodapé">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="grid gap-10 border-b border-border/60 pb-12 md:grid-cols-2 lg:grid-cols-4">
           <div>
-            <h2 className="text-2xl font-serif text-foreground">{businessName}</h2>
+            <h2 className="text-2xl font-serif text-foreground font-bold tracking-tight">{businessName}</h2>
             <p className="mt-3 max-w-xs text-sm leading-6 text-muted">{tagline}</p>
             {onBookNow && (
               <button type="button" onClick={onBookNow} className="mt-6 btn-primary">
@@ -580,11 +580,11 @@ export function PublicFooter({
           <div>
             <h3 className="font-sans text-xs font-black uppercase tracking-widest text-primary">Visite e fale</h3>
             <ul className="mt-5 space-y-3 text-sm text-muted">
-              {address && <li className="flex gap-2"><MapPin className="mt-0.5 shrink-0 text-primary" size={16} aria-hidden="true" /><span>{address}</span></li>}
-              {hours && <li className="flex gap-2"><Clock3 className="mt-0.5 shrink-0 text-primary" size={16} aria-hidden="true" /><span>{hours}</span></li>}
-              {phone && <li className="flex gap-2"><Phone className="mt-0.5 shrink-0 text-primary" size={16} aria-hidden="true" /><span>{phone}</span></li>}
-              {email && <li className="flex gap-2"><Mail className="mt-0.5 shrink-0 text-primary" size={16} aria-hidden="true" /><span>{email}</span></li>}
-              {mapHref && <li><a href={mapHref} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 font-bold text-primary hover:underline"><Navigation size={16} aria-hidden="true" /> Abrir no mapa</a></li>}
+              {address && <li className="flex gap-2.5 items-start"><MapPin className="mt-1 shrink-0 text-primary" size={16} aria-hidden="true" /><span className="leading-relaxed">{address}</span></li>}
+              {hours && <li className="flex gap-2.5 items-start"><Clock3 className="mt-1 shrink-0 text-primary" size={16} aria-hidden="true" /><span className="leading-relaxed">{hours}</span></li>}
+              {phone && <li className="flex gap-2.5 items-center"><Phone className="shrink-0 text-primary" size={16} aria-hidden="true" /><span>{phone}</span></li>}
+              {email && <li className="flex gap-2.5 items-center"><Mail className="shrink-0 text-primary" size={16} aria-hidden="true" /><span>{email}</span></li>}
+              {mapHref && <li className="pt-1"><a href={mapHref} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline"><Navigation size={15} aria-hidden="true" /> Abrir no mapa</a></li>}
             </ul>
           </div>
 
@@ -594,13 +594,13 @@ export function PublicFooter({
               {instagramHref && <a href={instagramHref} target="_blank" rel="noreferrer noopener" className="rounded-full border border-border p-3 text-foreground transition hover:border-primary hover:bg-primary hover:text-white" aria-label="Abrir Instagram"><Instagram size={18} aria-hidden="true" /></a>}
               {(whatsappHref || onWhatsApp) && <SmartAction href={whatsappHref} onClick={onWhatsApp} external={Boolean(whatsappHref)} className="rounded-full border border-border p-3 text-foreground transition hover:border-primary hover:bg-primary hover:text-white" label="Abrir WhatsApp"><MessageCircle size={18} aria-hidden="true" /></SmartAction>}
             </div>
-            <p className="mt-5 text-xs leading-5 text-muted">Links externos abrem em uma nova janela para você não perder o agendamento.</p>
+            <p className="mt-5 text-xs leading-5 text-muted">Atendimento de segunda a sábado das 08h às 20h.</p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 pt-7 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 pt-8 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>© {year} {businessName}. Todos os direitos reservados.</p>
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 font-medium">
             <a href={privacyHref} className="hover:text-primary hover:underline">Privacidade e políticas</a>
             <SmartAction href={staffHref} onClick={onStaffAccess} className="hover:text-primary hover:underline" label="Acessar área da equipe">
               Área da equipe
