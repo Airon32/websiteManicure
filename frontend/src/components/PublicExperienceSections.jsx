@@ -689,7 +689,6 @@ export function PublicFooter({
               {[
                 ['Serviços', '#servicos'],
                 ['Portfólio', '#portfolio'],
-                ['Avaliações', '#avaliacoes'],
                 ['Localização', '#localizacao'],
               ].map(([label, href]) => (
                 <li key={href}><a href={href} className="transition hover:text-primary">{label}</a></li>
@@ -808,14 +807,6 @@ export default function PublicExperienceSections({
       />
       <QuickAvailability slots={quickSlots} loading={quickSlotsLoading} onSelectSlot={onSelectQuickSlot} onBookNow={resolvedOnBook} />
       <VisitInformation business={business} whatsappHref={resolvedLinks.whatsapp} onWhatsApp={onWhatsApp} mapHref={resolvedLinks.map} />
-      <ReviewsSection
-        reviews={reviews}
-        averageRating={resolvedReviewSummary.averageRating}
-        reviewCount={resolvedReviewSummary.reviewCount}
-        sourceName={resolvedReviewSummary.sourceName}
-        sourceHref={resolvedLinks.reviews}
-        onReview={onReview}
-      />
       <PortfolioSection items={portfolioItems} services={services} onBookService={resolvedOnSelectService} onBookNow={resolvedOnBook} />
       <FaqAndPolicies faqs={faqs} policies={resolvedPolicies} onWhatsApp={onWhatsApp} whatsappHref={resolvedLinks.whatsapp} />
       <PublicFooter
