@@ -384,16 +384,19 @@ export function ReviewsSection({ reviews = [], averageRating, reviewCount, sourc
 }
 
 export function PortfolioSection({ items = [], services = [], onBookService, onBookNow }) {
-  const resolvedItems = galleryFallbacks.map((fallbackImage, index) => {
+  const resolvedItems = galleryFallbacks.map((fallbackItem, index) => {
+    const fallbackImage = typeof fallbackItem === 'string' ? fallbackItem : fallbackItem.image;
+    const fallbackLabel = typeof fallbackItem === 'object' ? fallbackItem.label : undefined;
+    const fallbackPrice = typeof fallbackItem === 'object' ? fallbackItem.price : undefined;
     const supplied = items[index] ?? {};
     const matchingService = services[index] ?? {};
     return {
       id: supplied.id ?? index,
       image: supplied.image || fallbackImage,
-      label: supplied.label || matchingService.name || 'Inspiração da galeria',
-      startingPrice: supplied.startingPrice ?? matchingService.price,
+      label: supplied.label || fallbackLabel || matchingService.name || 'Inspiração da galeria',
+      startingPrice: supplied.startingPrice ?? fallbackPrice ?? matchingService.price,
       service: supplied.service || matchingService,
-      alt: supplied.alt || supplied.label || matchingService.name || 'Imagem da galeria de unhas',
+      alt: supplied.alt || supplied.label || fallbackLabel || 'Trabalho de manicure Mary Esmalteria',
     };
   });
 
@@ -403,29 +406,32 @@ export function PortfolioSection({ items = [], services = [], onBookService, onB
         <SectionHeading
           id="portfolio-title"
           eyebrow="Inspire sua próxima escolha"
-          title="Portfólio com contexto"
-          description="Veja referências de trabalhos e encontre o serviço relacionado. Imagens são inspirações; confirme disponibilidade de cores e técnicas com a profissional."
+          title="Nosso Portfólio de Trabalhos"
+          description="Confira fotos reais de trabalhos recentes realizados em nosso espaço. Escolha o estilo que mais combina com você."
           align="center"
         />
-        <div className="mt-10 grid auto-rows-[260px] gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {resolvedItems.map((item, index) => (
-            <article key={item.id} className={`group relative overflow-hidden rounded-3xl ${index === 0 || index === 3 ? 'lg:row-span-2' : ''}`}>
+            <article key={item.id} className={`group relative overflow-hidden rounded-3xl h-[320px] shadow-lg border border-border/50 bg-background ${index === 0 ? 'sm:col-span-2 lg:col-span-1' : ''}`}>
               <img src={item.image} alt={item.alt} loading="lazy" className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" aria-hidden="true" />
-              <div className="absolute inset-x-0 bottom-0 p-5 text-white">
-                <h3 className="text-xl">{item.label}</h3>
-                <div className="mt-2 flex items-end justify-between gap-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-white/75">
-                    {Number.isFinite(Number(item.startingPrice)) ? `A partir de ${formatPrice(item.startingPrice)}` : 'Valor sob consulta'}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent transition-opacity group-hover:opacity-95" aria-hidden="true" />
+              <div className="absolute inset-x-0 bottom-0 p-6 text-white flex flex-col justify-end">
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/20 backdrop-blur-md w-max px-2.5 py-0.5 rounded mb-2">
+                  Trabalho Real
+                </span>
+                <h3 className="text-lg font-serif font-bold text-white leading-tight">{item.label}</h3>
+                <div className="mt-3 flex items-center justify-between border-t border-white/20 pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-white/80">
+                    {Number.isFinite(Number(item.startingPrice)) ? `A partir de R$ ${Number(item.startingPrice).toFixed(2)}` : 'Valor sob consulta'}
                   </p>
                   {(onBookService || onBookNow) && (
                     <button
                       type="button"
                       onClick={() => (onBookService && item.service?.id ? onBookService(item.service) : onBookNow?.())}
-                      className="rounded-full bg-white/15 p-2 backdrop-blur transition hover:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                      className="rounded-full bg-primary text-white p-2.5 shadow-lg backdrop-blur transition-transform hover:scale-110 focus-visible:outline-none flex items-center gap-1 text-xs font-bold px-4"
                       aria-label={`Agendar ${item.label}`}
                     >
-                      <ArrowRight size={17} aria-hidden="true" />
+                      Agendar <ArrowRight size={15} aria-hidden="true" />
                     </button>
                   )}
                 </div>

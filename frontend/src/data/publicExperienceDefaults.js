@@ -1,8 +1,29 @@
 export const galleryFallbacks = [
-  '/assets/images/gallery/nail1.jpg',
-  '/assets/images/gallery/nail2.jpg',
-  '/assets/images/gallery/nail3.jpg',
-  '/assets/images/gallery/nail4.jpg',
+  {
+    image: '/assets/images/gallery/nail1.jpg',
+    label: 'Esmaltação Rosa & Arte Floral',
+    price: 80
+  },
+  {
+    image: '/assets/images/gallery/nail2.jpg',
+    label: 'Nail Art Botânica & Verde Menta',
+    price: 45
+  },
+  {
+    image: '/assets/images/gallery/nail3.jpg',
+    label: 'Francesinha Iridescente & Gel',
+    price: 150
+  },
+  {
+    image: '/assets/images/gallery/nail4.jpg',
+    label: 'Preto Glossy Sofisticado',
+    price: 45
+  },
+  {
+    image: '/assets/images/gallery/nail5.jpg',
+    label: 'Preto Elegante & Detalhes em Prata',
+    price: 80
+  }
 ];
 
 export const defaultBusinessDetails = {
