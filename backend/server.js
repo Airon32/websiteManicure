@@ -1300,28 +1300,32 @@ app.post('/api/appointments', rateLimit({
             };
         }
 
-        await supabase.from('notifications').insert([{
-            client_name: clientName,
-            service_name: services.map(service => service.name).join(', '),
-            date,
-            time,
-            is_read: false
-        }]);
+        try {
+            await supabase.from('notifications').insert([{
+                client_name: clientName,
+                service_name: services.map(service => service.name).join(', '),
+                date,
+                time,
+                is_read: false
+            }]);
+        } catch {}
 
         let clientRecord = null;
-        const { data: clientCandidates } = await supabase
-            .from('clients')
-            .select('id, name, phone')
-            .ilike('phone', `%${clientPhone.slice(-4)}%`)
-            .limit(100);
-        clientRecord = (clientCandidates || []).find(candidate => normalizePhone(candidate.phone) === clientPhone) || null;
-        if (!clientRecord) {
-            const { data: insertedClients } = await supabase
+        try {
+            const { data: clientCandidates } = await supabase
                 .from('clients')
-                .insert([{ name: clientName, phone: clientPhone }])
-                .select('id, name, phone');
-            clientRecord = insertedClients?.[0] || null;
-        }
+                .select('id, name, phone')
+                .ilike('phone', `%${clientPhone.slice(-4)}%`)
+                .limit(100);
+            clientRecord = (clientCandidates || []).find(candidate => normalizePhone(candidate.phone) === clientPhone) || null;
+            if (!clientRecord) {
+                const { data: insertedClients } = await supabase
+                    .from('clients')
+                    .insert([{ name: clientName, phone: clientPhone }])
+                    .select('id, name, phone');
+                clientRecord = insertedClients?.[0] || null;
+            }
+        } catch {}
 
         const canStartClientSession = !isStaff && clientRecord && (
             isClient || normalizeName(clientRecord.name) === normalizeName(clientName)
@@ -1338,9 +1342,9 @@ app.post('/api/appointments', rateLimit({
 
         res.status(201).json({
             message: 'success',
-            data: data[0],
+            data: insertedAppointment,
             client_authenticated: Boolean(canStartClientSession),
-            client: canStartClientSession ? { name: clientRecord.name, phone: clientPhone } : undefined
+            client: canStartClientSession && clientRecord ? { name: clientRecord.name, phone: clientPhone } : undefined
         });
     } catch (err) {
         console.error('[Appointments] Falha inesperada:', err.message);
