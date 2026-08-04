@@ -410,80 +410,118 @@ export function PortfolioSection({ items = [], services = [], onBookService, onB
           id="portfolio-title"
           eyebrow="Inspire sua próxima escolha"
           title="Nosso Portfólio de Trabalhos"
-          description="Confira fotos reais de trabalhos recentes realizados em nosso espaço. Clique na imagem para ver em tamanho completo sem cortes."
+          description="Confira fotos reais dos serviços realizados em nosso espaço. Clique em qualquer foto para ver a imagem completa."
           align="center"
         />
         
-        {/* Gallery Grid com Imagens Inteiras */}
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Gallery Grid com Cards de Alto Padrão */}
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {resolvedItems.map((item) => (
-            <article key={item.id} className="group relative overflow-hidden rounded-3xl h-[420px] shadow-xl border border-border/60 bg-zinc-950 flex flex-col justify-between p-3">
-              {/* Moldura que exibe a foto inteira sem cortar */}
-              <div 
-                className="w-full h-[310px] overflow-hidden rounded-2xl bg-zinc-900/80 flex items-center justify-center cursor-pointer relative"
-                onClick={() => setSelectedPhoto(item)}
-              >
-                <img 
-                  src={item.image} 
-                  alt={item.alt} 
-                  loading="lazy" 
-                  className="max-h-full max-w-full object-contain transition duration-500 group-hover:scale-105" 
-                />
-                <span className="absolute top-2 right-2 text-[10px] font-bold text-white bg-black/60 backdrop-blur-md px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
-                  Ver foto inteira 🔍
-                </span>
-              </div>
+            <article 
+              key={item.id} 
+              className="group relative overflow-hidden rounded-3xl h-[450px] shadow-2xl border border-border/60 bg-card cursor-pointer transition-all duration-500 hover:-translate-y-1.5 hover:shadow-primary/20"
+              onClick={() => setSelectedPhoto(item)}
+            >
+              {/* Foto preenchendo o card com transição suave */}
+              <img 
+                src={item.image} 
+                alt={item.alt} 
+                loading="lazy" 
+                className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" 
+              />
 
-              {/* Informações da foto */}
-              <div className="pt-3 px-2 flex items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-bold text-foreground line-clamp-1">{item.label}</h3>
-                  <p className="text-xs font-semibold text-primary">
-                    {Number.isFinite(Number(item.startingPrice)) ? `A partir de R$ ${Number(item.startingPrice).toFixed(2)}` : 'Valor sob consulta'}
-                  </p>
+              {/* Degradê escuro de fundo para leitura perfeita do texto */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent transition-opacity group-hover:opacity-95" aria-hidden="true" />
+
+              {/* Tag de Expansão no topo direito */}
+              <span className="absolute top-4 right-4 text-[11px] font-bold text-white bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shadow-lg">
+                Expandir 🔍
+              </span>
+
+              {/* Conteúdo sobreposto no rodapé do card */}
+              <div className="absolute inset-x-0 bottom-0 p-6 text-white flex flex-col justify-end">
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/20 backdrop-blur-md w-max px-3 py-1 rounded-full border border-primary/30 mb-2.5">
+                  Trabalho Real
+                </span>
+                <h3 className="text-xl font-serif font-bold text-white leading-tight mb-1">{item.label}</h3>
+                
+                <div className="mt-4 flex items-center justify-between border-t border-white/20 pt-3.5">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-white/60 tracking-wider">Valor estimado</p>
+                    <p className="text-sm font-bold text-white">
+                      {Number.isFinite(Number(item.startingPrice)) ? `R$ ${Number(item.startingPrice).toFixed(2)}` : 'Sob consulta'}
+                    </p>
+                  </div>
+                  {(onBookService || onBookNow) && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onBookService && item.service?.id) onBookService(item.service);
+                        else onBookNow?.();
+                      }}
+                      className="rounded-full bg-primary hover:bg-primary-dark text-white font-bold text-xs px-4 py-2.5 shadow-lg transition-transform hover:scale-105 flex items-center gap-1.5"
+                      aria-label={`Agendar ${item.label}`}
+                    >
+                      Agendar <ArrowRight size={14} aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
-                {(onBookService || onBookNow) && (
-                  <button
-                    type="button"
-                    onClick={() => (onBookService && item.service?.id ? onBookService(item.service) : onBookNow?.())}
-                    className="rounded-full bg-primary text-white text-xs font-bold px-3 py-1.5 shadow transition-all hover:bg-primary-dark shrink-0 flex items-center gap-1"
-                    aria-label={`Agendar ${item.label}`}
-                  >
-                    Agendar <ArrowRight size={13} aria-hidden="true" />
-                  </button>
-                )}
               </div>
             </article>
           ))}
         </div>
       </div>
 
-      {/* Modal de Foto Completa Uncropped */}
+      {/* Modal Lightbox de Ampliação Completa */}
       {selectedPhoto && (
         <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 sm:p-6"
           onClick={() => setSelectedPhoto(null)}
           role="dialog"
           aria-modal="true"
         >
-          <div className="relative max-w-4xl max-h-[90vh] bg-zinc-950 border border-border/80 rounded-3xl p-4 overflow-hidden flex flex-col items-center shadow-2xl">
+          <div 
+            className="relative max-w-4xl max-h-[90vh] bg-zinc-950 border border-border/80 rounded-3xl p-4 sm:p-6 overflow-hidden flex flex-col items-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button 
               onClick={() => setSelectedPhoto(null)}
-              className="absolute top-4 right-4 text-white bg-black/60 hover:bg-black/90 p-2 rounded-full transition-colors z-10 font-bold"
+              className="absolute top-4 right-4 text-white bg-black/60 hover:bg-black/90 p-2.5 rounded-full transition-colors z-10 font-bold border border-white/20"
               aria-label="Fechar"
             >
               ✕
             </button>
-            <img 
-              src={selectedPhoto.image} 
-              alt={selectedPhoto.alt} 
-              className="max-h-[75vh] w-auto object-contain rounded-2xl" 
-            />
-            <div className="mt-4 text-center">
-              <h4 className="text-lg font-serif text-white font-bold">{selectedPhoto.label}</h4>
-              <p className="text-sm text-primary font-semibold mt-1">
-                {Number.isFinite(Number(selectedPhoto.startingPrice)) ? `A partir de R$ ${Number(selectedPhoto.startingPrice).toFixed(2)}` : ''}
-              </p>
+
+            <div className="w-full flex justify-center overflow-hidden rounded-2xl max-h-[72vh] bg-black">
+              <img 
+                src={selectedPhoto.image} 
+                alt={selectedPhoto.alt} 
+                className="max-h-[72vh] w-auto object-contain rounded-2xl" 
+              />
+            </div>
+
+            <div className="mt-5 text-center flex flex-col sm:flex-row items-center justify-between w-full max-w-2xl px-2 gap-4">
+              <div className="text-left">
+                <h4 className="text-xl font-serif text-white font-bold">{selectedPhoto.label}</h4>
+                <p className="text-sm text-primary font-semibold mt-0.5">
+                  {Number.isFinite(Number(selectedPhoto.startingPrice)) ? `A partir de R$ ${Number(selectedPhoto.startingPrice).toFixed(2)}` : ''}
+                </p>
+              </div>
+              {(onBookService || onBookNow) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetService = selectedPhoto.service;
+                    setSelectedPhoto(null);
+                    if (onBookService && targetService?.id) onBookService(targetService);
+                    else onBookNow?.();
+                  }}
+                  className="btn-primary text-sm px-6 py-3 shadow-xl"
+                >
+                  Agendar este modelo <ArrowRight size={16} aria-hidden="true" />
+                </button>
+              )}
             </div>
           </div>
         </div>
