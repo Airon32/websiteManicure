@@ -680,7 +680,6 @@ export default function ClientPortal() {
           <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-muted" aria-label="Navegação principal">
             <a href="#servicos" className="hover:text-primary transition-colors">Serviços</a>
             <a href="#portfolio" className="hover:text-primary transition-colors">Portfólio</a>
-            <a href="#profissionais" className="hover:text-primary transition-colors">Profissionais</a>
             <a href="#localizacao" className="hover:text-primary transition-colors">Localização</a>
           </nav>
         )}

@@ -689,7 +689,6 @@ export function PublicFooter({
               {[
                 ['Serviços', '#servicos'],
                 ['Portfólio', '#portfolio'],
-                ['Profissionais', '#profissionais'],
                 ['Avaliações', '#avaliacoes'],
                 ['Localização', '#localizacao'],
               ].map(([label, href]) => (
@@ -818,7 +817,6 @@ export default function PublicExperienceSections({
         onReview={onReview}
       />
       <PortfolioSection items={portfolioItems} services={services} onBookService={resolvedOnSelectService} onBookNow={resolvedOnBook} />
-      <ProfessionalsSection professionals={professionals} onSelectProfessional={onSelectProfessional} onBookNow={resolvedOnBook} />
       <FaqAndPolicies faqs={faqs} policies={resolvedPolicies} onWhatsApp={onWhatsApp} whatsappHref={resolvedLinks.whatsapp} />
       <PublicFooter
         businessName={business.name}
