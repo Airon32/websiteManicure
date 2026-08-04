@@ -979,10 +979,7 @@ app.get('/api/availability/next', rateLimit({
     keyPrefix: 'next-availability'
 }), async (req, res) => {
     const limit = Math.min(8, Math.max(1, Number.parseInt(req.query.limit, 10) || 5));
-    const settingsMap = await loadSettingsMap();
-    if (settingsMap.allow_online_booking === 'false') {
-        return res.json({ message: 'success', data: [] });
-    }
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
 
     const today = getDateStringInTimeZone();
     const lastDay = new Date(`${today}T12:00:00Z`);
@@ -1198,9 +1195,6 @@ app.post('/api/appointments', rateLimit({
         const dayDistance = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
         if (dayDistance < 0 || dayDistance > maxAdvanceDays) {
             return res.status(400).json({ error: `Escolha uma data entre hoje e os próximos ${maxAdvanceDays} dias.` });
-        }
-        if (!isStaff && settingsMap.allow_online_booking === 'false') {
-            return res.status(403).json({ error: 'Os agendamentos online estão pausados no momento.' });
         }
 
         let professional = null;
