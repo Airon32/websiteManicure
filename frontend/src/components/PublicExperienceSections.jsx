@@ -215,7 +215,9 @@ export function VisitInformation({ business = {}, whatsappHref, onWhatsApp, mapH
   const details = { ...defaultBusinessDetails, ...business };
   const addressText = details.address || 'Travessa Cachoeira das Flores, nº 41 - CEP 05574-410';
   const encodedAddress = encodeURIComponent(addressText);
-  const mapEmbedUrl = `https://maps.google.com/maps?q=${encodedAddress}&t=&z=16&ie=UTF8&iwloc=&output=embed`;
+  const googleMapsUrl = mapHref || `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+  const wazeUrl = `https://waze.com/ul?q=${encodedAddress}&navigate=yes`;
+  const osmEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=-46.775%2C-23.585%2C-46.745%2C-23.565&layer=mapnik`;
 
   return (
     <section id="localizacao" className="scroll-mt-24 border-y border-border/70 bg-card/40 px-6 py-20 sm:py-24" aria-labelledby="visit-title">
@@ -234,36 +236,63 @@ export function VisitInformation({ business = {}, whatsappHref, onWhatsApp, mapH
                   <MessageCircle size={17} aria-hidden="true" /> Falar no WhatsApp
                 </SmartAction>
               )}
-              <SmartAction href={mapHref || `https://maps.google.com/?q=${encodedAddress}`} external className="btn-outline" label="Abrir localização no mapa">
-                <Navigation size={17} aria-hidden="true" /> Abrir no mapa
-              </SmartAction>
+              <a href={googleMapsUrl} target="_blank" rel="noreferrer noopener" className="btn-outline">
+                <Navigation size={17} aria-hidden="true" /> Abrir no Google Maps
+              </a>
             </div>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
-            {/* Card Onde Estamos com Mini-mapa */}
+            {/* Card Onde Estamos com Mini-mapa Interativo */}
             <div className="sm:col-span-2 rounded-3xl border border-border bg-background p-6 shadow-sm overflow-hidden flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="flex items-center gap-2.5 text-xs font-black uppercase tracking-widest text-primary">
                     <MapPin size={18} aria-hidden="true" /> ONDE ESTAMOS
                   </span>
-                  <span className="text-[11px] font-semibold text-muted bg-primary/10 text-primary px-3 py-1 rounded-full">
+                  <span className="text-[11px] font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
                     CEP 05574-410
                   </span>
                 </div>
-                <p className="mt-3 text-base font-medium text-foreground">
+                <p className="mt-3 text-base font-semibold text-foreground">
                   {addressText}
                 </p>
               </div>
-              <div className="mt-4 overflow-hidden rounded-2xl border border-border/80 h-56 w-full shadow-inner relative group">
+
+              {/* Moldura do Mapa com Fallback Limpo e Atalhos de Navegação */}
+              <div className="mt-5 overflow-hidden rounded-2xl border border-border/80 h-64 w-full relative group bg-muted/20">
                 <iframe
                   title="Mapa de localização - Travessa Cachoeira das Flores, 41"
-                  src={mapEmbedUrl}
-                  className="w-full h-full border-0 transition duration-500 group-hover:scale-[1.02]"
+                  src={osmEmbedUrl}
+                  className="w-full h-full border-0 filter contrast-[1.05] brightness-[0.95]"
                   loading="lazy"
-                  allowFullScreen
                 />
+                
+                {/* Overlay com botões de navegação rápida */}
+                <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 bg-background/90 backdrop-blur-md p-3 rounded-xl border border-border/70 shadow-lg">
+                  <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                    <MapPin size={15} className="text-primary" />
+                    <span>Navegar para o local:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={googleMapsUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-xs font-bold bg-primary text-white hover:bg-primary-dark px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                    >
+                      <Navigation size={13} /> Google Maps
+                    </a>
+                    <a
+                      href={wazeUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-xs font-bold bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                    >
+                      Waze
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
 

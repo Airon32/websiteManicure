@@ -671,7 +671,7 @@ export default function ClientPortal() {
          </div>
       )}
 
-      <header className="sticky top-0 py-4 md:py-5 px-4 md:px-10 border-b border-border/50 z-40 flex justify-between items-center bg-background/90 backdrop-blur-xl">
+      <header className="fixed top-0 left-0 right-0 py-4 md:py-5 px-4 md:px-10 border-b border-border/50 z-50 flex justify-between items-center bg-background/90 backdrop-blur-2xl shadow-sm transition-all">
         <h1 className="text-lg md:text-2xl font-serif text-foreground tracking-wider md:tracking-widest flex items-center gap-2 md:gap-3 whitespace-nowrap">
           <img src="/assets/images/logo.png" alt="Mary Esmalteria" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-contain" />
           {businessName}
@@ -694,7 +694,7 @@ export default function ClientPortal() {
         </div>
       </header>
 
-      <main className={`flex-1 flex flex-col items-center relative z-10 w-full overflow-x-hidden ${step === 0 ? '' : 'justify-center p-6'}`}>
+      <main className={`flex-1 flex flex-col items-center relative z-10 w-full pt-20 md:pt-24 ${step === 0 ? '' : 'justify-center p-6'}`}>
         
         {step === 0 && (
           <>
