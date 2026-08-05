@@ -240,11 +240,23 @@ const ClientDashboard = () => {
     }
   };
 
+  const handleConfirmPresence = async (id) => {
+    try {
+      await api.post(`/api/appointments/${id}/confirm`);
+      setMessage({ type: 'success', text: 'Sua presença foi confirmada com sucesso! Esperamos você no salão.' });
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'confirmado' } : a));
+    } catch (err) {
+      console.error('Erro ao confirmar presença:', err);
+      setMessage({ type: 'error', text: err.response?.data?.error || 'Não foi possível confirmar sua presença no momento.' });
+    }
+  };
+
   const getStatusBadge = (app) => {
     const isPast = !isAfter(parseISO(`${app.date}T${app.time}`), new Date());
     if (app.status === 'cancelado') return <span className="status-badge bg-red-100 text-red-600 border-red-200">Cancelado</span>;
-    if (isPast) return <span className="status-badge bg-gray-100 text-gray-500 border-gray-200">Concluído</span>;
-    return <span className="status-badge bg-green-100 text-green-600 border-green-200">Confirmado</span>;
+    if (app.status === 'concluído' || isPast) return <span className="status-badge bg-purple-100 text-purple-700 border-purple-200">Concluído</span>;
+    if (app.status === 'confirmado') return <span className="status-badge bg-emerald-100 text-emerald-700 border-emerald-300">✅ Presença Confirmada</span>;
+    return <span className="status-badge bg-amber-100 text-amber-700 border-amber-300">⏳ Aguardando Confirmação</span>;
   };
 
   if (!clientData) return (
@@ -530,6 +542,16 @@ const ClientDashboard = () => {
                       <span className="text-sm font-medium">Tempo: <span className="text-foreground">{app.service_duration} min</span></span>
                     </div>
                   </div>
+
+                  {app.status === 'agendado' && activeTab === 'upcoming' && (
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmPresence(app.id)}
+                      className="w-full py-3.5 px-4 mb-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 size={18} /> Confirmar Minha Presença
+                    </button>
+                  )}
 
                   {app.status !== 'cancelado' && activeTab === 'upcoming' && (
                     <div className="grid grid-cols-2 gap-2 mb-5" aria-label="Ações rápidas do agendamento">

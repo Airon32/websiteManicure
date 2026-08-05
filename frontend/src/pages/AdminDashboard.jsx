@@ -393,6 +393,7 @@ export default function AdminDashboard() {
   }, [isDark]);
 
   // Clients State
+  const [clientSearch, setClientSearch] = useState('');
   const [filteredClients, setFilteredClients] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showEditClientModal, setShowEditClientModal] = useState(false);
@@ -750,6 +751,24 @@ export default function AdminDashboard() {
       fetchFinancialStats();
     }
   }, [activeTab, user]);
+
+  const handleConfirmAppt = (id) => {
+    openModal({
+      title: 'Confirmar Presença',
+      message: 'Deseja marcar este agendamento como Presença Confirmada?',
+      type: 'confirm',
+      confirmText: 'Confirmar Presença',
+      onConfirm: async () => {
+        try {
+          await api.post(`/api/appointments/${id}/confirm`);
+          setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'confirmado' } : a));
+          openModal({ title: 'Sucesso', message: 'Presença confirmada com sucesso!', type: 'success' });
+        } catch (err) {
+          openModal({ title: 'Erro', message: err.response?.data?.error || 'Erro ao confirmar agendamento.', type: 'error' });
+        }
+      }
+    });
+  };
 
   const handleCompleteAppt = (id) => {
     openModal({
@@ -1206,12 +1225,19 @@ export default function AdminDashboard() {
 
   const SidebarItem = ({ icon: Icon, label, id, adminOnly }) => {
     if (adminOnly && !isAdmin) return null;
+    const isActive = activeTab === id;
     return (
       <button
         onClick={() => { setActiveTab(id); setIsMobileMenuOpen(false); }}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === id ? 'bg-primary text-white font-medium shadow shadow-primary/20' : 'text-muted hover:text-foreground hover:bg-border/50'}`}
+        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 relative group font-bold text-xs uppercase tracking-wider ${
+          isActive 
+            ? 'bg-gradient-to-r from-primary to-primary-hover text-white shadow-lg shadow-primary/25 scale-[1.02]' 
+            : 'text-muted hover:text-foreground hover:bg-card/80'
+        }`}
       >
-        <Icon size={20} /> {label}
+        <Icon size={18} className={isActive ? 'text-white' : 'text-primary/70 group-hover:text-primary transition-colors'} />
+        <span>{label}</span>
+        {isActive && <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
       </button>
     );
   };
@@ -1267,33 +1293,38 @@ export default function AdminDashboard() {
       {/* Mobile Backdrop */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-md transition-opacity"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Sidebar - PREMIUM REDESIGN */}
-      <aside className={`fixed inset-y-0 left-0 lg:static w-72 border-r border-white/5 bg-card flex flex-col z-50 transform transition-transform duration-500 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-8 border-b border-white/5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-black shadow-lg glow-primary">M</div>
-            <span className="text-foreground font-serif tracking-widest text-2xl font-black italic">MARY</span>
+      <aside className={`fixed inset-y-0 left-0 lg:static w-72 border-r border-border/50 bg-card/90 backdrop-blur-2xl flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="p-6 border-b border-border/50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary via-pink-500 to-primary-dark flex items-center justify-center text-white font-black shadow-lg glow-primary">M</div>
+            <div>
+              <span className="text-foreground font-serif tracking-widest text-xl font-black italic">MARY</span>
+              <span className="block text-[9px] font-black uppercase text-primary tracking-[0.2em]">Painel Profissional</span>
+            </div>
           </div>
-          <button className="lg:hidden text-muted hover:text-foreground p-2 rounded-xl bg-background/50 border border-white/5" onClick={() => setIsMobileMenuOpen(false)}>
+          <button className="lg:hidden text-muted hover:text-foreground p-2 rounded-xl bg-background/50 border border-border/40" onClick={() => setIsMobileMenuOpen(false)}>
             <X size={20} />
           </button>
         </div>
 
         {/* User Card */}
-        <div className="p-6 border-b border-white/5 bg-background/30 backdrop-blur-md flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-primary/20 border-2 border-primary/50 text-primary flex items-center justify-center font-black shadow-lg">{user.avatar}</div>
-          <div className="overflow-hidden">
-            <div className="text-foreground font-black uppercase text-sm truncate tracking-wide">{user.name}</div>
-            <div className="text-[10px] text-primary/70 uppercase font-black tracking-[0.2em]">{user.role}</div>
+        <div className="p-5 border-b border-border/40 bg-background/40 backdrop-blur-md flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-primary/10 border border-primary/30 text-primary flex items-center justify-center font-black shadow-md shrink-0">{user.avatar}</div>
+          <div className="overflow-hidden min-w-0">
+            <div className="text-foreground font-black uppercase text-xs truncate tracking-wide">{user.name}</div>
+            <div className="inline-flex items-center gap-1 mt-0.5 text-[9px] bg-primary/10 text-primary font-black uppercase px-2 py-0.5 rounded-full border border-primary/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> {user.role}
+            </div>
           </div>
         </div>
 
-        <nav className="flex-1 py-8 px-4 space-y-3 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto custom-scrollbar">
           <SidebarItem icon={LayoutDashboard} label="Dashboard" id="dashboard" />
           <SidebarItem icon={CalendarIcon} label="Super Agenda" id="agenda" />
           <SidebarItem icon={Users} label="Clientes" id="clients" />
@@ -1303,43 +1334,44 @@ export default function AdminDashboard() {
           <SidebarItem icon={Settings} label="Configurações" id="settings" />
         </nav>
         
-        <div className="p-6 border-t border-white/5">
-          <button onClick={handleLogout} className="text-muted/60 hover:text-red-400 flex items-center justify-center gap-3 w-full p-4 rounded-2xl bg-red-500/5 hover:bg-red-500/10 transition-all font-black uppercase text-[10px] tracking-widest">
-            <LogOut size={14} /> Encerrar Sessão
+        <div className="p-4 border-t border-border/40">
+          <button onClick={handleLogout} className="text-muted hover:text-red-500 flex items-center justify-center gap-2.5 w-full p-3.5 rounded-2xl bg-red-500/5 border border-red-500/10 hover:bg-red-500/10 transition-all font-black uppercase text-[10px] tracking-wider">
+            <LogOut size={15} /> Encerrar Sessão
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-y-auto relative bg-background w-full">
-        <header className="h-16 md:h-20 border-b border-white/5 flex items-center justify-between px-4 md:px-10 bg-background/60 backdrop-blur-2xl sticky top-0 z-40">
-          <div className="flex items-center gap-3 md:gap-4">
-            <button className="lg:hidden text-muted hover:text-primary p-2 rounded-xl bg-card/50 border border-white/5 transition-all" onClick={() => setIsMobileMenuOpen(true)}>
+      <main className="flex-1 flex flex-col overflow-y-auto relative bg-background w-full pb-24 lg:pb-0">
+        <header className="h-16 md:h-20 border-b border-border/40 flex items-center justify-between px-4 md:px-8 bg-background/80 backdrop-blur-2xl sticky top-0 z-40">
+          <div className="flex items-center gap-3">
+            <button className="lg:hidden text-muted hover:text-primary p-2.5 rounded-xl bg-card/60 border border-border/50 transition-all" onClick={() => setIsMobileMenuOpen(true)}>
               <Menu size={20} />
             </button>
-            <h2 className="text-sm md:text-2xl font-black text-foreground truncate uppercase tracking-widest hidden sm:block">{getPageTitle()}</h2>
+            <div>
+              <h2 className="text-sm md:text-xl font-serif font-black text-foreground uppercase tracking-wider">{getPageTitle()}</h2>
+              <p className="text-[10px] text-muted hidden sm:block">Painel de Agendamentos & Controle do Estabelecimento</p>
+            </div>
           </div>
           
           <div className="flex items-center gap-2 md:gap-3">
-            <button onClick={() => setIsDark(!isDark)} className="text-muted hover:text-primary transition-all p-2 md:p-3 rounded-xl md:rounded-2xl bg-card/50 border border-white/5">
+            <button onClick={() => setIsDark(!isDark)} className="text-muted hover:text-primary transition-all p-2.5 md:p-3 rounded-xl md:rounded-2xl bg-card/60 border border-border/50" title="Alternar Tema">
               {isDark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            
-            <div className="h-6 md:h-8 w-px bg-white/5 mx-1 hidden sm:block"></div>
 
-            <div className="flex items-center gap-1.5 md:gap-2">
-              <button onClick={() => { setShowBlockModal(true); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-500 hover:bg-orange-500 hover:text-white transition-all shadow-lg shadow-orange-500/5" title="Fechar Horário">
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setShowBlockModal(true); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="p-2.5 md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md" title="Bloquear Horário">
                 <Lock size={16} />
               </button>
-              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary !p-2 md:!p-3 !px-4 md:!px-5 !rounded-xl md:!rounded-2xl !text-[10px] md:!text-sm glow-primary">
+              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary !py-2.5 !px-4 md:!px-5 glow-primary">
                 {showAddAppt ? <X size={18} /> : <Plus size={18} />}
-                <span className="hidden md:inline ml-1 uppercase font-black tracking-widest">Marcar</span>
+                <span className="ml-1 uppercase font-black tracking-wider text-xs">Marcar</span>
               </button>
             </div>
           </div>
         </header>
 
-        <div className={`${activeTab === 'agenda' ? 'p-0' : 'p-4 md:p-8'}`}>
+        <div className={`${activeTab === 'agenda' ? 'p-0 md:p-4' : 'p-4 md:p-8'}`}>
 
           {showAddAppt && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 animate-in fade-in duration-300">
@@ -1542,60 +1574,95 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === 'dashboard' && (
-            <div className="fade-in-up duration-500">
+            <div className="fade-in-up duration-500 space-y-6 md:space-y-8">
+              
+              {/* Pill de Resumo de Confirmações */}
+              <div className="glass-panel p-4 md:p-6 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-primary">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                    <Activity size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base md:text-lg font-serif text-foreground">Resumo Operacional de Hoje</h3>
+                    <p className="text-xs text-muted">Acompanhe confirmações e atendimentos em tempo real</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs font-bold">
+                  <span className="badge-pending">
+                    ⏳ {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'agendado').length} Aguardando Confirmação
+                  </span>
+                  <span className="badge-confirmed">
+                    ✅ {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'confirmado').length} Presença Confirmada
+                  </span>
+                  <span className="badge-completed">
+                    🟢 {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'concluído').length} Atendidos / Concluídos
+                  </span>
+                </div>
+              </div>
+
               {isAdmin ? (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-10">
-                    <div className="glass-card p-5 md:p-8 flex flex-col justify-between group">
-                      <div className="flex justify-between items-start mb-4 md:mb-6">
-                        <p className="text-primary/60 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em]">Agendamentos</p>
-                        <div className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-lg shadow-primary/5">
-                           <Activity size={18} md:size={20} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                    <div className="glass-card p-6 flex flex-col justify-between group relative overflow-hidden">
+                      <div className="flex justify-between items-start mb-4">
+                        <p className="text-primary/70 text-[10px] font-black uppercase tracking-[0.2em]">Agendamentos</p>
+                        <div className="p-3 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-md">
+                           <Activity size={20} />
                         </div>
                       </div>
-                      <p className="text-2xl md:text-4xl font-black text-foreground flex items-baseline gap-2">{appointments.length} <span className="text-[10px] font-black text-muted/40 uppercase">Total</span></p>
+                      <p className="text-3xl md:text-4xl font-black text-foreground flex items-baseline gap-2">
+                        {appointments.length} <span className="text-xs font-bold text-muted uppercase">Total</span>
+                      </p>
                     </div>
 
-                    <div className="glass-card p-5 md:p-8 flex flex-col justify-between border-l-4 md:border-l-[6px] border-l-primary group">
-                      <div className="flex justify-between items-start mb-4 md:mb-6">
-                        <p className="text-primary/60 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em]">Faturamento</p>
-                        <div className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-lg shadow-primary/5">
-                           <DollarSign size={18} md:size={20} />
+                    <div className="glass-card p-6 flex flex-col justify-between border-l-4 border-l-emerald-500 group relative overflow-hidden">
+                      <div className="flex justify-between items-start mb-4">
+                        <p className="text-emerald-500/80 text-[10px] font-black uppercase tracking-[0.2em]">Faturamento Estimado</p>
+                        <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-md">
+                           <DollarSign size={20} />
                         </div>
                       </div>
-                      <p className="text-2xl md:text-4xl font-black text-primary flex items-baseline gap-1 tracking-tighter">
+                      <p className="text-3xl md:text-4xl font-black text-emerald-500 flex items-baseline gap-1 tracking-tight">
                         <span className="text-sm md:text-lg font-bold">R$</span> {totalRevenue.toFixed(2)}
                       </p>
                     </div>
 
-                    <div className="glass-card p-8 lg:col-span-2 flex flex-col justify-between relative overflow-hidden">
+                    <div className="glass-card p-6 lg:col-span-2 flex flex-col justify-between relative overflow-hidden">
                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none"></div>
-                       <p className="text-primary/60 text-[10px] font-black uppercase tracking-[0.2em] mb-6">Equipe & Operação</p>
-                       <div className="flex items-center gap-10">
+                       <p className="text-primary/70 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Equipe & Serviços</p>
+                       <div className="flex items-center gap-8 md:gap-12">
                           <div className="flex flex-col">
-                             <span className="text-4xl font-black text-foreground">{professionals.length}</span>
+                             <span className="text-3xl md:text-4xl font-black text-foreground">{professionals.length}</span>
                              <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Profissionais</span>
                           </div>
-                          <div className="w-px h-12 bg-white/5"></div>
+                          <div className="w-px h-10 bg-border/60"></div>
                           <div className="flex flex-col">
-                             <span className="text-4xl font-black text-foreground">{services.length}</span>
-                             <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Serviços</span>
+                             <span className="text-3xl md:text-4xl font-black text-foreground">{services.length}</span>
+                             <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Serviços no Menu</span>
                           </div>
                        </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
                     <div className="lg:col-span-2 glass-card p-6">
-                      <h3 className="text-xl font-serif text-foreground mb-6">Próximos em Atendimento</h3>
-                      <div className="overflow-x-auto">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-serif text-foreground">Próximos em Atendimento</h3>
+                        <span className="text-xs text-muted font-bold uppercase tracking-wider">Próximos 10 dias</span>
+                      </div>
+
+                      {/* Desktop Table View */}
+                      <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left border-collapse min-w-full">
                           <thead>
-                            <tr className="border-b border-border/50 text-muted text-sm">
-                              <th className="py-3 font-medium">Data/Hora</th>
-                              <th className="py-3 font-medium">Cliente</th>
-                              <th className="py-3 font-medium">Serviço</th>
-                              <th className="py-3 font-medium">Profissional</th>
+                            <tr className="border-b border-border/50 text-muted text-xs uppercase font-bold tracking-wider">
+                              <th className="py-3 px-2">Data/Hora</th>
+                              <th className="py-3 px-2">Status</th>
+                              <th className="py-3 px-2">Cliente</th>
+                              <th className="py-3 px-2">Serviço</th>
+                              <th className="py-3 px-2">Profissional</th>
+                              <th className="py-3 px-2 text-right">Ação</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1606,13 +1673,33 @@ export default function AdminDashboard() {
                                 return app.date >= todayStr && app.date <= limitDayStr;
                               })
                               .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
-                              .slice(0, 10) // Mostra até 10 agendamentos no dashboard
+                              .slice(0, 10)
                               .map(app => (
-                                <tr key={app.id} className="border-b border-border/50 text-foreground last:border-0 hover:bg-border/20">
-                                  <td className="py-4 px-2">{format(parseISO(app.date), 'dd/MM')} às {app.time}</td>
-                                  <td className="py-4 px-2 font-medium">{app.client_name}</td>
-                                  <td className="py-4 px-2 text-muted">{app.service_name || '-'}</td>
-                                  <td className="py-4 px-2">{app.professional_name || '-'}</td>
+                                <tr key={app.id} className="border-b border-border/40 text-foreground last:border-0 hover:bg-card/40 transition-colors">
+                                  <td className="py-3.5 px-2 font-medium text-xs">
+                                    {format(parseISO(app.date), 'dd/MM')} às <strong className="text-primary">{app.time}</strong>
+                                  </td>
+                                  <td className="py-3.5 px-2">
+                                    {app.status === 'concluído' ? (
+                                      <span className="badge-completed">🟢 Concluído</span>
+                                    ) : app.status === 'confirmado' ? (
+                                      <span className="badge-confirmed">✅ Confirmado</span>
+                                    ) : (
+                                      <span className="badge-pending">⏳ Pendente</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3.5 px-2 font-semibold text-sm">{app.client_name}</td>
+                                  <td className="py-3.5 px-2 text-xs text-muted">{app.service_name || '-'}</td>
+                                  <td className="py-3.5 px-2 text-xs">{app.professional_name || '-'}</td>
+                                  <td className="py-3.5 px-2 text-right">
+                                    <button 
+                                      onClick={() => handleWhatsAppAction(app, true)}
+                                      className="text-emerald-500 hover:bg-emerald-500/10 p-2 rounded-lg transition-colors"
+                                      title="Lembrete WhatsApp"
+                                    >
+                                      <Send size={15} />
+                                    </button>
+                                  </td>
                                 </tr>
                               ))}
                             {activeAppointments.filter(app => {
@@ -1620,27 +1707,76 @@ export default function AdminDashboard() {
                                 const limitDayStr = format(addDays(startOfToday(), 10), 'yyyy-MM-dd');
                                 return app.date >= todayStr && app.date <= limitDayStr;
                               }).length === 0 && (
-                                <tr><td colSpan="4" className="text-center py-8 text-muted italic">Nenhum agendamento para os próximos 10 dias.</td></tr>
+                                <tr><td colSpan="6" className="text-center py-8 text-muted italic text-sm">Nenhum agendamento para os próximos 10 dias.</td></tr>
                               )}
                           </tbody>
                         </table>
                       </div>
+
+                      {/* Mobile Card View */}
+                      <div className="md:hidden space-y-3">
+                        {activeAppointments
+                          .filter(app => {
+                            const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+                            const limitDayStr = format(addDays(startOfToday(), 10), 'yyyy-MM-dd');
+                            return app.date >= todayStr && app.date <= limitDayStr;
+                          })
+                          .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
+                          .slice(0, 8)
+                          .map(app => (
+                            <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl bg-card border border-border/60 flex flex-col gap-2 relative shadow-sm">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  {app.status === 'concluído' ? (
+                                    <span className="badge-completed">🟢 Concluído</span>
+                                  ) : app.status === 'confirmado' ? (
+                                    <span className="badge-confirmed">✅ Confirmado</span>
+                                  ) : (
+                                    <span className="badge-pending">⏳ Pendente</span>
+                                  )}
+                                  <h4 className="font-bold text-foreground text-sm mt-2">{app.client_name}</h4>
+                                  <p className="text-xs text-muted">{app.service_name}</p>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-sm font-black text-primary">{app.time}</span>
+                                  <p className="text-[10px] text-muted font-bold uppercase">{format(parseISO(app.date), 'dd/MM')}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
+                                <span className="text-muted text-[11px]">Profissional: <strong className="text-foreground">{app.professional_name}</strong></span>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleWhatsAppAction(app, true); }}
+                                  className="text-emerald-500 font-bold text-[11px] bg-emerald-500/10 px-2.5 py-1 rounded-lg flex items-center gap-1"
+                                >
+                                  <Send size={12} /> WhatsApp
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        {activeAppointments.filter(app => {
+                            const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+                            const limitDayStr = format(addDays(startOfToday(), 10), 'yyyy-MM-dd');
+                            return app.date >= todayStr && app.date <= limitDayStr;
+                          }).length === 0 && (
+                            <p className="text-center py-6 text-muted text-xs italic">Nenhum agendamento nos próximos 10 dias.</p>
+                          )}
+                      </div>
                     </div>
 
-                    <div className="glass-card p-6 border-l-4 border-l-primary">
+                    <div className="glass-card p-6 border-l-4 border-l-primary flex flex-col">
                       <h3 className="text-xl font-serif text-foreground mb-6">Ranking Financeiro</h3>
-                      <div className="space-y-4">
+                      <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                         {revenuePerProfessional.map((pro, idx) => (
-                          <div key={pro.id} className="flex items-center gap-4 bg-background border border-border/50 p-4 rounded-xl">
-                            <div className="w-8 h-8 rounded-full bg-primary-light/30 text-primary flex items-center justify-center font-bold text-sm">
-                              {idx + 1}
+                          <div key={pro.id} className="flex items-center gap-3 bg-card/60 border border-border/50 p-3.5 rounded-2xl">
+                            <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                              {idx + 1}º
                             </div>
-                            <div className="flex-1">
-                              <h4 className="text-foreground font-medium text-sm">{pro.name}</h4>
-                              <p className="text-xs text-muted">{pro.totalApps} agendamentos</p>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-foreground font-bold text-xs truncate">{pro.name}</h4>
+                              <p className="text-[10px] text-muted">{pro.totalApps} agendamentos</p>
                             </div>
-                            <div className="text-right">
-                              <p className="text-primary font-bold">R${pro.revenue.toFixed(2)}</p>
+                            <div className="text-right shrink-0">
+                              <p className="text-primary font-black text-sm">R$ {pro.revenue.toFixed(2)}</p>
                             </div>
                           </div>
                         ))}
@@ -1648,7 +1784,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 </>
-                ) : (
+              ) : (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                         <div className="glass-card p-6 border-l-4 border-l-primary flex flex-col justify-between">
@@ -1826,11 +1962,25 @@ export default function AdminDashboard() {
                                     <span className="text-primary font-bold">{app.time}</span>
                                   </div>
                                   <div className="flex-1">
-                                    <h4 className="text-foreground font-medium">{app.client_name} {app.status === 'concluído' && <span className="ml-2 text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full uppercase font-bold tracking-widest border border-green-500/20">Pago</span>}</h4>
+                                    <h4 className="text-foreground font-medium flex items-center flex-wrap gap-1">
+                                      {app.client_name}
+                                      {app.status === 'concluído' ? (
+                                        <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full uppercase font-bold tracking-widest border border-green-500/20">Pago</span>
+                                      ) : app.status === 'confirmado' ? (
+                                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full uppercase font-bold tracking-widest border border-emerald-500/20">✅ Confirmado</span>
+                                      ) : (
+                                        <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full uppercase font-bold tracking-widest border border-amber-500/20">⏳ Pendente</span>
+                                      )}
+                                    </h4>
                                     <p className="text-sm text-muted">{app.service_name}</p>
                                     {isAdmin && <p className="text-xs text-primary mt-1 font-medium flex items-center gap-1"><User size={10} /> {app.professional_name}</p>}
                                   </div>
                                   <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {app.status === 'agendado' && (
+                                      <button onClick={(e) => { e.stopPropagation(); handleConfirmAppt(app.id); }} className="text-emerald-400 hover:text-white bg-emerald-500/10 hover:bg-emerald-500 p-2 rounded transition-colors" title="Confirmar Presença">
+                                        <CheckCircle size={16} />
+                                      </button>
+                                    )}
                                     {app.status !== 'concluído' && (
                                       <button onClick={(e) => { e.stopPropagation(); handleCompleteAppt(app.id); }} className="text-green-500 hover:text-white bg-green-500/10 hover:bg-green-500 p-2 rounded transition-colors" title="Concluir/Pago">
                                         <CheckCircle size={16} />
@@ -2198,48 +2348,118 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                   {activeTab === 'clients' && (
+                  {activeTab === 'clients' && (
                     <div className="fade-in-up duration-500 glass-card p-6">
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-2xl font-serif text-foreground">Base de Clientes</h3>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <div>
+                          <h3 className="text-xl md:text-2xl font-serif text-foreground">Base de Clientes</h3>
+                          <p className="text-xs text-muted">Gerencie o histórico e contato dos seus clientes</p>
+                        </div>
+                        <div className="relative w-full sm:w-72">
+                          <input 
+                            type="text" 
+                            className="input-field pl-10 py-2.5 text-xs" 
+                            placeholder="Buscar por nome ou telefone..."
+                            value={clientSearch}
+                            onChange={e => setClientSearch(e.target.value)}
+                          />
+                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                        </div>
                       </div>
-                      <div className="overflow-x-auto">
+
+                      {/* Desktop View */}
+                      <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left border-collapse min-w-[500px]">
-                        <thead>
-                          <tr className="border-b border-border/50 text-muted text-sm capitalize">
-                            <th className="py-3 px-4 font-medium">Nome</th>
-                            <th className="py-3 px-4 font-medium">Telefone</th>
-                            <th className="py-3 px-4 font-medium text-right">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {clients.map(client => (
-                            <tr key={client.id} className="border-b border-border/30 text-foreground hover:bg-border/20 transition-colors">
-                              <td className="py-4 px-4 font-medium">{client.name}</td>
-                              <td className="py-4 px-4 text-muted">{client.phone}</td>
-                              <td className="py-2 px-4 text-right space-x-2">
-                                <button 
-                                  onClick={() => { setSelectedClient(client); setShowEditClientModal(true); }}
-                                  className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                                  title="Editar Cliente"
-                                >
-                                   <Edit2 size={16} />
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteClient(client.id)}
-                                  className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                                  title="Excluir da Base"
-                                >
-                                   <Trash2 size={16} />
-                                </button>
-                              </td>
+                          <thead>
+                            <tr className="border-b border-border/50 text-muted text-xs uppercase font-bold tracking-wider">
+                              <th className="py-3 px-4">Nome</th>
+                              <th className="py-3 px-4">Telefone / WhatsApp</th>
+                              <th className="py-3 px-4 text-right">Ações</th>
                             </tr>
-                          ))}
-                          {clients.length === 0 && (
-                            <tr><td colSpan="3" className="text-center py-10 text-muted italic">Nenhum cliente cadastrado ainda.</td></tr>
-                          )}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {clients
+                              .filter(c => {
+                                if (!clientSearch.trim()) return true;
+                                const q = clientSearch.toLowerCase();
+                                return (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
+                              })
+                              .map(client => {
+                                const cleanPhone = (client.phone || '').replace(/\D/g, '');
+                                return (
+                                  <tr key={client.id} className="border-b border-border/30 text-foreground hover:bg-card/40 transition-colors">
+                                    <td className="py-4 px-4 font-semibold text-sm">{client.name}</td>
+                                    <td className="py-4 px-4 text-sm text-muted">
+                                      <a href={`https://wa.me/55${cleanPhone}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-emerald-500 hover:underline">
+                                        <MessageCircle size={14} /> {client.phone}
+                                      </a>
+                                    </td>
+                                    <td className="py-2 px-4 text-right space-x-2">
+                                      <button 
+                                        onClick={() => { setSelectedClient(client); setShowEditClientModal(true); }}
+                                        className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                                        title="Editar Cliente"
+                                      >
+                                        <Edit2 size={16} />
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeleteClient(client.id)}
+                                        className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
+                                        title="Excluir da Base"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            {clients.length === 0 && (
+                              <tr><td colSpan="3" className="text-center py-10 text-muted italic">Nenhum cliente cadastrado ainda.</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile View */}
+                      <div className="md:hidden space-y-3">
+                        {clients
+                          .filter(c => {
+                            if (!clientSearch.trim()) return true;
+                            const q = clientSearch.toLowerCase();
+                            return (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
+                          })
+                          .map(client => {
+                            const cleanPhone = (client.phone || '').replace(/\D/g, '');
+                            return (
+                              <div key={client.id} className="p-4 rounded-2xl bg-card border border-border/60 flex items-center justify-between gap-3 shadow-sm">
+                                <div className="min-w-0">
+                                  <h4 className="font-bold text-foreground text-sm truncate">{client.name}</h4>
+                                  <a href={`https://wa.me/55${cleanPhone}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-emerald-500 hover:underline mt-1 font-medium">
+                                    <MessageCircle size={13} /> {client.phone}
+                                  </a>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button 
+                                    onClick={() => { setSelectedClient(client); setShowEditClientModal(true); }}
+                                    className="p-2.5 text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                                    title="Editar Cliente"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteClient(client.id)}
+                                    className="p-2.5 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
+                                    title="Excluir"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        {clients.length === 0 && (
+                          <p className="text-center py-8 text-muted italic text-xs">Nenhum cliente cadastrado.</p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2953,15 +3173,26 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-muted font-medium mb-1">Situação / Status</p>
-                  <p className={`text-sm font-bold ${selectedAppointment.status === 'concluído' ? 'text-green-500' : 'text-blue-500'} uppercase`}>
-                    {selectedAppointment.status === 'concluído' ? 'Pago' : selectedAppointment.status}
+                  <p className={`text-sm font-bold ${
+                    selectedAppointment.status === 'concluído' ? 'text-green-500' :
+                    selectedAppointment.status === 'confirmado' ? 'text-emerald-400' : 'text-amber-500'
+                  } uppercase`}>
+                    {selectedAppointment.status === 'concluído' ? 'Pago / Concluído' :
+                     selectedAppointment.status === 'confirmado' ? '✅ Presença Confirmada' : '⏳ Aguardando Confirmação'}
                   </p>
                 </div>
-                {selectedAppointment.status !== 'concluído' && (
-                  <button onClick={() => { handleCompleteAppt(selectedAppointment.id); setSelectedAppointment(null); }} className="text-xs font-bold bg-green-500/10 text-green-600 px-3 py-1.5 rounded-lg hover:bg-green-500 hover:text-white transition-colors">
-                    CONCLUIR
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {selectedAppointment.status === 'agendado' && (
+                    <button onClick={() => { handleConfirmAppt(selectedAppointment.id); setSelectedAppointment(null); }} className="text-xs font-bold bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500 hover:text-white transition-colors">
+                      CONFIRMAR PRESENÇA
+                    </button>
+                  )}
+                  {selectedAppointment.status !== 'concluído' && (
+                    <button onClick={() => { handleCompleteAppt(selectedAppointment.id); setSelectedAppointment(null); }} className="text-xs font-bold bg-green-500/10 text-green-600 px-3 py-1.5 rounded-lg hover:bg-green-500 hover:text-white transition-colors">
+                      CONCLUIR
+                    </button>
+                  )}
+                </div>
               </div>
 
             </div>
@@ -3047,8 +3278,61 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* Mobile Bottom Navigation Bar - NATIVE APP FEEL */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-2xl border-t border-border/60 px-2 py-2 flex justify-around items-center pb-safe shadow-[0_-10px_25px_rgba(0,0,0,0.2)]">
+        <button
+          onClick={() => setActiveTab('agenda')}
+          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+            activeTab === 'agenda' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
+          }`}
+        >
+          <CalendarIcon size={20} className={activeTab === 'agenda' ? 'text-primary' : ''} />
+          <span>Agenda</span>
+        </button>
 
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+            activeTab === 'dashboard' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
+          }`}
+        >
+          <LayoutDashboard size={20} className={activeTab === 'dashboard' ? 'text-primary' : ''} />
+          <span>Painel</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('clients')}
+          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+            activeTab === 'clients' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
+          }`}
+        >
+          <Users size={20} className={activeTab === 'clients' ? 'text-primary' : ''} />
+          <span>Clientes</span>
+        </button>
+
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('catalog')}
+            className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+              activeTab === 'catalog' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
+            }`}
+          >
+            <Scissors size={20} className={activeTab === 'catalog' ? 'text-primary' : ''} />
+            <span>Serviços</span>
+          </button>
+        )}
+
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+            activeTab === 'settings' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
+          }`}
+        >
+          <Settings size={20} className={activeTab === 'settings' ? 'text-primary' : ''} />
+          <span>Ajustes</span>
+        </button>
+      </nav>
 
     </div>
-        );
+  );
 }

@@ -65,29 +65,52 @@
   .glass-card {
     @apply bg-card/60 backdrop-blur-2xl border border-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] rounded-[1.5rem] md:rounded-[2.5rem] transition-all duration-500 hover:border-primary/20;
   }
+  .glass-panel {
+    @apply bg-card/80 backdrop-blur-xl border border-border/60 shadow-xl rounded-2xl md:rounded-3xl transition-all duration-300;
+  }
   .btn-primary {
-    @apply bg-primary text-white font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] md:text-sm tracking-widest;
+    @apply bg-primary text-white font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .btn-outline {
-    @apply border-2 border-primary/50 text-primary font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-primary/10 transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] md:text-sm tracking-widest;
+    @apply border-2 border-primary/50 text-primary font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-primary/10 transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .btn-secondary {
-    @apply bg-card/50 backdrop-blur-lg border border-border text-muted font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-border/30 hover:text-foreground transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[10px] md:text-sm tracking-widest;
+    @apply bg-card/60 backdrop-blur-lg border border-border text-muted font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-border/40 hover:text-foreground transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .input-field {
-    @apply w-full bg-background/50 border border-border/50 rounded-xl md:rounded-2xl px-4 py-3 md:py-3.5 text-sm md:text-base text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300;
+    @apply w-full bg-background/60 border border-border/70 rounded-xl md:rounded-2xl px-4 py-3 md:py-3.5 text-sm md:text-base text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300;
   }
   
   .glow-primary {
-    @apply shadow-[0_0_15px_rgba(244,114,182,0.4)];
+    @apply shadow-[0_0_20px_rgba(244,114,182,0.35)];
+  }
+  .glow-emerald {
+    @apply shadow-[0_0_20px_rgba(16,185,129,0.3)];
+  }
+  .glow-amber {
+    @apply shadow-[0_0_20px_rgba(245,158,11,0.3)];
+  }
+
+  /* Status Badges */
+  .badge-pending {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-wider bg-amber-500/15 text-amber-500 border border-amber-500/30;
+  }
+  .badge-confirmed {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-500 border border-emerald-500/30;
+  }
+  .badge-completed {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-wider bg-purple-500/15 text-purple-400 border border-purple-500/30;
+  }
+  .badge-cancelled {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-wider bg-red-500/15 text-red-500 border border-red-500/30;
   }
 }
 
 @layer utilities {
   .fade-in-up {
-    animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
 
   @keyframes fadeInUp {
@@ -98,9 +121,9 @@
   }
 
   .reveal-img {
-    animation: reveal 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     opacity: 0;
-    transform: scale(0.95) translateY(30px);
+    transform: scale(0.95) translateY(20px);
   }
 
   @keyframes reveal {
@@ -115,8 +138,8 @@
   }
 
   .bg-grid-pattern {
-    background-image: linear-gradient(to bottom, rgb(var(--color-border)) 1px, transparent 1px);
-    background-size: 100% 80px;
+    background-image: linear-gradient(to bottom, rgb(var(--color-border) / 0.4) 1px, transparent 1px);
+    background-size: 100% 64px;
   }
 
   .no-scrollbar::-webkit-scrollbar {
@@ -125,5 +148,8 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
   }
 }

@@ -1587,6 +1587,72 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
     res.json({ "message": "success", "data": data[0] });
 });
 
+app.get('/api/appointments/:id/confirm-info', rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 60,
+    keyPrefix: 'confirm-info'
+}), async (req, res) => {
+    const { id } = req.params;
+    const ownership = await loadAppointmentForAuthorization(id);
+    if (ownership.error || !ownership.data) return res.status(404).json({ error: 'Agendamento não encontrado.' });
+    
+    const token = String(req.query.token || '');
+    const actionToken = verifySession(token);
+    const validActionToken = actionToken?.action === 'confirm-appointment' && sameSubject(actionToken.appointmentId, id);
+    if (!validActionToken && !canAccessAppointment(req.auth, ownership.data, { allowClient: true })) {
+        return res.status(401).json({ error: 'Este link de confirmação é inválido ou expirou.' });
+    }
+
+    const app = ownership.data;
+    let serviceName = 'Serviço Agendado';
+    let servicePrice = 0;
+    let serviceDuration = 40;
+
+    if (app.notes && app.notes.includes('MULTI_SERVICES:')) {
+        try {
+            const parts = app.notes.split('|');
+            const jsonPart = parts.find(p => p.startsWith('MULTI_SERVICES:')).replace('MULTI_SERVICES:', '');
+            const multi = JSON.parse(jsonPart);
+            serviceName = multi.map(s => s.name).join(', ');
+            servicePrice = multi.reduce((acc, s) => acc + (Number(s.price) || 0), 0);
+            serviceDuration = multi.reduce((acc, s) => acc + (Number(s.duration) || 0), 0);
+        } catch {}
+    } else if (app.service_id) {
+        try {
+            const { data: dbSrv } = await supabase.from('services').select('name, price, duration').eq('id', app.service_id).maybeSingle();
+            if (dbSrv) {
+                serviceName = dbSrv.name;
+                servicePrice = Number(dbSrv.price) || 0;
+                serviceDuration = Number(dbSrv.duration) || 40;
+            }
+        } catch {}
+    }
+
+    let professionalName = 'Equipe';
+    if (app.professional_id) {
+        try {
+            const { data: dbPro } = await supabase.from('professionals').select('name').eq('id', app.professional_id).maybeSingle();
+            if (dbPro) professionalName = dbPro.name;
+        } catch {}
+    }
+
+    res.json({
+        message: 'success',
+        data: {
+            id: app.id,
+            client_name: app.client_name,
+            client_phone: app.client_phone,
+            date: app.date,
+            time: app.time,
+            status: app.status,
+            service_name: serviceName,
+            service_price: servicePrice,
+            service_duration: serviceDuration,
+            professional_name: professionalName
+        }
+    });
+});
+
 app.post('/api/appointments/:id/confirm', rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 20,
@@ -1607,7 +1673,7 @@ app.post('/api/appointments/:id/confirm', rateLimit({
         .eq('id', id);
 
     if (error) return res.status(400).json({"error": error.message});
-    res.json({ "message": "success" });
+    res.json({ "message": "success", "status": "confirmado" });
 });
 
 app.post('/api/appointments/:id/cancel', async (req, res) => {
