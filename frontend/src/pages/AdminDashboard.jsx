@@ -795,28 +795,40 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleOpenBlockModal = (profId = null, timeStr = '', dateStr = '') => {
+    setNewBlock({
+      professional_id: profId || (user?.role === 'admin' ? (professionals[0]?.id || '') : user?.id || ''),
+      date: dateStr || format(new Date(), 'yyyy-MM-dd'),
+      time: timeStr || '08:00',
+      duration: '60',
+      description: ''
+    });
+    setShowBlockModal(true);
+  };
+
   const handleAddBlock = async (e) => {
     e.preventDefault();
     try {
-      if (!newBlock.professional_id && user.role === 'admin') {
+      const profId = user.role === 'admin' ? newBlock.professional_id : user.id;
+      if (!profId) {
           openModal({ title: 'Atenção', message: 'Por favor, selecione um profissional.', type: 'info', confirmText: 'OK' });
           return;
       }
       
       const payload = {
           ...newBlock,
-          professional_id: user.role === 'admin' ? newBlock.professional_id : user.id
+          professional_id: profId
       };
       
       const response = await api.post('/api/appointments/block', payload);
       setAppointments([response.data.data, ...appointments]);
       setShowBlockModal(false);
       setNewBlock({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '', duration: '30', description: '' });
-      openModal({ title: 'Sucesso', message: 'Horário fechado com sucesso!', type: 'success', confirmText: 'OK' });
+      openModal({ title: 'Sucesso', message: 'Horário fechado na agenda com sucesso!', type: 'success', confirmText: 'OK' });
       loadData(user);
     } catch (err) {
       console.error(err);
-      openModal({ title: 'Erro', message: err.response?.data?.error || 'Erro ao fechar horário.', type: 'error', confirmText: 'Voltar' });
+      openModal({ title: 'Erro ao Bloquear', message: err.response?.data?.error || 'Erro ao fechar horário.', type: 'error', confirmText: 'Voltar' });
     }
   };
 
@@ -3098,79 +3110,116 @@ export default function AdminDashboard() {
 
       {/* MODAL FECHAR HORÁRIO */}
       {showBlockModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 fade-in-up">
-          <div className="bg-background w-full max-w-md rounded-2xl border border-border shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 fade-in-up">
+          <div className="bg-card w-full max-w-md rounded-[2.5rem] border border-amber-500/30 shadow-2xl p-6 relative overflow-hidden">
             <button 
               onClick={() => setShowBlockModal(false)}
-              className="absolute right-4 top-4 text-muted hover:text-foreground transition-colors"
+              className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors p-1"
             >
-              <X size={24} />
+              <X size={20} />
             </button>
             
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-full bg-orange-500/20 text-orange-500 flex items-center justify-center">
-                <Lock size={20} />
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shadow-md">
+                <Lock size={22} />
               </div>
-              <h2 className="text-xl font-serif text-foreground">Fechar Horário</h2>
+              <div>
+                <h2 className="text-xl font-serif font-black text-foreground">Fechar Horário</h2>
+                <p className="text-xs text-muted">Bloqueie sua agenda para pausas ou faltas</p>
+              </div>
             </div>
-            
-            <p className="text-sm text-muted mb-6">
-              Bloqueie temporariamente a agenda para almoço, pausas ou indisponibilidades.
-            </p>
 
-            <form onSubmit={handleAddBlock} className="space-y-4">
+            <form onSubmit={handleAddBlock} className="space-y-4 mt-5">
               {isAdmin && (
                 <div>
-                  <label className="text-sm text-muted mb-1 block">Profissional</label>
-                  <select className="input-field w-full" value={newBlock.professional_id} onChange={e => setNewBlock({ ...newBlock, professional_id: e.target.value })} required>
-                    <option value="" disabled>Selecione um Profissional</option>
+                  <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Profissional</label>
+                  <select 
+                    className="input-field w-full text-xs font-bold uppercase tracking-wider" 
+                    value={newBlock.professional_id} 
+                    onChange={e => setNewBlock({ ...newBlock, professional_id: e.target.value })} 
+                    required
+                  >
+                    <option value="" disabled>Selecione o Profissional</option>
                     {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-muted mb-1 block">Data</label>
-                  <input type="date" className="input-field w-full" value={newBlock.date} onChange={e => setNewBlock({ ...newBlock, date: e.target.value })} min={format(startOfToday(), 'yyyy-MM-dd')} required />
+                  <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Data</label>
+                  <input 
+                    type="date" 
+                    className="input-field w-full text-xs font-bold" 
+                    value={newBlock.date} 
+                    onChange={e => setNewBlock({ ...newBlock, date: e.target.value })} 
+                    required 
+                  />
                 </div>
                 <div>
-                  <label className="text-sm text-muted mb-1 block">Horário de Início</label>
-                  <select className="input-field w-full" value={newBlock.time} onChange={e => setNewBlock({ ...newBlock, time: e.target.value })} required>
-                    <option value="" disabled>Ex: 12:00</option>
+                  <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Horário de Início</label>
+                  <select 
+                    className="input-field w-full text-xs font-bold" 
+                    value={newBlock.time} 
+                    onChange={e => setNewBlock({ ...newBlock, time: e.target.value })} 
+                    required
+                  >
+                    <option value="" disabled>Selecione o horário</option>
                     {appointmentTimeSlots.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="text-sm text-muted mb-1 block">Duração (Tempo Fora)</label>
-                <select className="input-field w-full" value={newBlock.duration} onChange={e => setNewBlock({ ...newBlock, duration: e.target.value })} required>
-                  <option value="15">15 minutos</option>
+                <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Duração (Tempo de Bloqueio)</label>
+                <select 
+                  className="input-field w-full text-xs font-bold" 
+                  value={newBlock.duration} 
+                  onChange={e => setNewBlock({ ...newBlock, duration: e.target.value })} 
+                  required
+                >
+                  <option value="15">15 minutos (Pausa rápida)</option>
                   <option value="30">30 minutos</option>
                   <option value="45">45 minutos</option>
-                  <option value="60">1 hora</option>
+                  <option value="60">1 hora (Almoço)</option>
                   <option value="90">1 hora e meia</option>
                   <option value="120">2 horas</option>
                   <option value="240">4 horas (Meio Turno)</option>
-                  <option value="480">8 horas (Turno Completo)</option>
+                  <option value="480">8 horas (Dia Todo / Turno Completo)</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-sm text-muted mb-1 block">Descrição / Motivo (Opcional)</label>
+                <label className="text-xs font-bold text-muted mb-1.5 block uppercase tracking-wider">Motivo / Descrição</label>
+                
+                {/* Atalhos Rápidos de Motivo */}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {['Almoço', 'Médico', 'Compromisso Pessoal', 'Folga', 'Treinamento'].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setNewBlock({ ...newBlock, description: preset })}
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-xl border transition-all ${newBlock.description === preset ? 'bg-amber-500/30 border-amber-500 text-amber-300' : 'bg-card border-border/60 text-muted hover:text-foreground'}`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+
                 <input 
                   type="text" 
-                  className="input-field w-full" 
-                  placeholder="Ex: Horário de Almoço, Médico, etc." 
+                  className="input-field w-full text-xs font-bold" 
+                  placeholder="Ex: Horário de Almoço, Médico, Folga, etc." 
                   value={newBlock.description} 
                   onChange={e => setNewBlock({ ...newBlock, description: e.target.value })} 
                 />
               </div>
 
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setShowBlockModal(false)} className="btn-secondary flex-1">Cancelar</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors font-medium">Bloquear</button>
+              <div className="pt-3 flex gap-3">
+                <button type="button" onClick={() => setShowBlockModal(false)} className="btn-secondary flex-1 text-xs font-bold uppercase tracking-wider py-3">Cancelar</button>
+                <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl transition-all font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
+                  <Lock size={15} /> Bloquear Agenda
+                </button>
               </div>
             </form>
           </div>

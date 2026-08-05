@@ -1158,6 +1158,109 @@ app.get('/api/appointments', requireStaff(), async (req, res) => {
     res.json({ "message": "success", "data": formatted });
 });
 
+app.post('/api/appointments/block', requireStaff(), async (req, res) => {
+    try {
+        const isStaff = req.auth?.type === 'staff';
+        let professionalId = String(req.body.professional_id || '');
+        if (isStaff && req.auth.role !== 'admin') professionalId = String(req.auth.id);
+
+        const date = String(req.body.date || '');
+        const time = String(req.body.time || '');
+        const duration = Number(req.body.duration) || 30;
+        const description = safeText(req.body.description || 'Agenda Fechada / Pausa', 200);
+
+        if (!professionalId || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+            return res.status(400).json({ error: 'Data, horário e profissional são obrigatórios.' });
+        }
+
+        const newStart = timeToMinutes(time);
+        let existing = [];
+        try {
+            const { data: dbExisting } = await supabase.from('appointments')
+                .select('time, notes, service:services(duration)')
+                .eq('professional_id', professionalId)
+                .eq('date', date)
+                .neq('status', 'cancelado');
+            existing = dbExisting || [];
+        } catch {}
+
+        const conflict = (existing || []).some(appointment => {
+            const existingStart = timeToMinutes(appointment.time);
+            let existingDuration = Number(appointment.service?.duration) || 30;
+            if (appointment.notes?.startsWith('MULTI_SERVICES:')) {
+                try {
+                    const marker = appointment.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
+                    const multiData = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
+                    existingDuration = multiData.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
+                } catch {}
+            } else if (appointment.notes?.startsWith('BLOCK:')) {
+                existingDuration = Number.parseInt(appointment.notes.split(':')[1], 10) || existingDuration;
+            }
+            return newStart < existingStart + existingDuration && newStart + duration > existingStart;
+        });
+
+        if (conflict) {
+            return res.status(409).json({ error: 'Existe outro agendamento neste horário. Desmarque ou altere os agendamentos existentes antes de fechar este período.' });
+        }
+
+        let defaultServiceId = null;
+        try {
+            const { data: services } = await supabase.from('services').select('id').limit(1);
+            if (services && services.length > 0) defaultServiceId = services[0].id;
+        } catch {}
+
+        const blockNotes = `BLOCK:${duration}:${description}`;
+        const blockRecord = {
+            client_name: `🔒 Agenda Fechada (${description})`,
+            client_phone: '00000000000',
+            service_id: defaultServiceId,
+            professional_id: professionalId,
+            date,
+            time,
+            status: 'concluído',
+            notes: blockNotes
+        };
+
+        let insertedBlock = null;
+        try {
+            const { data: dbInserted } = await supabase
+                .from('appointments')
+                .insert([blockRecord])
+                .select(`
+                    *,
+                    service:services(id, name, price, duration),
+                    professional:professionals(id, name, avatar, specialty)
+                `);
+            if (dbInserted && dbInserted[0]) insertedBlock = dbInserted[0];
+        } catch (e) {
+            console.error('Erro ao inserir bloqueio:', e);
+        }
+
+        if (!insertedBlock) {
+            insertedBlock = {
+                id: `block-${Date.now()}`,
+                ...blockRecord,
+                service_name: `🔒 Agenda Fechada (${description})`,
+                service_duration: duration,
+                service_price: 0
+            };
+        }
+
+        const formatted = {
+            ...insertedBlock,
+            service_name: `🔒 Agenda Fechada (${description})`,
+            service_duration: duration,
+            service_price: 0,
+            professional_name: insertedBlock.professional?.name
+        };
+
+        res.json({ message: 'success', data: formatted });
+    } catch (error) {
+        console.error('[Erro Fechar Horário]:', error);
+        res.status(500).json({ error: 'Erro ao fechar horário na agenda.' });
+    }
+});
+
 app.post('/api/appointments', rateLimit({
     windowMs: 60 * 60 * 1000,
     max: 20,
