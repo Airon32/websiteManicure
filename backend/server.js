@@ -609,22 +609,74 @@ app.delete('/api/services/:id', requireStaff('admin'), async (req, res) => {
 });
 
 app.put('/api/services/:id', requireStaff('admin'), async (req, res) => {
+    const { id } = req.params;
     const name = safeText(req.body.name, 100);
     const category = safeText(req.body.category || 'Geral', 60);
     const description = safeText(req.body.description, 500);
     const duration = Number(req.body.duration);
     const price = Number(req.body.price);
+
     if (!name || !Number.isInteger(duration) || duration < 5 || duration > 480 || !Number.isFinite(price) || price < 0 || price > 100000) {
         return res.status(400).json({ error: 'Revise nome, duração e preço do serviço.' });
     }
-    const { data, error } = await supabase
+
+    // 1. Atualiza a tabela de serviços
+    const { data: updatedServices, error } = await supabase
         .from('services')
         .update({ name, duration, price, category, description })
-        .eq('id', req.params.id)
+        .eq('id', id)
         .select();
-        
-    if (error) return res.status(400).json({"error": error.message});
-    res.json({ "message": "success", "data": data[0] });
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    const updatedService = updatedServices && updatedServices[0] ? updatedServices[0] : { id, name, duration, price, category, description };
+
+    // 2. Sincroniza agendamentos marcados que possuem múltiplos serviços salvos em 'notes'
+    try {
+        const { data: multiApps } = await supabase
+            .from('appointments')
+            .select('id, notes')
+            .neq('status', 'cancelado')
+            .like('notes', '%MULTI_SERVICES:%');
+
+        if (multiApps && multiApps.length > 0) {
+            for (const app of multiApps) {
+                if (!app.notes || typeof app.notes !== 'string') continue;
+                try {
+                    const parts = app.notes.split('|');
+                    const multiIndex = parts.findIndex(p => p.startsWith('MULTI_SERVICES:'));
+                    if (multiIndex === -1) continue;
+
+                    const jsonPart = parts[multiIndex].replace('MULTI_SERVICES:', '');
+                    let multiData = JSON.parse(jsonPart);
+                    let changed = false;
+
+                    multiData = multiData.map(srv => {
+                        if (String(srv.id) === String(id)) {
+                            changed = true;
+                            return { ...srv, name, price, duration };
+                        }
+                        return srv;
+                    });
+
+                    if (changed) {
+                        parts[multiIndex] = `MULTI_SERVICES:${JSON.stringify(multiData)}`;
+                        const newNotes = parts.join('|');
+                        await supabase
+                            .from('appointments')
+                            .update({ notes: newNotes })
+                            .eq('id', app.id);
+                    }
+                } catch (e) {
+                    console.error('Erro ao atualizar agendamento com MULTI_SERVICES:', e);
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao sincronizar agendamentos no update de serviço:', e);
+    }
+
+    res.json({ message: "success", data: updatedService });
 });
 
 // --- ROTAS DE PROFISSIONAIS ---

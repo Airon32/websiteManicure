@@ -739,17 +739,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleUpdateService = async (e) => {
-    e.preventDefault();
-    try {
-      await api.put(`/api/services/${editingService.id}`, editingService);
-      setEditingService(null);
-      loadData(user);
-    } catch (err) {
-      openModal({ title: 'Falha na Atualização', message: 'Erro ao salvar alterações. Verifique a conexão.', type: 'error', confirmText: 'Tentar Novamente' });
-    }
-  };
-
   const handleDeleteService = (id) => {
     openModal({
       title: 'Retirar Serviço',
@@ -765,6 +754,30 @@ export default function AdminDashboard() {
         }
       }
     });
+  };
+
+  const handleUpdateService = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!editingService) return;
+    try {
+      await api.put(`/api/services/${editingService.id}`, editingService);
+      openModal({ 
+        title: 'Serviço Atualizado', 
+        message: 'O serviço foi atualizado com sucesso! Todos os agendamentos marcados que incluem este serviço foram atualizados com o novo valor.', 
+        type: 'success',
+        confirmText: 'Entendido'
+      });
+      setEditingService(null);
+      loadData(user);
+    } catch (err) {
+      console.error(err);
+      openModal({ 
+        title: 'Erro ao Editar Serviço', 
+        message: err.response?.data?.error || 'Não foi possível atualizar o serviço.', 
+        type: 'error',
+        confirmText: 'Voltar'
+      });
+    }
   };
 
   const handleAddAppt = async (e) => {
