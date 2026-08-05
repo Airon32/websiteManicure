@@ -27,7 +27,7 @@ const defaultPublicProfile = {
   heroSubtitle: ''
 };
 
-function TimelineView({ selectedDate, setSelectedDate, appointments, professionals, currentUser, isAdmin, onCancel, onComplete, onSelectAppt, onDropAppt, workStart, workEnd, slotInterval }) {
+function TimelineView({ selectedDate, setSelectedDate, appointments, professionals, currentUser, isAdmin, onCancel, onComplete, onConfirm, onSelectAppt, onDropAppt, onQuickAdd, workStart, workEnd, slotInterval }) {
   const [timelineMode, setTimelineMode] = useState('dia'); // 'dia' ou 'semana'
   const [selectedProfId, setSelectedProfId] = useState('all');
 
@@ -71,110 +71,139 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
   const columns = timelineMode === 'dia' ? visibleProfessionals : weekDays;
 
   return (
-    <div className="md:glass-card md:rounded-[2.5rem] p-0 md:overflow-hidden border-white/5 md:shadow-2xl flex flex-col h-[calc(100vh-140px)] md:h-fit md:min-h-[70vh] mb-0 md:mb-20 bg-background md:bg-transparent">
+    <div className="glass-panel p-0 overflow-hidden border-border/50 shadow-2xl flex flex-col h-[calc(100vh-140px)] md:h-fit md:min-h-[75vh] mb-0 md:mb-20 bg-background/80">
       
-      {/* NAVBAR DE CONTROLE DE DIAS - PREMIUM MOBILE REDESIGN */}
-      <div className="flex flex-col items-center gap-2 p-2 md:p-5 bg-card/30 border-b border-white/5 relative z-30 shrink-0">
-        <div className="flex items-center justify-between w-full gap-2">
-          <div className="flex bg-background/50 p-1 rounded-lg md:rounded-2xl border border-white/5 flex-1">
+      {/* NAVBAR DE CONTROLE DE DIAS & MODO - PREMIUM REDESIGN */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 md:p-5 bg-card/60 border-b border-border/50 relative z-30 shrink-0">
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex bg-background/60 p-1 rounded-2xl border border-border/60 flex-1 md:flex-none">
             <button 
               onClick={() => setTimelineMode('dia')} 
-              className={`flex-1 py-2 md:px-6 md:py-2.5 rounded-md md:rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all ${timelineMode === 'dia' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
+              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${timelineMode === 'dia' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
             >
-              Dia
+              Visão por Profissional (Dia)
             </button>
             <button 
               onClick={() => setTimelineMode('semana')} 
-              className={`flex-1 py-2 md:px-6 md:py-2.5 rounded-md md:rounded-xl text-[9px] md:text-xs font-black uppercase tracking-widest transition-all ${timelineMode === 'semana' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
+              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${timelineMode === 'semana' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
             >
-              Semana
-            </button>
-          </div>
-          
-          <div className="flex items-center gap-1 md:gap-2">
-            <button 
-              onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? -7 : -1))} 
-              className="p-2 md:p-2.5 rounded-lg md:rounded-xl bg-background/50 border border-white/5 text-muted hover:text-primary transition-colors"
-            >
-              <ChevronLeft size={14}/>
-            </button>
-            <button 
-              onClick={() => setSelectedDate(startOfToday())} 
-              className="px-2 py-2 md:px-5 md:py-2.5 rounded-lg md:rounded-xl bg-background/50 border border-white/5 text-[8px] md:text-[10px] font-black uppercase tracking-widest text-foreground hover:bg-primary/10 transition-colors"
-            >
-              Hoje
-            </button>
-            <button 
-              onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? 7 : 1))} 
-              className="p-2 md:p-2.5 rounded-lg md:rounded-xl bg-background/50 border border-white/5 text-muted hover:text-primary transition-colors"
-            >
-              <ChevronRight size={14}/>
+              Visão Semanal
             </button>
           </div>
         </div>
 
-        {timelineMode === 'dia' && (
-          <div className="flex gap-1 overflow-x-auto no-scrollbar w-full py-0.5">
-            {weekDays.map(d => (
-              <button 
-                key={d.toISOString()} 
-                onClick={() => setSelectedDate(d)}
-                className={`px-2 py-1.5 md:px-5 md:py-3 rounded-lg md:rounded-2xl border transition-all whitespace-nowrap shrink-0 flex flex-col items-center min-w-[50px] md:min-w-[70px] ${isSameDay(d, selectedDate) ? 'bg-primary/20 border-primary text-primary font-black scale-105' : 'border-white/5 bg-card/20 text-muted font-bold'}`}
-              >
-                <span className="opacity-60 uppercase text-[6px] md:text-[8px] mb-0.5">{format(d, 'EEE', {locale: ptBR})}</span>
-                <span className="text-[10px] md:text-sm">{format(d, 'dd/MM')}</span>
-              </button>
-            ))}
+        <div className="flex items-center justify-between w-full md:w-auto gap-3">
+          <div className="flex items-center gap-1.5">
+            <button 
+              onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? -7 : -1))} 
+              className="p-2.5 rounded-2xl bg-card border border-border/60 text-muted hover:text-primary transition-colors shadow-sm"
+              title="Anterior"
+            >
+              <ChevronLeft size={16}/>
+            </button>
+            <button 
+              onClick={() => setSelectedDate(startOfToday())} 
+              className="px-4 py-2.5 rounded-2xl bg-card border border-border/60 text-xs font-black uppercase tracking-wider text-foreground hover:bg-primary/10 transition-colors shadow-sm"
+            >
+              Hoje ({format(startOfToday(), 'dd/MM')})
+            </button>
+            <button 
+              onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? 7 : 1))} 
+              className="p-2.5 rounded-2xl bg-card border border-border/60 text-muted hover:text-primary transition-colors shadow-sm"
+              title="Próximo"
+            >
+              <ChevronRight size={16}/>
+            </button>
           </div>
-        )}
+
+          <div className="bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider">
+            📅 {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
+          </div>
+        </div>
 
         {timelineMode === 'semana' && isAdmin && (
-          <div className="w-full">
+          <div className="w-full md:w-64">
             <select 
-              className="input-field py-2.5 text-xs font-bold uppercase tracking-wider" 
+              className="input-field py-2 text-xs font-bold uppercase tracking-wider" 
               value={selectedProfId} 
               onChange={e => setSelectedProfId(e.target.value)}
             >
               <option value="all">Toda a Equipe</option>
-              {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio'))).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio'))).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         )}
       </div>
 
-      {/* Grid com Sticky Header e Sticky Column - ESTILO APP NATIVO */}
+      {timelineMode === 'dia' && (
+        <div className="flex gap-1 overflow-x-auto no-scrollbar w-full px-3 py-2 bg-card/30 border-b border-border/40">
+          {weekDays.map(d => (
+            <button 
+              key={d.toISOString()} 
+              onClick={() => setSelectedDate(d)}
+              className={`px-4 py-2 rounded-2xl border transition-all whitespace-nowrap shrink-0 flex flex-col items-center min-w-[64px] ${isSameDay(d, selectedDate) ? 'bg-primary text-white border-primary font-black scale-105 shadow-md glow-primary' : 'border-border/50 bg-card/40 text-muted font-bold hover:text-foreground'}`}
+            >
+              <span className="opacity-70 uppercase text-[9px] mb-0.5">{format(d, 'EEE', {locale: ptBR})}</span>
+              <span className="text-xs font-black">{format(d, 'dd/MM')}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Grid com Sticky Header e Sticky Column */}
       <div className="flex-1 overflow-auto relative no-scrollbar">
         <div className="inline-flex flex-col min-w-full">
           
-          {/* Header de Colunas (Profissionais/Dias) */}
-          <div className="flex sticky top-0 z-40 bg-card/90 backdrop-blur-xl border-b border-white/5">
-            <div className="w-12 md:w-20 flex-shrink-0 border-r border-white/5 bg-background/95 flex items-center justify-center text-[8px] md:text-[9px] font-black text-primary uppercase tracking-[0.2em] sticky left-0 z-50">
+          {/* Header de Colunas (Profissionais / Dias) */}
+          <div className="flex sticky top-0 z-40 bg-card/95 backdrop-blur-2xl border-b border-border/50">
+            <div className="w-16 md:w-20 flex-shrink-0 border-r border-border/50 bg-background/95 flex items-center justify-center text-[10px] font-black text-primary uppercase tracking-widest sticky left-0 z-50">
               Hora
             </div>
             {columns.map((col, idx) => {
               const isDia = timelineMode === 'dia';
               const key = isDia ? col.id : col.toISOString();
+              
+              const colApps = appointments.filter(a => {
+                if (isDia) {
+                  return a.date === format(selectedDate, 'yyyy-MM-dd') && String(a.professional_id) === String(col.id);
+                } else {
+                  if (a.date !== format(col, 'yyyy-MM-dd')) return false;
+                  const profTarget = !isAdmin ? currentUser.id : selectedProfId;
+                  if (profTarget !== 'all' && String(a.professional_id) !== String(profTarget)) return false;
+                  if (profTarget === 'all' && !visibleProfessionals.some(p => String(p.id) === String(a.professional_id))) return false;
+                  return true;
+                }
+              });
+
+              const colRevenue = colApps.reduce((acc, a) => acc + Number(a.service_price || 0), 0);
+
               return (
-                <div key={key} className="min-w-[240px] md:min-w-[220px] flex-1 border-r border-white/5 py-3 md:py-4 px-3 md:px-4 flex items-center gap-3 md:gap-4 bg-background/20">
+                <div key={key} className="min-w-[250px] md:min-w-[240px] flex-1 border-r border-border/50 py-3.5 px-4 flex items-center justify-between gap-3 bg-card/40">
                   {isDia ? (
-                    <>
-                      <div className="w-8 h-8 md:w-11 md:h-11 rounded-lg md:rounded-2xl bg-gradient-to-br from-primary to-primary-dark text-white flex items-center justify-center font-black text-[10px] md:text-sm shadow-lg glow-primary shrink-0">
+                    <div className="flex items-center gap-3 w-full">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary via-pink-500 to-primary-dark text-white flex items-center justify-center font-black text-xs shadow-md shrink-0">
                         {col.avatar}
                       </div>
-                      <div className="overflow-hidden text-left">
-                        <p className="text-[10px] md:text-sm font-black text-foreground truncate uppercase tracking-wide">{col.name}</p>
-                        <p className="text-[8px] md:text-[10px] text-primary/60 font-bold truncate uppercase">{col.specialty}</p>
+                      <div className="overflow-hidden min-w-0 flex-1">
+                        <p className="text-xs font-black text-foreground truncate uppercase tracking-wide">{col.name}</p>
+                        <div className="flex items-center justify-between gap-2 mt-0.5">
+                          <span className="text-[9px] text-primary font-bold uppercase truncate">{col.specialty}</span>
+                          <span className="text-[9px] text-emerald-500 font-black shrink-0">R$ {colRevenue.toFixed(0)} • {colApps.length}</span>
+                        </div>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <div className={`text-left w-full flex items-center gap-2 md:gap-3 ${isSameDay(col, startOfToday()) ? 'text-primary' : 'text-foreground'}`}>
-                      <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-2xl flex items-center justify-center font-black text-xs md:text-sm border-2 ${isSameDay(col, startOfToday()) ? 'bg-primary text-white border-primary shadow-lg glow-primary' : 'bg-card/50 border-white/10 text-muted'}`}>
-                        {format(col, 'dd')}
+                    <div className={`text-left w-full flex items-center justify-between gap-3 ${isSameDay(col, startOfToday()) ? 'text-primary' : 'text-foreground'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs border-2 ${isSameDay(col, startOfToday()) ? 'bg-primary text-white border-primary shadow-md glow-primary' : 'bg-card border-border/60 text-muted'}`}>
+                          {format(col, 'dd')}
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase font-black tracking-wider opacity-70">{format(col, 'EEE', {locale: ptBR})}</p>
+                          <p className="text-xs font-black uppercase">{format(col, 'MMM', {locale: ptBR})}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[8px] md:text-[10px] uppercase font-black tracking-widest opacity-60">{format(col, 'EEE', {locale: ptBR})}</p>
-                        <p className="text-[10px] md:text-sm font-black uppercase">{format(col, 'MMM', {locale: ptBR})}</p>
-                      </div>
+                      <span className="text-[9px] text-primary font-bold">{colApps.length} agend.</span>
                     </div>
                   )}
                 </div>
@@ -185,24 +214,25 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
           {/* Corpo da Grid */}
           <div className="flex relative">
             {/* Coluna de Horas Sticky */}
-            <div className="w-12 md:w-20 flex-shrink-0 border-r border-white/5 bg-background/95 sticky left-0 z-30">
+            <div className="w-16 md:w-20 flex-shrink-0 border-r border-border/50 bg-background/95 sticky left-0 z-30">
               {timeSlots.map(slot => (
-                <div key={slot} className="h-16 border-b border-white/5 flex items-start justify-center pt-2 md:pt-3 bg-background/80">
-                  <span className="text-[9px] md:text-[10px] font-black text-foreground tracking-tighter bg-primary/10 px-1 rounded shadow-sm">{slot}</span>
+                <div key={slot} className="h-16 border-b border-border/40 flex items-start justify-center pt-2.5 bg-background/90">
+                  <span className="text-[10px] font-black text-foreground tracking-tighter bg-primary/10 px-1.5 py-0.5 rounded-lg border border-primary/20 shadow-sm">{slot}</span>
                 </div>
               ))}
             </div>
 
             {/* Grid de Agendamentos */}
             <div className="flex flex-1 relative">
-               {/* Linha de Tempo Atual */}
+               {/* Linha do Tempo Atual em Tempo Real */}
                {((timelineMode === 'dia' && isToday) || (timelineMode === 'semana' && weekDays.some(d => isSameDay(d, now)))) && currentTimeTop >= 0 && (
                 <div 
                   className="absolute left-0 right-0 z-30 pointer-events-none flex items-center"
                   style={{ top: `${currentTimeTop}px` }}
                 >
-                  <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_15px_rgba(244,114,182,0.8)] -ml-[4px] z-40 border-2 border-white"></div>
-                  <div className="flex-1 h-[2px] bg-gradient-to-r from-primary to-transparent opacity-50"></div>
+                  <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.9)] -ml-[6px] z-40 border-2 border-white animate-pulse"></div>
+                  <div className="flex-1 h-[2px] bg-gradient-to-r from-red-500 via-pink-500 to-transparent"></div>
+                  <span className="text-[9px] bg-red-500 text-white font-black px-1.5 py-0.5 rounded-full mr-2 shadow-sm uppercase tracking-wider">Ao Vivo</span>
                 </div>
               )}
 
@@ -225,18 +255,29 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                 const sortedApps = [...colApps].sort((a,b) => a.time.localeCompare(b.time));
                 
                 return (
-                  <div key={key} className="min-w-[240px] md:min-w-[220px] flex-1 border-r border-white/5 relative bg-grid-pattern opacity-80" style={{ backgroundSize: '100% 64px' }}>
+                  <div key={key} className="min-w-[250px] md:min-w-[240px] flex-1 border-r border-border/50 relative bg-grid-pattern opacity-90" style={{ backgroundSize: '100% 64px' }}>
                     {timeSlots.map(slot => (
                       <div 
                         key={slot} 
-                        className="h-16 border-b border-white/5"
+                        className="h-16 border-b border-border/30 group hover:bg-primary/5 transition-colors relative cursor-pointer"
+                        onClick={() => {
+                          if (onQuickAdd) {
+                            const profId = isDia ? col.id : (selectedProfId !== 'all' ? selectedProfId : col.id);
+                            const targetDate = isDia ? selectedDate : col;
+                            onQuickAdd(profId, format(targetDate, 'yyyy-MM-dd'), slot);
+                          }
+                        }}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => {
                           e.preventDefault();
                           const appId = e.dataTransfer.getData('appId');
                           if (appId && onDropAppt) onDropAppt(appId, slot, col, timelineMode);
                         }}
-                      ></div>
+                      >
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 text-[9px] font-black text-primary bg-primary/10 border border-primary/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Plus size={10} /> Agendar {slot}
+                        </span>
+                      </div>
                     ))}
                     
                     {sortedApps.map(app => {
@@ -260,6 +301,7 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                       const rightCalc = totalOverlaps > 1 ? 'auto' : '6px';
 
                       const endTimeStr = calculateEndTime(app.time, durationMin);
+                      const cleanPhone = (app.client_phone || '').replace(/\D/g, '');
 
                       return (
                         <div 
@@ -267,32 +309,61 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                           draggable
                           onDragStart={(e) => { e.dataTransfer.setData('appId', app.id); }}
                           onClick={(e) => { e.stopPropagation(); if (onSelectAppt) onSelectAppt(app); }}
-                          className={`absolute rounded-xl p-2 shadow-xl border-l-4 transition-all hover:scale-[1.02] hover:z-50 cursor-pointer overflow-hidden backdrop-blur-md ${
+                          className={`absolute rounded-2xl p-2.5 shadow-xl border-l-4 transition-all hover:scale-[1.02] hover:z-50 cursor-pointer overflow-hidden backdrop-blur-md group ${
                             isBlock 
-                            ? 'bg-amber-500/20 border-amber-500 text-amber-200' 
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-200 shadow-amber-500/10' 
                             : app.status === 'concluído'
-                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200 shadow-emerald-500/5' 
+                            ? 'bg-purple-500/20 border-purple-500 text-purple-200 shadow-purple-500/10' 
                             : app.status === 'confirmado'
-                            ? 'bg-purple-500/20 border-purple-500 text-purple-200 shadow-purple-500/5' 
+                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200 shadow-emerald-500/10' 
                             : 'bg-primary/25 border-primary text-white shadow-primary/20'
                           }`}
-                          style={{ top: `${top + 2}px`, height: `${Math.max(height - 4, 30)}px`, width: widthCalc, left: leftCalc, right: rightCalc }}
+                          style={{ top: `${top + 2}px`, height: `${Math.max(height - 4, 34)}px`, width: widthCalc, left: leftCalc, right: rightCalc }}
                         >
                           <div className="flex flex-col h-full relative justify-between">
                             <div>
                               <div className="flex justify-between items-start gap-1 mb-1">
-                                <span className="text-[9px] font-black uppercase rounded px-1.5 py-0.5 bg-background/80 text-primary border border-primary/30 tracking-wider">
+                                <span className="text-[9px] font-black uppercase rounded-lg px-2 py-0.5 bg-background/80 text-primary border border-primary/30 tracking-wider shadow-sm">
                                   {app.time} - {endTimeStr}
                                 </span>
+                                {app.status === 'confirmado' && (
+                                  <span className="badge-confirmed !py-0.5 !px-2 !text-[8px]">✅ Confirmado</span>
+                                )}
+                                {app.status === 'concluído' && (
+                                  <span className="badge-completed !py-0.5 !px-2 !text-[8px]">🟢 Pago</span>
+                                )}
                               </div>
-                              <p className="text-[10px] md:text-xs font-black uppercase tracking-tight truncate leading-tight mb-0.5 text-foreground">{app.client_name}</p>
-                              <p className="text-[8px] md:text-[10px] opacity-80 font-bold truncate uppercase text-muted">{app.service_name}</p>
+                              <p className="text-[11px] md:text-xs font-black uppercase tracking-tight truncate leading-tight mb-0.5 text-foreground">{app.client_name}</p>
+                              <p className="text-[9px] text-muted font-bold truncate uppercase">{app.service_name}</p>
                             </div>
-                            {height >= 70 && (
-                              <div className="text-[8px] opacity-70 font-bold uppercase tracking-wider pt-1 border-t border-white/10 flex items-center gap-1">
-                                ⏱️ {durationMin} min
+
+                            <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[9px] font-bold">
+                              <span className="text-primary font-black">R$ {Number(app.service_price || 0).toFixed(0)} • {durationMin}m</span>
+                              
+                              <div className="flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
+                                {cleanPhone && (
+                                  <a 
+                                    href={`https://wa.me/55${cleanPhone}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors"
+                                    title="WhatsApp"
+                                  >
+                                    <MessageCircle size={12} />
+                                  </a>
+                                )}
+                                {app.status === 'agendado' && onConfirm && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); onConfirm(app.id); }}
+                                    className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors"
+                                    title="Confirmar Presença"
+                                  >
+                                    <CheckCircle size={12} />
+                                  </button>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -1954,58 +2025,97 @@ export default function AdminDashboard() {
                           </div>
                         </div>
 
-                        <div className="glass-card p-6 flex-1 xl:w-1/3 w-full border-primary/20 shadow-[0_0_40px_rgba(244,114,182,0.06)] relative overflow-hidden">
+                        <div className="glass-card p-6 flex-1 xl:w-1/3 w-full border-primary/20 shadow-[0_0_40px_rgba(244,114,182,0.06)] relative overflow-hidden flex flex-col">
                           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none"></div>
-                          <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/50 relative z-10">
-                            <h3 className="text-xl font-serif text-foreground">Agenda do Dia</h3>
-                            <div className="bg-primary text-white font-bold px-3 py-1 rounded-lg">
+                          <div className="flex items-center justify-between mb-4 pb-4 border-b border-border/50 relative z-10">
+                            <div>
+                              <h3 className="text-xl font-serif text-foreground">Agenda do Dia</h3>
+                              <p className="text-xs text-muted">Controle de atendimento diário</p>
+                            </div>
+                            <div className="bg-primary text-white font-black text-xs px-3 py-1.5 rounded-xl shadow-md">
                               {format(selectedCalendarDate, 'dd/MM/yyyy')}
                             </div>
                           </div>
 
-                          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 relative z-10">
+                          {/* Resumo do Dia Selecionado */}
+                          <div className="flex items-center justify-between bg-card/80 p-3.5 rounded-2xl border border-border/60 text-xs font-bold mb-4 relative z-10">
+                            <span className="text-muted">Total: <strong className="text-foreground">{selectedDayAppointments.length} agend.</strong></span>
+                            <span className="text-emerald-500 font-black text-sm">
+                              R$ {selectedDayAppointments.reduce((sum, a) => sum + Number(a.service_price || 0), 0).toFixed(2)}
+                            </span>
+                          </div>
+
+                          <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1 relative z-10 custom-scrollbar">
                             {selectedDayAppointments.length === 0 ? (
-                              <div className="text-center py-10 text-muted">
-                                <CalendarIcon className="mx-auto mb-4 opacity-20 text-primary" size={48} />
-                                <p>Livre. Nenhum atendimento para esta data.</p>
+                              <div className="text-center py-12 text-muted">
+                                <CalendarIcon className="mx-auto mb-3 opacity-20 text-primary" size={48} />
+                                <p className="text-sm font-medium">Livre. Nenhum atendimento para esta data.</p>
                               </div>
                             ) : (
-                              selectedDayAppointments.sort((a, b) => a.time.localeCompare(b.time)).map(app => (
-                                <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-xl border border-border bg-background flex gap-4 hover:border-primary/50 transition-colors group relative shadow-sm hover:shadow-md cursor-pointer">
-                                  <div className="flex flex-col items-center justify-center bg-card border border-border/50 rounded-lg px-3 py-2">
-                                    <span className="text-primary font-bold">{app.time}</span>
+                              selectedDayAppointments.sort((a, b) => a.time.localeCompare(b.time)).map(app => {
+                                const cleanPhone = (app.client_phone || '').replace(/\D/g, '');
+                                const durationMin = Number(app.service_duration) || 30;
+                                const endTime = (st, dur) => {
+                                  const [h, m] = st.split(':').map(Number);
+                                  const tot = h * 60 + m + dur;
+                                  return `${Math.floor(tot/60).toString().padStart(2,'0')}:${(tot%60).toString().padStart(2,'0')}`;
+                                };
+                                return (
+                                  <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl border border-border/60 bg-card/80 flex flex-col gap-2 hover:border-primary/50 transition-all group relative shadow-sm cursor-pointer">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <div className="bg-primary/10 border border-primary/20 text-primary font-black text-xs px-2.5 py-1 rounded-xl shrink-0">
+                                          {app.time} - {endTime(app.time, durationMin)}
+                                        </div>
+                                        {app.status === 'concluído' ? (
+                                          <span className="badge-completed">🟢 Pago</span>
+                                        ) : app.status === 'confirmado' ? (
+                                          <span className="badge-confirmed">✅ Confirmado</span>
+                                        ) : (
+                                          <span className="badge-pending">⏳ Pendente</span>
+                                        )}
+                                      </div>
+                                      <span className="text-sm font-black text-primary">R$ {Number(app.service_price || 0).toFixed(0)}</span>
+                                    </div>
+
+                                    <div>
+                                      <h4 className="text-foreground font-black text-sm">{app.client_name}</h4>
+                                      <p className="text-xs text-muted">{app.service_name}</p>
+                                      {isAdmin && <p className="text-[11px] text-primary/80 font-bold mt-1 flex items-center gap-1"><User size={12} /> {app.professional_name}</p>}
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
+                                      {cleanPhone ? (
+                                        <a 
+                                          href={`https://wa.me/55${cleanPhone}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={e => e.stopPropagation()}
+                                          className="text-emerald-500 font-bold text-[11px] hover:underline flex items-center gap-1"
+                                        >
+                                          <MessageCircle size={13} /> {app.client_phone}
+                                        </a>
+                                      ) : <span />}
+
+                                      <div className="flex items-center gap-1">
+                                        {app.status === 'agendado' && (
+                                          <button onClick={(e) => { e.stopPropagation(); handleConfirmAppt(app.id); }} className="text-emerald-500 hover:bg-emerald-500/10 p-1.5 rounded-lg transition-colors" title="Confirmar Presença">
+                                            <CheckCircle size={16} />
+                                          </button>
+                                        )}
+                                        {app.status !== 'concluído' && (
+                                          <button onClick={(e) => { e.stopPropagation(); handleCompleteAppt(app.id); }} className="text-purple-400 hover:bg-purple-500/10 p-1.5 rounded-lg transition-colors" title="Concluir/Pago">
+                                            <CheckCircle size={16} />
+                                          </button>
+                                        )}
+                                        <button onClick={(e) => { e.stopPropagation(); handleCancelAppt(app.id); }} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors" title="Desmarcar">
+                                          <Trash2 size={16} />
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="flex-1">
-                                    <h4 className="text-foreground font-medium flex items-center flex-wrap gap-1">
-                                      {app.client_name}
-                                      {app.status === 'concluído' ? (
-                                        <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full uppercase font-bold tracking-widest border border-green-500/20">Pago</span>
-                                      ) : app.status === 'confirmado' ? (
-                                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full uppercase font-bold tracking-widest border border-emerald-500/20">✅ Confirmado</span>
-                                      ) : (
-                                        <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full uppercase font-bold tracking-widest border border-amber-500/20">⏳ Pendente</span>
-                                      )}
-                                    </h4>
-                                    <p className="text-sm text-muted">{app.service_name}</p>
-                                    {isAdmin && <p className="text-xs text-primary mt-1 font-medium flex items-center gap-1"><User size={10} /> {app.professional_name}</p>}
-                                  </div>
-                                  <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {app.status === 'agendado' && (
-                                      <button onClick={(e) => { e.stopPropagation(); handleConfirmAppt(app.id); }} className="text-emerald-400 hover:text-white bg-emerald-500/10 hover:bg-emerald-500 p-2 rounded transition-colors" title="Confirmar Presença">
-                                        <CheckCircle size={16} />
-                                      </button>
-                                    )}
-                                    {app.status !== 'concluído' && (
-                                      <button onClick={(e) => { e.stopPropagation(); handleCompleteAppt(app.id); }} className="text-green-500 hover:text-white bg-green-500/10 hover:bg-green-500 p-2 rounded transition-colors" title="Concluir/Pago">
-                                        <CheckCircle size={16} />
-                                      </button>
-                                    )}
-                                    <button onClick={(e) => { e.stopPropagation(); handleCancelAppt(app.id); }} className="text-red-500 hover:text-white bg-red-500/10 hover:bg-red-500 p-2 rounded transition-colors" title="Desmarcar">
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))
+                                );
+                              })
                             )}
                           </div>
                         </div>
@@ -2020,8 +2130,13 @@ export default function AdminDashboard() {
                         isAdmin={isAdmin}
                         onCancel={handleCancelAppt}
                         onComplete={handleCompleteAppt}
+                        onConfirm={handleConfirmAppt}
                         onSelectAppt={(app) => setSelectedAppointment(app)}
                         onDropAppt={handleDropAppt}
+                        onQuickAdd={(profId, dateStr, timeStr) => {
+                          setNewAppt(prev => ({ ...prev, professional_id: profId, date: dateStr, time: timeStr }));
+                          setShowAddAppt(true);
+                        }}
                         workStart={workStart}
                         workEnd={workEnd}
                         slotInterval={slotInterval}
