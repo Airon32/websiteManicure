@@ -156,9 +156,9 @@ export function ServicesShowcase({
               <button
                 type="button"
                 onClick={() => (onBookService ? onBookService(service) : onBookNow?.())}
-                className="mt-5 inline-flex min-h-11 items-center justify-between rounded-xl bg-primary/10 px-4 text-sm font-bold text-primary transition hover:bg-primary hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="mt-5 inline-flex min-h-12 items-center justify-between rounded-xl bg-primary text-white hover:bg-primary-dark shadow-md px-4 text-sm font-bold transition-transform hover:scale-[1.02]"
               >
-                Escolher este serviço <ArrowRight size={16} aria-hidden="true" />
+                <span>Escolher este serviço</span> <ArrowRight size={16} aria-hidden="true" />
               </button>
             </article>
           )) : (
@@ -670,7 +670,7 @@ export function PublicFooter({
 }) {
   const year = new Date().getFullYear();
   return (
-    <footer className="w-full bg-background pt-16 pb-12 text-foreground border-t border-border/50 relative z-20" aria-label="Rodapé">
+    <footer className="w-full bg-background pt-16 pb-28 lg:pb-12 text-foreground border-t border-border/50 relative z-20" aria-label="Rodapé">
       <div className="mx-auto max-w-7xl px-6">
         <div className="grid gap-10 border-b border-border/60 pb-12 md:grid-cols-2 lg:grid-cols-4">
           <div>

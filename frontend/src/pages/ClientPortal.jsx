@@ -55,6 +55,7 @@ function readSavedClientData() {
 
 export default function ClientPortal() {
   const [step, setStep] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
   const [allSettings, setAllSettings] = useState([]);
@@ -671,9 +672,9 @@ export default function ClientPortal() {
          </div>
       )}
 
-      <header className="fixed top-0 left-0 right-0 py-4 md:py-5 px-4 md:px-10 border-b border-border/50 z-50 flex justify-between items-center bg-background/90 backdrop-blur-2xl shadow-sm transition-all">
-        <h1 className="text-lg md:text-2xl font-serif text-foreground tracking-wider md:tracking-widest flex items-center gap-2 md:gap-3 whitespace-nowrap">
-          <img src="/assets/images/logo.png" alt="Mary Esmalteria" className="w-9 h-9 md:w-10 md:h-10 rounded-full object-contain" />
+      <header className="fixed top-0 left-0 right-0 py-3.5 md:py-5 px-4 md:px-10 border-b border-border/50 z-50 flex justify-between items-center bg-background/95 backdrop-blur-2xl shadow-sm transition-all">
+        <h1 className="text-base md:text-2xl font-serif text-foreground tracking-wider md:tracking-widest flex items-center gap-2 md:gap-3 whitespace-nowrap">
+          <img src="/assets/images/logo.png" alt="Mary Esmalteria" className="w-8 h-8 md:w-10 md:h-10 rounded-full object-contain" />
           {businessName}
         </h1>
         {step === 0 && (
@@ -687,11 +688,63 @@ export default function ClientPortal() {
           <button onClick={() => setIsDark(!isDark)} className="text-muted hover:text-foreground transition-colors p-2" aria-label={isDark ? 'Usar tema claro' : 'Usar tema escuro'}>
             {isDark ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          <button onClick={() => setShowAccountModal(true)} className="flex items-center gap-2 text-sm font-medium text-foreground bg-primary/10 hover:bg-primary/20 px-3 md:px-4 py-2 rounded-full transition-colors border border-primary/20" aria-label={clientAuthenticated ? 'Abrir minha conta' : 'Entrar na minha conta'}>
+          <button onClick={() => setShowAccountModal(true)} className="flex items-center gap-2 text-xs md:text-sm font-medium text-foreground bg-primary/10 hover:bg-primary/20 px-3 md:px-4 py-2 rounded-full transition-colors border border-primary/20" aria-label={clientAuthenticated ? 'Abrir minha conta' : 'Entrar na minha conta'}>
              <User size={16} /> <span className="hidden sm:inline">{clientAuthenticated ? 'Minha Conta' : 'Entrar'}</span>
           </button>
+          {step === 0 && (
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 text-foreground hover:text-primary transition-colors rounded-lg border border-border/60 bg-muted/20"
+              aria-label="Abrir menu mobile"
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          )}
         </div>
       </header>
+
+      {/* Menu Drawer Mobile Dropdown */}
+      {step === 0 && mobileMenuOpen && (
+        <div className="fixed top-[61px] left-0 right-0 z-40 bg-background/95 backdrop-blur-2xl border-b border-border/80 p-5 shadow-2xl lg:hidden animate-in slide-in-from-top duration-300">
+          <nav className="flex flex-col gap-3 text-base font-semibold text-foreground">
+            <a 
+              href="#servicos" 
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-between p-3 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+            >
+              <span>Serviços & Valores</span>
+              <ChevronRight size={18} className="text-primary" />
+            </a>
+            <a 
+              href="#portfolio" 
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-between p-3 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+            >
+              <span>Portfólio de Trabalhos</span>
+              <ChevronRight size={18} className="text-primary" />
+            </a>
+            <a 
+              href="#localizacao" 
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center justify-between p-3 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+            >
+              <span>Onde Estamos (Mapa)</span>
+              <ChevronRight size={18} className="text-primary" />
+            </a>
+            <div className="pt-2 border-t border-border/60 flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  beginBooking();
+                }}
+                className="w-full btn-primary py-3.5 text-base font-bold shadow-lg flex items-center justify-center gap-2"
+              >
+                <Sparkles size={18} /> Agendar Horário Agora
+              </button>
+            </div>
+          </nav>
+        </div>
+      )}
 
       <main className={`flex-1 flex flex-col items-center relative z-10 w-full pt-20 md:pt-24 ${step === 0 ? '' : 'justify-center p-6'}`}>
         
@@ -1131,6 +1184,30 @@ export default function ClientPortal() {
         )}
 
       </main>
+
+      {/* Floating Bottom Action Bar para Celular */}
+      {step === 0 && (
+        <div className="fixed bottom-3 left-3 right-3 z-40 flex items-center gap-2 lg:hidden bg-zinc-950/95 backdrop-blur-xl p-2.5 rounded-2xl border border-border/80 shadow-2xl animate-in slide-in-from-bottom duration-500">
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              beginBooking();
+            }}
+            className="flex-1 btn-primary py-3.5 text-sm font-bold shadow-lg flex items-center justify-center gap-2 rounded-xl"
+          >
+            <Sparkles size={18} /> Agendar Horário 💖
+          </button>
+          <a
+            href="https://wa.me/5511988853773"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs p-3.5 rounded-xl flex items-center justify-center gap-1 shadow-md transition-colors shrink-0"
+            aria-label="Falar no WhatsApp"
+          >
+            WhatsApp 💬
+          </a>
+        </div>
+      )}
     </div>
   );
 }
