@@ -2210,57 +2210,6 @@ export default function AdminDashboard() {
                           </form>
                         )}
 
-                        {editingService && (
-                          <form onSubmit={handleUpdateService} className="bg-primary/5 border border-primary/20 rounded-2xl p-8 mb-12 animate-in slide-in-from-top-4 duration-300">
-                             <div className="flex items-center justify-between mb-6">
-                               <h3 className="text-2xl font-serif text-primary">Editar Serviço</h3>
-                               <button type="button" onClick={() => setEditingService(null)} className="text-muted hover:text-foreground">
-                                 <X size={24} />
-                               </button>
-                             </div>
-                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                               <div className="space-y-1">
-                                 <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">Nome</label>
-                                 <input className="input-field" placeholder="Nome do Serviço" type="text" required value={editingService.name} onChange={e => setEditingService({ ...editingService, name: e.target.value })} />
-                               </div>
-                               <div className="space-y-1">
-                                 <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">Categoria</label>
-                                 <select className="input-field" value={editingService.category} onChange={e => setEditingService({ ...editingService, category: e.target.value })}>
-                                   <option value="">Selecione...</option>
-                                   <option value="Manicure">Manicure</option>
-                                   <option value="Pedicure">Pedicure</option>
-                                   <option value="Depilação">Depilação</option>
-                                   <option value="Sobrancelha">Sobrancelha</option>
-                                   <option value="Cílios">Cílios</option>
-                                   <option value="Cabelo">Cabelo</option>
-                                   <option value="Geral">Geral</option>
-                                 </select>
-                               </div>
-                               <div className="space-y-1">
-                                 <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">Minutos</label>
-                                 <input className="input-field" placeholder="Duração" type="number" required value={editingService.duration} onChange={e => setEditingService({ ...editingService, duration: e.target.value })} />
-                               </div>
-                               <div className="space-y-1">
-                                 <label className="text-[10px] uppercase font-bold text-primary/60 ml-2">Preço (R$)</label>
-                                 <input className="input-field" placeholder="Preço" type="number" step="0.01" required value={editingService.price} onChange={e => setEditingService({ ...editingService, price: e.target.value })} />
-                               </div>
-                             </div>
-                             <div className="mb-6">
-                               <label className="block text-xs font-bold text-primary/60 uppercase tracking-widest mb-2 ml-2">Descrição Completa (Vínculo com o Banco)</label>
-                               <textarea 
-                                 className="input-field w-full h-32 resize-none" 
-                                 placeholder="Descreva o que está incluso neste serviço... Esta informação aparecerá no Portal da Cliente." 
-                                 value={editingService.description || ''} 
-                                 onChange={e => setEditingService({ ...editingService, description: e.target.value })}
-                               />
-                             </div>
-                             <div className="flex gap-4">
-                               <button type="submit" className="bg-primary hover:bg-primary-dark text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-primary/20">Salvar Alterações</button>
-                               <button type="button" onClick={() => setEditingService(null)} className="border border-border text-muted font-bold px-6 py-3 rounded-xl hover:bg-muted/10 transition-all">Cancelar</button>
-                             </div>
-                          </form>
-                        )}
-
                         <div className="space-y-10">
                           {Object.entries(
                             services.reduce((acc, srv) => {
@@ -3232,6 +3181,116 @@ export default function AdminDashboard() {
                 <button type="button" onClick={() => setShowBlockModal(false)} className="btn-secondary flex-1 text-xs font-bold uppercase tracking-wider py-3">Cancelar</button>
                 <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl transition-all font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
                   <Lock size={15} /> Bloquear Agenda
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EDITAR SERVIÇO (POP-UP) */}
+      {editingService && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setEditingService(null)}>
+          <div className="bg-card border border-primary/30 rounded-[2.5rem] w-full max-w-lg shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative p-6 md:p-8" onClick={e => e.stopPropagation()}>
+            
+            <button 
+              onClick={() => setEditingService(null)} 
+              className="absolute right-6 top-6 text-muted hover:text-foreground transition-colors p-1 rounded-xl hover:bg-muted/10"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-3.5 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-primary/20 text-primary border border-primary/30 flex items-center justify-center shadow-lg glow-primary shrink-0">
+                <Scissors size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-serif font-black text-foreground">Editar Serviço</h3>
+                <p className="text-xs text-muted">Altere o preço ou detalhes. Os agendamentos marcados serão sincronizados.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleUpdateService} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-muted uppercase tracking-wider block">Nome do Serviço</label>
+                <input 
+                  className="input-field w-full text-xs font-bold" 
+                  placeholder="Ex: Manicure Tradicional" 
+                  type="text" 
+                  required 
+                  value={editingService.name || ''} 
+                  onChange={e => setEditingService({ ...editingService, name: e.target.value })} 
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-muted uppercase tracking-wider block">Categoria</label>
+                  <select 
+                    className="input-field w-full text-xs font-bold" 
+                    value={editingService.category || ''} 
+                    onChange={e => setEditingService({ ...editingService, category: e.target.value })}
+                  >
+                    <option value="Manicure">Manicure</option>
+                    <option value="Pedicure">Pedicure</option>
+                    <option value="Depilação">Depilação</option>
+                    <option value="Sobrancelha">Sobrancelha</option>
+                    <option value="Cílios">Cílios</option>
+                    <option value="Cabelo">Cabelo</option>
+                    <option value="Alongamento">Alongamento</option>
+                    <option value="Geral">Geral</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-muted uppercase tracking-wider block">Duração (Min)</label>
+                  <input 
+                    className="input-field w-full text-xs font-bold" 
+                    placeholder="Ex: 40" 
+                    type="number" 
+                    required 
+                    value={editingService.duration || ''} 
+                    onChange={e => setEditingService({ ...editingService, duration: e.target.value })} 
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-primary uppercase tracking-wider block font-black">Preço (R$)</label>
+                  <input 
+                    className="input-field w-full text-xs font-black text-emerald-400 border-emerald-500/40 bg-emerald-500/10" 
+                    placeholder="Ex: 50.00" 
+                    type="number" 
+                    step="0.01" 
+                    required 
+                    value={editingService.price || ''} 
+                    onChange={e => setEditingService({ ...editingService, price: e.target.value })} 
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-muted uppercase tracking-wider block">Descrição Completa</label>
+                <textarea 
+                  className="input-field w-full h-24 resize-none text-xs font-medium" 
+                  placeholder="Descreva o que está incluso neste serviço..." 
+                  value={editingService.description || ''} 
+                  onChange={e => setEditingService({ ...editingService, description: e.target.value })}
+                />
+              </div>
+
+              <div className="pt-3 flex gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingService(null)} 
+                  className="btn-secondary flex-1 text-xs font-bold uppercase tracking-wider py-3.5"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 py-3.5 bg-primary hover:bg-primary-dark text-white rounded-2xl transition-all font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                >
+                  <CheckCircle size={16} /> Salvar & Sincronizar
                 </button>
               </div>
             </form>
