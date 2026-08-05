@@ -59,11 +59,13 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
 
   const isToday = isSameDay(selectedDate, now);
   const currentTimeTop = (() => {
+    if (!timeSlots || timeSlots.length === 0) return -1;
     const totalMin = now.getHours() * 60 + now.getMinutes();
-    const [startH, startM] = (workStart || '09:00').split(':').map(Number);
+    const firstSlot = timeSlots[0] || workStart || '08:00';
+    const [startH, startM] = firstSlot.split(':').map(Number);
     const dayStartMin = startH * 60 + startM;
-    const slotHeight = 64; // Reduzido de 80 para 64 para menos zoom no mobile
-    return ((totalMin - dayStartMin) / Number(slotInterval)) * slotHeight;
+    const SLOT_HEIGHT = 64;
+    return ((totalMin - dayStartMin) / Number(slotInterval || 30)) * SLOT_HEIGHT;
   })();
 
   const columns = timelineMode === 'dia' ? visibleProfessionals : weekDays;
@@ -185,7 +187,7 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
             {/* Coluna de Horas Sticky */}
             <div className="w-12 md:w-20 flex-shrink-0 border-r border-white/5 bg-background/95 sticky left-0 z-30">
               {timeSlots.map(slot => (
-                <div key={slot} className="h-16 md:h-20 border-b border-white/5 flex items-start justify-center pt-2 md:pt-3 bg-background/80">
+                <div key={slot} className="h-16 border-b border-white/5 flex items-start justify-center pt-2 md:pt-3 bg-background/80">
                   <span className="text-[9px] md:text-[10px] font-black text-foreground tracking-tighter bg-primary/10 px-1 rounded shadow-sm">{slot}</span>
                 </div>
               ))}
@@ -227,7 +229,7 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                     {timeSlots.map(slot => (
                       <div 
                         key={slot} 
-                        className="h-16 md:h-20 border-b border-white/5"
+                        className="h-16 border-b border-white/5"
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={(e) => {
                           e.preventDefault();
@@ -240,11 +242,14 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                     {sortedApps.map(app => {
                       const [h, m] = app.time.split(':').map(Number);
                       const startMin = h * 60 + m;
-                      const [dh, dm] = workStart.split(':').map(Number);
+                      const firstSlot = timeSlots[0] || workStart || '08:00';
+                      const [dh, dm] = firstSlot.split(':').map(Number);
                       const dayStartMin = dh * 60 + dm;
-                      const slotHeight = 64; 
-                      const top = ((startMin - dayStartMin) / Number(slotInterval)) * slotHeight;
-                      const height = (Number(app.service_duration || 30) / Number(slotInterval)) * slotHeight;
+                      const SLOT_HEIGHT = 64; 
+                      
+                      const top = ((startMin - dayStartMin) / Number(slotInterval || 30)) * SLOT_HEIGHT;
+                      const durationMin = Number(app.service_duration) || 30;
+                      const height = (durationMin / Number(slotInterval || 30)) * SLOT_HEIGHT;
                       const isBlock = app.notes?.startsWith('BLOCK:');
 
                       const totalOverlaps = sortedApps.filter(a => a.time === app.time).length;
@@ -254,6 +259,8 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                       const leftCalc = totalOverlaps > 1 ? `calc(${(100 / totalOverlaps) * overlappingIndex}% + 6px)` : '6px';
                       const rightCalc = totalOverlaps > 1 ? 'auto' : '6px';
 
+                      const endTimeStr = calculateEndTime(app.time, durationMin);
+
                       return (
                         <div 
                           key={app.id}
@@ -262,23 +269,30 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                           onClick={(e) => { e.stopPropagation(); if (onSelectAppt) onSelectAppt(app); }}
                           className={`absolute rounded-xl p-2 shadow-xl border-l-4 transition-all hover:scale-[1.02] hover:z-50 cursor-pointer overflow-hidden backdrop-blur-md ${
                             isBlock 
-                            ? 'bg-orange-500/10 border-orange-500 text-orange-200' 
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-200' 
                             : app.status === 'concluído'
-                            ? 'bg-green-500/10 border-green-500 text-green-200 shadow-green-500/5' 
+                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-200 shadow-emerald-500/5' 
                             : app.status === 'confirmado'
-                            ? 'bg-blue-500/10 border-blue-500 text-blue-200 shadow-blue-500/5' 
-                            : 'bg-primary/20 border-primary text-white shadow-primary/20'
+                            ? 'bg-purple-500/20 border-purple-500 text-purple-200 shadow-purple-500/5' 
+                            : 'bg-primary/25 border-primary text-white shadow-primary/20'
                           }`}
-                          style={{ top: `${top + 4}px`, height: `${height - 8}px`, width: widthCalc, left: leftCalc, right: rightCalc }}
+                          style={{ top: `${top + 2}px`, height: `${Math.max(height - 4, 30)}px`, width: widthCalc, left: leftCalc, right: rightCalc }}
                         >
-                          <div className="flex flex-col h-full relative">
-                            <div className="flex justify-between items-start gap-1 mb-0.5">
-                              <span className={`text-[8px] font-black uppercase rounded px-1.5 py-0.5 bg-white/10 backdrop-blur-md`}>
-                                {app.time}
-                              </span>
+                          <div className="flex flex-col h-full relative justify-between">
+                            <div>
+                              <div className="flex justify-between items-start gap-1 mb-1">
+                                <span className="text-[9px] font-black uppercase rounded px-1.5 py-0.5 bg-background/80 text-primary border border-primary/30 tracking-wider">
+                                  {app.time} - {endTimeStr}
+                                </span>
+                              </div>
+                              <p className="text-[10px] md:text-xs font-black uppercase tracking-tight truncate leading-tight mb-0.5 text-foreground">{app.client_name}</p>
+                              <p className="text-[8px] md:text-[10px] opacity-80 font-bold truncate uppercase text-muted">{app.service_name}</p>
                             </div>
-                            <p className="text-[9px] md:text-xs font-black uppercase tracking-tight truncate leading-tight mb-0.5">{app.client_name}</p>
-                            <p className="text-[7px] md:text-[10px] opacity-60 font-bold truncate uppercase">{app.service_name}</p>
+                            {height >= 70 && (
+                              <div className="text-[8px] opacity-70 font-bold uppercase tracking-wider pt-1 border-t border-white/10 flex items-center gap-1">
+                                ⏱️ {durationMin} min
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
