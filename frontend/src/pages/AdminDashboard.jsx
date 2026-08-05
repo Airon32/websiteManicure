@@ -432,8 +432,65 @@ export default function AdminDashboard() {
   const [showEditAppt, setShowEditAppt] = useState(false);
   const [editAppt, setEditAppt] = useState(null);
 
-  const [showBlockModal, setShowBlockModal] = useState(false);
-  const [newBlock, setNewBlock] = useState({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '', duration: '30', description: '' });
+  const [newBlock, setNewBlock] = useState({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '12:00', endTime: '13:00', duration: '60', description: '' });
+
+  const handleOpenBlockModal = (profId = null, timeStr = '12:00', dateStr = '') => {
+    const startTime = timeStr || '12:00';
+    const [h, m] = startTime.split(':').map(Number);
+    const endH = Math.min(23, h + 1).toString().padStart(2, '0');
+    const endTime = `${endH}:${m.toString().padStart(2, '0')}`;
+
+    setNewBlock({
+      professional_id: profId || (user?.role === 'admin' ? (professionals[0]?.id || '') : user?.id || ''),
+      date: dateStr || format(new Date(), 'yyyy-MM-dd'),
+      time: startTime,
+      endTime: endTime,
+      duration: '60',
+      description: ''
+    });
+    setShowBlockModal(true);
+  };
+
+  const handleAddBlock = async (e) => {
+    e.preventDefault();
+    try {
+      const profId = user.role === 'admin' ? newBlock.professional_id : user.id;
+      if (!profId) {
+          openModal({ title: 'Atenção', message: 'Por favor, selecione um profissional.', type: 'info', confirmText: 'OK' });
+          return;
+      }
+      
+      const startTime = newBlock.time || '12:00';
+      const endTime = newBlock.endTime || '13:00';
+      
+      const [sh, sm] = startTime.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      const startMins = sh * 60 + sm;
+      const endMins = eh * 60 + em;
+      const calculatedDuration = endMins - startMins;
+
+      if (calculatedDuration <= 0) {
+        openModal({ title: 'Horário Inválido', message: 'O horário de término deve ser posterior ao horário de início.', type: 'error', confirmText: 'Corrigir' });
+        return;
+      }
+      
+      const payload = {
+          ...newBlock,
+          professional_id: profId,
+          time: startTime,
+          duration: calculatedDuration
+      };
+      
+      const response = await api.post('/api/appointments/block', payload);
+      setAppointments([response.data.data, ...appointments]);
+      setShowBlockModal(false);
+      openModal({ title: 'Sucesso', message: `Agenda fechada das ${startTime} às ${endTime} (${calculatedDuration} min)!`, type: 'success', confirmText: 'OK' });
+      loadData(user);
+    } catch (err) {
+      console.error(err);
+      openModal({ title: 'Erro ao Bloquear', message: err.response?.data?.error || 'Erro ao fechar horário.', type: 'error', confirmText: 'Voltar' });
+    }
+  };
 
   // Add/Edit Service State
   const [showAddService, setShowAddService] = useState(false);
@@ -805,43 +862,6 @@ export default function AdminDashboard() {
         type: 'error', 
         confirmText: 'Fechar' 
       });
-    }
-  };
-
-  const handleOpenBlockModal = (profId = null, timeStr = '', dateStr = '') => {
-    setNewBlock({
-      professional_id: profId || (user?.role === 'admin' ? (professionals[0]?.id || '') : user?.id || ''),
-      date: dateStr || format(new Date(), 'yyyy-MM-dd'),
-      time: timeStr || '08:00',
-      duration: '60',
-      description: ''
-    });
-    setShowBlockModal(true);
-  };
-
-  const handleAddBlock = async (e) => {
-    e.preventDefault();
-    try {
-      const profId = user.role === 'admin' ? newBlock.professional_id : user.id;
-      if (!profId) {
-          openModal({ title: 'Atenção', message: 'Por favor, selecione um profissional.', type: 'info', confirmText: 'OK' });
-          return;
-      }
-      
-      const payload = {
-          ...newBlock,
-          professional_id: profId
-      };
-      
-      const response = await api.post('/api/appointments/block', payload);
-      setAppointments([response.data.data, ...appointments]);
-      setShowBlockModal(false);
-      setNewBlock({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '', duration: '30', description: '' });
-      openModal({ title: 'Sucesso', message: 'Horário fechado na agenda com sucesso!', type: 'success', confirmText: 'OK' });
-      loadData(user);
-    } catch (err) {
-      console.error(err);
-      openModal({ title: 'Erro ao Bloquear', message: err.response?.data?.error || 'Erro ao fechar horário.', type: 'error', confirmText: 'Voltar' });
     }
   };
 
@@ -3107,63 +3127,90 @@ export default function AdminDashboard() {
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Data do Bloqueio</label>
+                <input 
+                  type="date" 
+                  className="input-field w-full text-xs font-bold" 
+                  value={newBlock.date} 
+                  onChange={e => setNewBlock({ ...newBlock, date: e.target.value })} 
+                  required 
+                />
+              </div>
+
+              {/* Escolha Livre de Horário de Início e Término */}
+              <div className="grid grid-cols-2 gap-3 bg-card border border-amber-500/30 p-3.5 rounded-2xl">
                 <div>
-                  <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Data</label>
-                  <input 
-                    type="date" 
-                    className="input-field w-full text-xs font-bold" 
-                    value={newBlock.date} 
-                    onChange={e => setNewBlock({ ...newBlock, date: e.target.value })} 
-                    required 
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Horário de Início</label>
+                  <label className="text-[11px] font-black text-amber-400 mb-1 block uppercase tracking-wider">De (Início)</label>
                   <select 
-                    className="input-field w-full text-xs font-bold" 
-                    value={newBlock.time} 
-                    onChange={e => setNewBlock({ ...newBlock, time: e.target.value })} 
+                    className="input-field w-full text-xs font-bold bg-background text-foreground" 
+                    value={newBlock.time || '12:00'} 
+                    onChange={e => {
+                      const startTime = e.target.value;
+                      const [h, m] = startTime.split(':').map(Number);
+                      const endH = Math.min(23, h + 1).toString().padStart(2, '0');
+                      const endTime = `${endH}:${m.toString().padStart(2, '0')}`;
+                      setNewBlock({ ...newBlock, time: startTime, endTime: newBlock.endTime > startTime ? newBlock.endTime : endTime });
+                    }} 
                     required
                   >
-                    <option value="" disabled>Selecione o horário</option>
                     {appointmentTimeSlots.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-black text-amber-400 mb-1 block uppercase tracking-wider">Até (Término)</label>
+                  <select 
+                    className="input-field w-full text-xs font-bold bg-background text-foreground" 
+                    value={newBlock.endTime || '13:00'} 
+                    onChange={e => setNewBlock({ ...newBlock, endTime: e.target.value })} 
+                    required
+                  >
+                    {appointmentTimeSlots.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                    <option value="22:30">22:30</option>
+                    <option value="23:00">23:00</option>
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Duração (Tempo de Bloqueio)</label>
-                <select 
-                  className="input-field w-full text-xs font-bold" 
-                  value={newBlock.duration} 
-                  onChange={e => setNewBlock({ ...newBlock, duration: e.target.value })} 
-                  required
-                >
-                  <option value="15">15 minutos (Pausa rápida)</option>
-                  <option value="30">30 minutos</option>
-                  <option value="45">45 minutos</option>
-                  <option value="60">1 hora (Almoço)</option>
-                  <option value="90">1 hora e meia</option>
-                  <option value="120">2 horas</option>
-                  <option value="240">4 horas (Meio Turno)</option>
-                  <option value="480">8 horas (Dia Todo / Turno Completo)</option>
-                </select>
-              </div>
+              {/* Badge de Duração Calculada */}
+              {(() => {
+                const [sh, sm] = (newBlock.time || '12:00').split(':').map(Number);
+                const [eh, em] = (newBlock.endTime || '13:00').split(':').map(Number);
+                const diff = (eh * 60 + em) - (sh * 60 + sm);
+                const isValid = diff > 0;
+                return (
+                  <div className={`p-2.5 rounded-xl border text-xs font-bold text-center flex items-center justify-center gap-2 transition-all ${isValid ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+                    <Clock size={14} />
+                    {isValid ? (
+                      <span>Duração da Pausa: <strong>{diff >= 60 ? `${Math.floor(diff/60)}h ${diff%60 > 0 ? `${diff%60}m` : ''}` : `${diff} minutos`}</strong> (das {newBlock.time} às {newBlock.endTime})</span>
+                    ) : (
+                      <span>Horário de término deve ser após {newBlock.time}</span>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div>
                 <label className="text-xs font-bold text-muted mb-1.5 block uppercase tracking-wider">Motivo / Descrição</label>
                 
-                {/* Atalhos Rápidos de Motivo */}
+                {/* Atalhos Rápidos */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {['Almoço', 'Médico', 'Compromisso Pessoal', 'Folga', 'Treinamento'].map(preset => (
+                  {[
+                    { label: 'Almoço (1h)', start: '12:00', end: '13:00', desc: 'Horário de Almoço' },
+                    { label: 'Médico', start: '14:00', end: '15:30', desc: 'Consulta Médica' },
+                    { label: 'Pausa (30m)', start: '15:00', end: '15:30', desc: 'Pausa Rápida' },
+                    { label: 'Folga / Turno', start: '08:00', end: '18:00', desc: 'Folga / Agenda Fechada' }
+                  ].map(preset => (
                     <button
-                      key={preset}
+                      key={preset.label}
                       type="button"
-                      onClick={() => setNewBlock({ ...newBlock, description: preset })}
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-xl border transition-all ${newBlock.description === preset ? 'bg-amber-500/30 border-amber-500 text-amber-300' : 'bg-card border-border/60 text-muted hover:text-foreground'}`}
+                      onClick={() => setNewBlock({ ...newBlock, time: preset.start, endTime: preset.end, description: preset.desc })}
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-xl border transition-all ${newBlock.description === preset.desc ? 'bg-amber-500/30 border-amber-500 text-amber-300' : 'bg-card border-border/60 text-muted hover:text-foreground'}`}
                     >
-                      {preset}
+                      {preset.label}
                     </button>
                   ))}
                 </div>
