@@ -503,8 +503,7 @@ export default function AdminDashboard() {
           duration: calculatedDuration
       };
       
-      const response = await api.post('/api/appointments/block', payload);
-      setAppointments([response.data.data, ...appointments]);
+      await api.post('/api/appointments/block', payload);
       setShowBlockModal(false);
       openModal({ title: 'Sucesso', message: `Agenda fechada das ${startTime} às ${endTime} (${calculatedDuration} min)!`, type: 'success', confirmText: 'OK' });
       loadData(user);

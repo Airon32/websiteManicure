@@ -1476,7 +1476,19 @@ app.post('/api/appointments/block', requireStaff(), async (req, res) => {
         
         if (insertError) return res.status(400).json({"error": insertError.message});
         
-        res.json({ "message": "success", "data": insertData[0] });
+        // Enrich with same fields as GET /api/appointments
+        const raw = insertData[0];
+        const { data: profData } = await supabase.from('professionals').select('name').eq('id', professional_id).single();
+        const formatted = {
+            ...raw,
+            service_name: '⏳ Agenda Fechada',
+            service_price: 0,
+            service_duration: duration,
+            professional_name: profData?.name || 'Equipe',
+            confirmation_token: createAppointmentToken(raw.id)
+        };
+        
+        res.json({ "message": "success", "data": formatted });
     } catch (e) {
          res.status(400).json({"error": e.message});
     }
