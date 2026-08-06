@@ -1782,115 +1782,107 @@ export default function AdminDashboard() {
                         <span className="text-xs text-muted font-bold uppercase tracking-wider">Próximos 10 dias</span>
                       </div>
 
-                      {/* Desktop Table View */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-full">
-                          <thead>
-                            <tr className="border-b border-border/50 text-muted text-xs uppercase font-bold tracking-wider">
-                              <th className="py-3 px-2">Data/Hora</th>
-                              <th className="py-3 px-2">Status</th>
-                              <th className="py-3 px-2">Cliente</th>
-                              <th className="py-3 px-2">Serviço</th>
-                              <th className="py-3 px-2">Profissional</th>
-                              <th className="py-3 px-2 text-right">Ação</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {activeAppointments
-                              .filter(app => {
-                                const todayStr = format(startOfToday(), 'yyyy-MM-dd');
-                                const limitDayStr = format(addDays(startOfToday(), 10), 'yyyy-MM-dd');
-                                return app.date >= todayStr && app.date <= limitDayStr;
-                              })
-                              .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
-                              .slice(0, 10)
-                              .map(app => (
-                                <tr key={app.id} className="border-b border-border/40 text-foreground last:border-0 hover:bg-card/40 transition-colors">
-                                  <td className="py-3.5 px-2 font-medium text-xs">
-                                    {format(parseISO(app.date), 'dd/MM')} às <strong className="text-primary">{app.time}</strong>
-                                  </td>
-                                  <td className="py-3.5 px-2">
-                                    {app.status === 'concluído' ? (
-                                      <span className="badge-completed">🟢 Concluído</span>
-                                    ) : app.status === 'confirmado' ? (
-                                      <span className="badge-confirmed">✅ Confirmado</span>
-                                    ) : (
-                                      <span className="badge-pending">⏳ Pendente</span>
-                                    )}
-                                  </td>
-                                  <td className="py-3.5 px-2 font-semibold text-sm">{app.client_name}</td>
-                                  <td className="py-3.5 px-2 text-xs text-muted">{app.service_name || '-'}</td>
-                                  <td className="py-3.5 px-2 text-xs">{app.professional_name || '-'}</td>
-                                  <td className="py-3.5 px-2 text-right">
-                                    <button 
-                                      onClick={() => handleWhatsAppAction(app, true)}
-                                      className="text-emerald-500 hover:bg-emerald-500/10 p-2 rounded-lg transition-colors"
-                                      title="Lembrete WhatsApp"
-                                    >
-                                      <Send size={15} />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            {activeAppointments.filter(app => {
-                                const todayStr = format(startOfToday(), 'yyyy-MM-dd');
-                                const limitDayStr = format(addDays(startOfToday(), 10), 'yyyy-MM-dd');
-                                return app.date >= todayStr && app.date <= limitDayStr;
-                              }).length === 0 && (
-                                <tr><td colSpan="6" className="text-center py-8 text-muted italic text-sm">Nenhum agendamento para os próximos 10 dias.</td></tr>
-                              )}
-                          </tbody>
-                        </table>
-                      </div>
+                      {(() => {
+                        const now = new Date();
+                        const currentDateStr = format(now, 'yyyy-MM-dd');
+                        const currentTimeStr = format(now, 'HH:mm');
+                        const limitDayStr = format(addDays(now, 10), 'yyyy-MM-dd');
 
-                      {/* Mobile Card View */}
-                      <div className="md:hidden space-y-3">
-                        {activeAppointments
+                        const upcomingList = activeAppointments
                           .filter(app => {
-                            const todayStr = format(startOfToday(), 'yyyy-MM-dd');
-                            const limitDayStr = format(addDays(startOfToday(), 10), 'yyyy-MM-dd');
-                            return app.date >= todayStr && app.date <= limitDayStr;
+                            if (app.status === 'cancelado' || app.status === 'concluído') return false;
+                            if (app.date < currentDateStr) return false;
+                            if (app.date === currentDateStr && app.time < currentTimeStr) return false;
+                            return app.date <= limitDayStr;
                           })
-                          .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
-                          .slice(0, 8)
-                          .map(app => (
-                            <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl bg-card border border-border/60 flex flex-col gap-2 relative shadow-sm">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  {app.status === 'concluído' ? (
-                                    <span className="badge-completed">🟢 Concluído</span>
-                                  ) : app.status === 'confirmado' ? (
-                                    <span className="badge-confirmed">✅ Confirmado</span>
-                                  ) : (
-                                    <span className="badge-pending">⏳ Pendente</span>
+                          .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+
+                        return (
+                          <>
+                            {/* Desktop Table View */}
+                            <div className="hidden md:block overflow-x-auto">
+                              <table className="w-full text-left border-collapse min-w-full">
+                                <thead>
+                                  <tr className="border-b border-border/50 text-muted text-xs uppercase font-bold tracking-wider">
+                                    <th className="py-3 px-2">Data/Hora</th>
+                                    <th className="py-3 px-2">Status</th>
+                                    <th className="py-3 px-2">Cliente</th>
+                                    <th className="py-3 px-2">Serviço</th>
+                                    <th className="py-3 px-2">Profissional</th>
+                                    <th className="py-3 px-2 text-right">Ação</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {upcomingList.slice(0, 10).map(app => (
+                                    <tr key={app.id} className="border-b border-border/40 text-foreground last:border-0 hover:bg-card/40 transition-colors">
+                                      <td className="py-3.5 px-2 font-medium text-xs">
+                                        {format(parseISO(app.date), 'dd/MM')} às <strong className="text-primary">{app.time}</strong>
+                                      </td>
+                                      <td className="py-3.5 px-2">
+                                        {app.status === 'confirmado' ? (
+                                          <span className="badge-confirmed">✅ Confirmado</span>
+                                        ) : (
+                                          <span className="badge-pending">⏳ Pendente</span>
+                                        )}
+                                      </td>
+                                      <td className="py-3.5 px-2 font-semibold text-sm">{app.client_name}</td>
+                                      <td className="py-3.5 px-2 text-xs text-muted">{app.service_name || '-'}</td>
+                                      <td className="py-3.5 px-2 text-xs">{app.professional_name || '-'}</td>
+                                      <td className="py-3.5 px-2 text-right">
+                                        <button 
+                                          onClick={() => handleWhatsAppAction(app, true)}
+                                          className="text-emerald-500 hover:bg-emerald-500/10 p-2 rounded-lg transition-colors"
+                                          title="Lembrete WhatsApp"
+                                        >
+                                          <Send size={15} />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  {upcomingList.length === 0 && (
+                                    <tr><td colSpan="6" className="text-center py-8 text-muted italic text-sm">Nenhum agendamento futuro para os próximos 10 dias.</td></tr>
                                   )}
-                                  <h4 className="font-bold text-foreground text-sm mt-2">{app.client_name}</h4>
-                                  <p className="text-xs text-muted">{app.service_name}</p>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-sm font-black text-primary">{app.time}</span>
-                                  <p className="text-[10px] text-muted font-bold uppercase">{format(parseISO(app.date), 'dd/MM')}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
-                                <span className="text-muted text-[11px]">Profissional: <strong className="text-foreground">{app.professional_name}</strong></span>
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); handleWhatsAppAction(app, true); }}
-                                  className="text-emerald-500 font-bold text-[11px] bg-emerald-500/10 px-2.5 py-1 rounded-lg flex items-center gap-1"
-                                >
-                                  <Send size={12} /> WhatsApp
-                                </button>
-                              </div>
+                                </tbody>
+                              </table>
                             </div>
-                          ))}
-                        {activeAppointments.filter(app => {
-                            const todayStr = format(startOfToday(), 'yyyy-MM-dd');
-                            const limitDayStr = format(addDays(startOfToday(), 10), 'yyyy-MM-dd');
-                            return app.date >= todayStr && app.date <= limitDayStr;
-                          }).length === 0 && (
-                            <p className="text-center py-6 text-muted text-xs italic">Nenhum agendamento nos próximos 10 dias.</p>
-                          )}
-                      </div>
+
+                            {/* Mobile Card View */}
+                            <div className="md:hidden space-y-3">
+                              {upcomingList.slice(0, 8).map(app => (
+                                <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl bg-card border border-border/60 flex flex-col gap-2 relative shadow-sm">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      {app.status === 'confirmado' ? (
+                                        <span className="badge-confirmed">✅ Confirmado</span>
+                                      ) : (
+                                        <span className="badge-pending">⏳ Pendente</span>
+                                      )}
+                                      <h4 className="font-bold text-foreground text-sm mt-2">{app.client_name}</h4>
+                                      <p className="text-xs text-muted">{app.service_name}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-sm font-black text-primary">{app.time}</span>
+                                      <p className="text-[10px] text-muted font-bold uppercase">{format(parseISO(app.date), 'dd/MM')}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
+                                    <span className="text-muted text-[11px]">Profissional: <strong className="text-foreground">{app.professional_name}</strong></span>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); handleWhatsAppAction(app, true); }}
+                                      className="text-emerald-500 font-bold text-[11px] bg-emerald-500/10 px-2.5 py-1 rounded-lg flex items-center gap-1"
+                                    >
+                                      <Send size={12} /> WhatsApp
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                              {upcomingList.length === 0 && (
+                                <p className="text-center py-6 text-muted text-xs italic">Nenhum agendamento futuro nos próximos 10 dias.</p>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <div className="glass-card p-6 border-l-4 border-l-primary flex flex-col">

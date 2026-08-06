@@ -153,19 +153,20 @@ const ClientDashboard = () => {
 
   // Lógica de filtragem calculada
   const filteredAppointments = useMemo(() => {
-    const today = startOfToday();
+    const now = new Date();
+    const currentDateStr = format(now, 'yyyy-MM-dd');
+    const currentTimeStr = format(now, 'HH:mm');
     
     return appointments.filter(app => {
-      const todayStr = format(startOfToday(), 'yyyy-MM-dd');
-      
       // Filtro de Aba
       if (activeTab === 'upcoming') {
-        const isFuture = app.date >= todayStr && app.status !== 'cancelado';
-        if (!isFuture) return false;
+        if (app.status === 'cancelado' || app.status === 'concluído') return false;
+        if (app.date < currentDateStr) return false;
+        if (app.date === currentDateStr && app.time < currentTimeStr) return false;
         
         // Filtro de Modo de Visualização (dentro de Próximos)
         if (viewMode === '20days') {
-          const limitDateStr = format(addDays(startOfToday(), 20), 'yyyy-MM-dd');
+          const limitDateStr = format(addDays(now, 20), 'yyyy-MM-dd');
           return app.date <= limitDateStr;
         }
         if (viewMode === 'custom') {
@@ -173,8 +174,10 @@ const ClientDashboard = () => {
         }
         return true; // Mode 'all'
       } else {
-        // Aba Histórico (passados ou cancelados)
-        return app.date < todayStr || app.status === 'cancelado';
+        // Aba Histórico (passados ou cancelados ou concluídos)
+        const isPastDate = app.date < currentDateStr;
+        const isPastTimeToday = app.date === currentDateStr && app.time < currentTimeStr;
+        return isPastDate || isPastTimeToday || app.status === 'cancelado' || app.status === 'concluído';
       }
     }).sort((a, b) => {
       // Ordenação: próximos (crescente), histórico (decrescente)
