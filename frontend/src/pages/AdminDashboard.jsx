@@ -11,6 +11,27 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, character 
   '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
 })[character]);
 
+const safeParseISO = (dateStr) => {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  try {
+    const cleanStr = dateStr.split('T')[0];
+    const parsed = parseISO(cleanStr);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  } catch {
+    return null;
+  }
+};
+
+const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
+  const parsed = safeParseISO(dateStr);
+  if (!parsed) return dateStr || '--/--';
+  try {
+    return format(parsed, formatStr, options);
+  } catch {
+    return dateStr || '--/--';
+  }
+};
+
 const defaultPublicProfile = {
   address: '',
   mapsUrl: '',
@@ -1788,14 +1809,23 @@ export default function AdminDashboard() {
                         const currentTimeStr = format(now, 'HH:mm');
                         const limitDayStr = format(addDays(now, 10), 'yyyy-MM-dd');
 
-                        const upcomingList = activeAppointments
+                        const getTimeStamp = (item) => {
+                          if (!item || !item.date) return 0;
+                          const t = item.time || '00:00';
+                          const d = new Date(`${item.date}T${t}`);
+                          return isNaN(d.getTime()) ? 0 : d.getTime();
+                        };
+
+                        const upcomingList = (activeAppointments || [])
                           .filter(app => {
+                            if (!app || !app.date) return false;
                             if (app.status === 'cancelado' || app.status === 'concluído') return false;
+                            const appTime = app.time || '00:00';
                             if (app.date < currentDateStr) return false;
-                            if (app.date === currentDateStr && app.time < currentTimeStr) return false;
+                            if (app.date === currentDateStr && appTime < currentTimeStr) return false;
                             return app.date <= limitDayStr;
                           })
-                          .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+                          .sort((a, b) => getTimeStamp(a) - getTimeStamp(b));
 
                         return (
                           <>
@@ -1816,7 +1846,7 @@ export default function AdminDashboard() {
                                   {upcomingList.slice(0, 10).map(app => (
                                     <tr key={app.id} className="border-b border-border/40 text-foreground last:border-0 hover:bg-card/40 transition-colors">
                                       <td className="py-3.5 px-2 font-medium text-xs">
-                                        {format(parseISO(app.date), 'dd/MM')} às <strong className="text-primary">{app.time}</strong>
+                                        {safeFormatDate(app.date, 'dd/MM')} às <strong className="text-primary">{app.time}</strong>
                                       </td>
                                       <td className="py-3.5 px-2">
                                         {app.status === 'confirmado' ? (
@@ -1862,7 +1892,7 @@ export default function AdminDashboard() {
                                     </div>
                                     <div className="text-right">
                                       <span className="text-sm font-black text-primary">{app.time}</span>
-                                      <p className="text-[10px] text-muted font-bold uppercase">{format(parseISO(app.date), 'dd/MM')}</p>
+                                      <p className="text-[10px] text-muted font-bold uppercase">{safeFormatDate(app.date, 'dd/MM')}</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
@@ -1916,14 +1946,15 @@ export default function AdminDashboard() {
                         <div className="glass-card p-6 flex flex-col justify-between">
                           <p className="text-muted text-sm mb-2 uppercase tracking-wider font-semibold">Hoje</p>
                           <p className="text-3xl font-serif text-foreground">
-                            {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd')).length} <span className="text-sm font-sans font-medium text-muted">Apt.</span>
+                            {(activeAppointments || []).filter(a => a && a.date === format(startOfToday(), 'yyyy-MM-dd')).length} <span className="text-sm font-sans font-medium text-muted">Apt.</span>
                           </p>
                         </div>
                         <div className="glass-card p-6 flex flex-col justify-between">
                           <p className="text-muted text-sm mb-2 uppercase tracking-wider font-semibold">Esta Semana</p>
                           <p className="text-3xl font-serif text-primary">
-                            {activeAppointments.filter(a => {
-                              const d = parseISO(a.date + 'T00:00:00'); // Força interpretação local para intervalo
+                            {(activeAppointments || []).filter(a => {
+                              const d = safeParseISO(a?.date);
+                              if (!d) return false;
                               return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
                             }).length} <span className="text-sm font-sans font-medium text-muted">Apt.</span>
                           </p>
@@ -1949,15 +1980,22 @@ export default function AdminDashboard() {
                               </tr>
                             </thead>
                             <tbody>
-                              {activeAppointments.filter(a => {
-                                const d = parseISO(a.date);
+                              {(activeAppointments || []).filter(a => {
+                                const d = safeParseISO(a?.date);
+                                if (!d) return false;
                                 return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
                               })
-                                .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
+                                .sort((a, b) => {
+                                  const tA = a.time || '00:00';
+                                  const tB = b.time || '00:00';
+                                  const dA = new Date(`${a.date}T${tA}`);
+                                  const dB = new Date(`${b.date}T${tB}`);
+                                  return (isNaN(dA.getTime()) ? 0 : dA.getTime()) - (isNaN(dB.getTime()) ? 0 : dB.getTime());
+                                })
                                 .map(app => (
                                   <tr key={app.id} className="border-b border-border/50 text-foreground last:border-0 hover:bg-border/20">
                                     <td className="py-4 px-2">
-                                      <span className="font-medium mr-2">{format(parseISO(app.date), 'dd/MM')}</span>
+                                      <span className="font-medium mr-2">{safeFormatDate(app.date, 'dd/MM')}</span>
                                       <span className="text-primary">{app.time} - {calculateEndTime(app.time, app.service_duration)}</span>
                                     </td>
                                     <td className="py-4 px-2 font-medium">{app.client_name}</td>
@@ -1978,8 +2016,9 @@ export default function AdminDashboard() {
                                     </td>
                                   </tr>
                                 ))}
-                              {activeAppointments.filter(a => {
-                                const d = parseISO(a.date);
+                              {(activeAppointments || []).filter(a => {
+                                const d = safeParseISO(a?.date);
+                                if (!d) return false;
                                 return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
                               }).length === 0 && (
                                   <tr><td colSpan="4" className="text-center py-8 text-muted">Livre! Nenhum agendamento para esta semana.</td></tr>
@@ -3380,7 +3419,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-bold text-foreground">{selectedAppointment.time} - {calculateEndTime(selectedAppointment.time, selectedAppointment.service_duration)}</p>
-                  <p className="text-xs text-muted capitalize">{format(parseISO(selectedAppointment.date), "EEEE, dd 'de' MMMM 'de' yyyy", {locale: ptBR})}</p>
+                  <p className="text-xs text-muted capitalize">{safeFormatDate(selectedAppointment?.date, "EEEE, dd 'de' MMMM 'de' yyyy", {locale: ptBR})}</p>
                 </div>
               </div>
 
