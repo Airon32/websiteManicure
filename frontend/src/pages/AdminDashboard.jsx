@@ -453,6 +453,7 @@ export default function AdminDashboard() {
   const [showEditAppt, setShowEditAppt] = useState(false);
   const [editAppt, setEditAppt] = useState(null);
 
+  const [showBlockModal, setShowBlockModal] = useState(false);
   const [newBlock, setNewBlock] = useState({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '12:00', endTime: '13:00', duration: '60', description: '' });
 
   const handleOpenBlockModal = (profId = null, timeStr = '12:00', dateStr = '') => {

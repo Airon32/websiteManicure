@@ -1,6 +1,48 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import Component, { lazy, Suspense, useEffect, useState } from 'react';
+import React from 'react';
 import api from './api';
 import { RouterProvider, useLocation, useNavigate } from './router';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('ErrorBoundary capturou falha:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
+          <div className="bg-card border border-primary/30 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl space-y-4">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto text-2xl font-bold">
+              ⚠️
+            </div>
+            <h2 className="text-xl font-serif font-black">Ops! Falha ao carregar tela.</h2>
+            <p className="text-xs text-muted">Ocorreu um erro temporário no aplicativo. Clique abaixo para recarregar.</p>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.reload();
+              }}
+              className="w-full py-3 bg-primary text-white font-bold rounded-2xl hover:bg-primary-dark transition-all text-xs uppercase tracking-wider shadow-lg shadow-primary/20"
+            >
+              Recarregar Sistema
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const ClientPortal = lazy(() => import('./pages/ClientPortal'));
 const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
@@ -111,7 +153,13 @@ function NotFound() {
 }
 
 function App() {
-  return <RouterProvider><AppRoutes /></RouterProvider>;
+  return (
+    <ErrorBoundary>
+      <RouterProvider>
+        <AppRoutes />
+      </RouterProvider>
+    </ErrorBoundary>
+  );
 }
 
 export default App;
