@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from '../router';
-import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, MessageCircle, Tag, Copy, FileText, Send, Printer } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, MessageCircle, Tag, Copy, FileText, Send, Printer } from 'lucide-react';
 import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, subYears, addYears, isSameMonth, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey } from '../utils/schedule';
@@ -327,8 +327,8 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                       return (
                         <div 
                           key={app.id}
-                          draggable
-                          onDragStart={(e) => { e.dataTransfer.setData('appId', app.id); }}
+                          draggable={!isBlock}
+                          onDragStart={(e) => { if (!isBlock) e.dataTransfer.setData('appId', app.id); }}
                           onClick={(e) => { e.stopPropagation(); if (onSelectAppt) onSelectAppt(app); }}
                           className={`absolute rounded-2xl p-2.5 shadow-xl border-l-4 transition-all hover:scale-[1.02] hover:z-50 cursor-pointer overflow-hidden backdrop-blur-md group ${
                             isBlock 
@@ -344,44 +344,67 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                           <div className="flex flex-col h-full relative justify-between">
                             <div>
                               <div className="flex justify-between items-start gap-1 mb-1">
-                                <span className="text-[9px] font-black uppercase rounded-lg px-2 py-0.5 bg-background/80 text-primary border border-primary/30 tracking-wider shadow-sm">
+                                <span className={`text-[9px] font-black uppercase rounded-lg px-2 py-0.5 tracking-wider shadow-sm ${
+                                  isBlock 
+                                    ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40 flex items-center gap-1' 
+                                    : 'bg-background/80 text-primary border border-primary/30'
+                                }`}>
+                                  {isBlock && <Lock size={10} />}
                                   {app.time} - {endTimeStr}
                                 </span>
-                                {app.status === 'confirmado' && (
+                                {!isBlock && app.status === 'confirmado' && (
                                   <span className="badge-confirmed !py-0.5 !px-2 !text-[8px]">✅ Confirmado</span>
                                 )}
-                                {app.status === 'concluído' && (
+                                {!isBlock && app.status === 'concluído' && (
                                   <span className="badge-completed !py-0.5 !px-2 !text-[8px]">🟢 Pago</span>
                                 )}
                               </div>
-                              <p className="text-[11px] md:text-xs font-black uppercase tracking-tight truncate leading-tight mb-0.5 text-foreground">{app.client_name}</p>
-                              <p className="text-[9px] text-muted font-bold truncate uppercase">{app.service_name}</p>
+                              <p className="text-[11px] md:text-xs font-black uppercase tracking-tight truncate leading-tight mb-0.5 text-foreground">
+                                {isBlock ? (app.client_name || 'Agenda Fechada') : app.client_name}
+                              </p>
+                              <p className="text-[9px] text-muted font-bold truncate uppercase">
+                                {isBlock ? '⏳ Pausa / Horário Fechado' : app.service_name}
+                              </p>
                             </div>
 
                             <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[9px] font-bold">
-                              <span className="text-primary font-black">R$ {Number(app.service_price || 0).toFixed(0)} • {durationMin}m</span>
+                              <span className="text-primary font-black">
+                                {isBlock ? `${durationMin}m de pausa` : `R$ ${Number(app.service_price || 0).toFixed(0)} • ${durationMin}m`}
+                              </span>
                               
                               <div className="flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
-                                {cleanPhone && (
-                                  <a 
-                                    href={`https://wa.me/55${cleanPhone}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors"
-                                    title="WhatsApp"
-                                  >
-                                    <MessageCircle size={12} />
-                                  </a>
-                                )}
-                                {app.status === 'agendado' && onConfirm && (
+                                {isBlock ? (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); onConfirm(app.id); }}
-                                    className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors"
-                                    title="Confirmar Presença"
+                                    onClick={(e) => { e.stopPropagation(); if (onCancel) onCancel(app.id); }}
+                                    className="p-1 text-amber-300 hover:bg-amber-500/30 rounded-lg transition-colors flex items-center gap-1 font-bold"
+                                    title="Desbloquear Horário"
                                   >
-                                    <CheckCircle size={12} />
+                                    <Unlock size={12} /> Desbloquear
                                   </button>
+                                ) : (
+                                  <>
+                                    {cleanPhone && (
+                                      <a 
+                                        href={`https://wa.me/55${cleanPhone}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={e => e.stopPropagation()}
+                                        className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors"
+                                        title="WhatsApp"
+                                      >
+                                        <MessageCircle size={12} />
+                                      </a>
+                                    )}
+                                    {app.status === 'agendado' && onConfirm && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); onConfirm(app.id); }}
+                                        className="p-1 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors"
+                                        title="Confirmar Presença"
+                                      >
+                                        <CheckCircle size={12} />
+                                      </button>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -458,12 +481,15 @@ export default function AdminDashboard() {
 
   const handleOpenBlockModal = (profId = null, timeStr = '12:00', dateStr = '') => {
     const startTime = timeStr || '12:00';
-    const [h, m] = startTime.split(':').map(Number);
-    const endH = Math.min(23, h + 1).toString().padStart(2, '0');
-    const endTime = `${endH}:${m.toString().padStart(2, '0')}`;
+    const [h, m] = (startTime || '12:00').split(':').map(Number);
+    let endH = h + 1;
+    let endTime = `${Math.min(23, endH).toString().padStart(2, '0')}:${(m || 0).toString().padStart(2, '0')}`;
+    if (endH >= 24) endTime = '23:59';
+
+    const defaultProf = profId ? String(profId) : (user?.role === 'admin' ? String(professionals[0]?.id || '') : String(user?.id || ''));
 
     setNewBlock({
-      professional_id: profId || (user?.role === 'admin' ? (professionals[0]?.id || '') : user?.id || ''),
+      professional_id: defaultProf,
       date: dateStr || format(new Date(), 'yyyy-MM-dd'),
       time: startTime,
       endTime: endTime,
@@ -476,7 +502,7 @@ export default function AdminDashboard() {
   const handleAddBlock = async (e) => {
     e.preventDefault();
     try {
-      const profId = user.role === 'admin' ? newBlock.professional_id : user.id;
+      const profId = user.role === 'admin' ? String(newBlock.professional_id) : String(user.id);
       if (!profId) {
           openModal({ title: 'Atenção', message: 'Por favor, selecione um profissional.', type: 'info', confirmText: 'OK' });
           return;
@@ -497,16 +523,17 @@ export default function AdminDashboard() {
       }
       
       const payload = {
-          ...newBlock,
           professional_id: profId,
+          date: newBlock.date,
           time: startTime,
-          duration: calculatedDuration
+          duration: calculatedDuration,
+          description: newBlock.description
       };
       
       await api.post('/api/appointments/block', payload);
       setShowBlockModal(false);
       openModal({ title: 'Sucesso', message: `Agenda fechada das ${startTime} às ${endTime} (${calculatedDuration} min)!`, type: 'success', confirmText: 'OK' });
-      loadData(user);
+      await loadData(user);
     } catch (err) {
       console.error(err);
       openModal({ title: 'Erro ao Bloquear', message: err.response?.data?.error || 'Erro ao fechar horário.', type: 'error', confirmText: 'Voltar' });
@@ -964,6 +991,9 @@ export default function AdminDashboard() {
 
   const getAppServices = (app) => {
     if (!app) return [];
+    if (app.notes && app.notes.startsWith('BLOCK:')) {
+      return [{ name: app.service_name || 'Agenda Fechada', price: 0 }];
+    }
     if (app.notes && app.notes.includes('MULTI_SERVICES:')) {
       try {
         const parts = app.notes.split('|');
@@ -1137,20 +1167,28 @@ export default function AdminDashboard() {
   };
 
   const handleCancelAppt = (id) => {
+    const target = appointments.find(a => String(a.id) === String(id));
+    const isBlock = target?.notes?.startsWith('BLOCK:');
+
     openModal({
-      title: 'Confirmar Cancelamento',
-      message: 'Deseja realmente desmarcar este cliente? O horário ficará disponível novamente.',
+      title: isBlock ? 'Confirmar Desbloqueio' : 'Confirmar Cancelamento',
+      message: isBlock
+        ? 'Deseja realmente desbloquear este horário? Ele voltará a ficar disponível na agenda.'
+        : 'Deseja realmente desmarcar este cliente? O horário ficará disponível novamente.',
       type: 'confirm',
-      confirmText: 'Desmarcar',
+      confirmText: isBlock ? 'Desbloquear' : 'Desmarcar',
       onConfirm: async () => {
         try {
           await api.post(`/api/appointments/${id}/cancel`);
-          setAppointments(prev => prev.filter(a => a.id !== id));
+          setAppointments(prev => prev.filter(a => String(a.id) !== String(id)));
+          if (selectedAppointment && String(selectedAppointment.id) === String(id)) {
+            setSelectedAppointment(null);
+          }
         } catch (err) {
-          console.error('Erro ao desmarcar:', err);
+          console.error('Erro ao desmarcar/desbloquear:', err);
           openModal({ 
             title: 'Falha no Servidor', 
-            message: 'Erro ao desmarcar o agendamento. Tente reiniciar o servidor.', 
+            message: isBlock ? 'Erro ao desbloquear o horário.' : 'Erro ao desmarcar o agendamento.', 
             type: 'error', 
             confirmText: 'Entendido' 
           });
@@ -1741,13 +1779,13 @@ export default function AdminDashboard() {
 
                 <div className="flex flex-wrap gap-2 text-xs font-bold">
                   <span className="badge-pending">
-                    ⏳ {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'agendado').length} Aguardando Confirmação
+                    ⏳ {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'agendado' && !a.notes?.startsWith('BLOCK:')).length} Aguardando Confirmação
                   </span>
                   <span className="badge-confirmed">
-                    ✅ {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'confirmado').length} Presença Confirmada
+                    ✅ {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'confirmado' && !a.notes?.startsWith('BLOCK:')).length} Presença Confirmada
                   </span>
                   <span className="badge-completed">
-                    🟢 {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'concluído').length} Atendidos / Concluídos
+                    🟢 {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'concluído' && !a.notes?.startsWith('BLOCK:')).length} Atendidos / Concluídos
                   </span>
                 </div>
               </div>
@@ -1819,7 +1857,7 @@ export default function AdminDashboard() {
                         const upcomingList = (activeAppointments || [])
                           .filter(app => {
                             if (!app || !app.date) return false;
-                            if (app.status === 'cancelado' || app.status === 'concluído') return false;
+                            if (app.status === 'cancelado' || app.status === 'concluído' || app.notes?.startsWith('BLOCK:')) return false;
                             const appTime = app.time || '00:00';
                             if (app.date < currentDateStr) return false;
                             if (app.date === currentDateStr && appTime < currentTimeStr) return false;
@@ -2128,14 +2166,43 @@ export default function AdminDashboard() {
                                 <p className="text-sm font-medium">Livre. Nenhum atendimento para esta data.</p>
                               </div>
                             ) : (
-                              selectedDayAppointments.sort((a, b) => a.time.localeCompare(b.time)).map(app => {
+                              selectedDayAppointments.sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00')).map(app => {
                                 const cleanPhone = (app.client_phone || '').replace(/\D/g, '');
                                 const durationMin = Number(app.service_duration) || 30;
                                 const endTime = (st, dur) => {
-                                  const [h, m] = st.split(':').map(Number);
-                                  const tot = h * 60 + m + dur;
+                                  const [h, m] = (st || '00:00').split(':').map(Number);
+                                  const tot = (h || 0) * 60 + (m || 0) + dur;
                                   return `${Math.floor(tot/60).toString().padStart(2,'0')}:${(tot%60).toString().padStart(2,'0')}`;
                                 };
+                                const isBlock = app.notes?.startsWith('BLOCK:');
+
+                                if (isBlock) {
+                                  return (
+                                    <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 flex flex-col gap-2 hover:border-amber-500 transition-all group relative shadow-sm cursor-pointer">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 font-black text-xs px-2.5 py-1 rounded-xl shrink-0 flex items-center gap-1">
+                                            <Lock size={12} /> {app.time} - {endTime(app.time, durationMin)}
+                                          </div>
+                                          <span className="badge-pending !bg-amber-500/20 !text-amber-300 !border-amber-500/30">🔒 Fechado ({durationMin}m)</span>
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        <h4 className="text-foreground font-black text-sm">{app.client_name || 'Bloqueio de Agenda'}</h4>
+                                        <p className="text-xs text-amber-400/80 font-bold">⏳ Pausa de Atendimento</p>
+                                        {isAdmin && <p className="text-[11px] text-amber-400 font-bold mt-1 flex items-center gap-1"><User size={12} /> {app.professional_name}</p>}
+                                      </div>
+
+                                      <div className="flex items-center justify-end pt-2 border-t border-amber-500/20 text-xs">
+                                        <button onClick={(e) => { e.stopPropagation(); handleCancelAppt(app.id); }} className="text-amber-300 hover:bg-amber-500/20 px-3 py-1.5 rounded-xl font-bold transition-colors flex items-center gap-1" title="Desbloquear Horário">
+                                          <Unlock size={14} /> Desbloquear
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
                                 return (
                                   <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl border border-border/60 bg-card/80 flex flex-col gap-2 hover:border-primary/50 transition-all group relative shadow-sm cursor-pointer">
                                     <div className="flex items-start justify-between gap-2">
@@ -3185,7 +3252,7 @@ export default function AdminDashboard() {
                     }} 
                     required
                   >
-                    {appointmentTimeSlots.map(t => <option key={t} value={t}>{t}</option>)}
+                    {['06:00','06:30','07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30','23:00'].map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
 
@@ -3197,11 +3264,9 @@ export default function AdminDashboard() {
                     onChange={e => setNewBlock({ ...newBlock, endTime: e.target.value })} 
                     required
                   >
-                    {appointmentTimeSlots.map(t => (
+                    {['06:30','07:00','07:30','08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30','19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30','23:00','23:30','23:59'].map(t => (
                       <option key={t} value={t}>{t}</option>
                     ))}
-                    <option value="22:30">22:30</option>
-                    <option value="23:00">23:00</option>
                   </select>
                 </div>
               </div>
@@ -3233,7 +3298,7 @@ export default function AdminDashboard() {
                     { label: 'Almoço (1h)', start: '12:00', end: '13:00', desc: 'Horário de Almoço' },
                     { label: 'Médico', start: '14:00', end: '15:30', desc: 'Consulta Médica' },
                     { label: 'Pausa (30m)', start: '15:00', end: '15:30', desc: 'Pausa Rápida' },
-                    { label: 'Folga / Turno', start: '08:00', end: '18:00', desc: 'Folga / Agenda Fechada' }
+                    { label: 'Dia Inteiro / Folga', start: workStart || '09:00', end: workEnd || '18:00', desc: 'Folga / Agenda Fechada' }
                   ].map(preset => (
                     <button
                       key={preset.label}
@@ -3377,177 +3442,239 @@ export default function AdminDashboard() {
       )}
 
       {selectedAppointment && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
-          <div className="bg-card border border-primary/20 rounded-[2.5rem] w-full max-w-md shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
-            
-            <div className="grid grid-cols-4 gap-1 p-4 bg-gradient-to-br from-muted/20 to-transparent border-b border-border/50">
-              <button onClick={() => handleWhatsAppAction(selectedAppointment, false)} className="flex flex-col items-center gap-1 text-green-500 hover:text-green-600 transition-colors p-2 rounded-2xl hover:bg-green-500/10">
-                <MessageCircle size={20} />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Whats</span>
-              </button>
-              <button onClick={() => handleWhatsAppAction(selectedAppointment, true)} className="flex flex-col items-center gap-1 text-primary hover:text-primary-dark transition-colors p-2 rounded-2xl hover:bg-primary/10">
-                <Send size={20} />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Lembrete</span>
-              </button>
-              <button onClick={() => {
-                setEditAppt({
-                  id: selectedAppointment.id,
-                  client_name: selectedAppointment.client_name,
-                  date: selectedAppointment.date,
-                  time: selectedAppointment.time,
-                  professional_id: selectedAppointment.professional_id,
-                  service_name: selectedAppointment.service_name 
-                });
-                setSelectedAppointment(null);
-                setShowEditAppt(true);
-              }} className="flex flex-col items-center gap-1 text-blue-500 hover:text-blue-600 transition-colors p-2 rounded-2xl hover:bg-blue-500/10">
-                <Edit2 size={20} />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Editar</span>
-              </button>
-              <button onClick={() => { setSelectedAppointment(null); handleCancelAppt(selectedAppointment.id); }} className="flex flex-col items-center gap-1 text-red-500 hover:text-red-600 transition-colors p-2 rounded-2xl hover:bg-red-500/10">
-                <Trash2 size={20} />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Apagar</span>
-              </button>
-            </div>
-
-            {/* Body List */}
-            <div className="flex-1 overflow-y-auto p-2">
+        selectedAppointment.notes?.startsWith('BLOCK:') ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
+            <div className="bg-card border border-amber-500/40 rounded-[2.5rem] w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative p-6 space-y-5" onClick={e => e.stopPropagation()}>
               
-              <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
-                <div className="w-10 h-10 rounded-full bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0">
-                  <CalendarIcon size={18} />
+              <button 
+                onClick={() => setSelectedAppointment(null)}
+                className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors p-1"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shadow-md">
+                  <Lock size={24} />
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-foreground">{selectedAppointment.time} - {calculateEndTime(selectedAppointment.time, selectedAppointment.service_duration)}</p>
-                  <p className="text-xs text-muted capitalize">{safeFormatDate(selectedAppointment?.date, "EEEE, dd 'de' MMMM 'de' yyyy", {locale: ptBR})}</p>
+                <div>
+                  <h2 className="text-xl font-serif font-black text-foreground">Horário Fechado</h2>
+                  <p className="text-xs text-amber-400 font-bold">Bloqueio de Agenda / Pausa</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
-                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <User size={18} />
+              <div className="space-y-3 bg-card/60 p-4 rounded-2xl border border-border/50 text-xs">
+                <div className="flex justify-between items-center pb-2 border-b border-border/40">
+                  <span className="text-muted font-bold uppercase tracking-wider text-[10px]">Profissional</span>
+                  <span className="font-black text-foreground">{selectedAppointment.professional_name || 'Equipe'}</span>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-foreground">{selectedAppointment.client_name}</p>
-                  <p className="text-xs text-primary font-medium">{selectedAppointment.client_phone}</p>
+
+                <div className="flex justify-between items-center pb-2 border-b border-border/40">
+                  <span className="text-muted font-bold uppercase tracking-wider text-[10px]">Data</span>
+                  <span className="font-black text-foreground">{safeFormatDate(selectedAppointment.date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
                 </div>
-                <button onClick={() => navigator.clipboard.writeText(selectedAppointment.client_phone)} className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Copiar Telefone">
-                  <Copy size={16} />
+
+                <div className="flex justify-between items-center pb-2 border-b border-border/40">
+                  <span className="text-muted font-bold uppercase tracking-wider text-[10px]">Horário</span>
+                  <span className="font-black text-amber-400">{selectedAppointment.time} - {calculateEndTime(selectedAppointment.time, selectedAppointment.service_duration)} ({Number(selectedAppointment.service_duration) || 30} min)</span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-muted font-bold uppercase tracking-wider text-[10px]">Motivo</span>
+                  <span className="font-black text-foreground">{selectedAppointment.client_name?.replace(/^Bloqueio:\s*/, '') || 'Bloqueio de Agenda'}</span>
+                </div>
+              </div>
+
+              <div className="pt-2 space-y-2">
+                <button 
+                  onClick={() => handleCancelAppt(selectedAppointment.id)} 
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black rounded-2xl shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 text-xs uppercase tracking-wider transition-all"
+                >
+                  <Unlock size={16} /> Desbloquear Horário (Remover Pausa)
+                </button>
+                
+                <button 
+                  onClick={() => setSelectedAppointment(null)} 
+                  className="w-full py-3 text-center font-bold text-muted hover:text-foreground text-xs uppercase tracking-wider"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
+            <div className="bg-card border border-primary/20 rounded-[2.5rem] w-full max-w-md shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+              
+              <div className="grid grid-cols-4 gap-1 p-4 bg-gradient-to-br from-muted/20 to-transparent border-b border-border/50">
+                <button onClick={() => handleWhatsAppAction(selectedAppointment, false)} className="flex flex-col items-center gap-1 text-green-500 hover:text-green-600 transition-colors p-2 rounded-2xl hover:bg-green-500/10">
+                  <MessageCircle size={20} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Whats</span>
+                </button>
+                <button onClick={() => handleWhatsAppAction(selectedAppointment, true)} className="flex flex-col items-center gap-1 text-primary hover:text-primary-dark transition-colors p-2 rounded-2xl hover:bg-primary/10">
+                  <Send size={20} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Lembrete</span>
+                </button>
+                <button onClick={() => {
+                  setEditAppt({
+                    id: selectedAppointment.id,
+                    client_name: selectedAppointment.client_name,
+                    date: selectedAppointment.date,
+                    time: selectedAppointment.time,
+                    professional_id: selectedAppointment.professional_id,
+                    service_name: selectedAppointment.service_name 
+                  });
+                  setSelectedAppointment(null);
+                  setShowEditAppt(true);
+                }} className="flex flex-col items-center gap-1 text-blue-500 hover:text-blue-600 transition-colors p-2 rounded-2xl hover:bg-blue-500/10">
+                  <Edit2 size={20} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Editar</span>
+                </button>
+                <button onClick={() => { setSelectedAppointment(null); handleCancelAppt(selectedAppointment.id); }} className="flex flex-col items-center gap-1 text-red-500 hover:text-red-600 transition-colors p-2 rounded-2xl hover:bg-red-500/10">
+                  <Trash2 size={20} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Apagar</span>
                 </button>
               </div>
 
-              <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
-                <div className="w-10 h-10 rounded-full bg-pink-500/10 text-pink-500 flex items-center justify-center shrink-0">
-                  <Briefcase size={18} />
+              {/* Body List */}
+              <div className="flex-1 overflow-y-auto p-2">
+                
+                <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
+                  <div className="w-10 h-10 rounded-full bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0">
+                    <CalendarIcon size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-foreground">{selectedAppointment.time} - {calculateEndTime(selectedAppointment.time, selectedAppointment.service_duration)}</p>
+                    <p className="text-xs text-muted capitalize">{safeFormatDate(selectedAppointment?.date, "EEEE, dd 'de' MMMM 'de' yyyy", {locale: ptBR})}</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  {getAppServices(selectedAppointment).map((srv, idx) => (
-                    <div key={idx} className="flex justify-between items-center mb-1 last:mb-0">
-                      <p className="text-sm font-bold text-foreground">{srv.name}</p>
-                      <p className="text-xs text-muted font-medium">R$ {Number(srv.price||0).toFixed(2).replace('.', ',')}</p>
-                    </div>
-                  ))}
-                  {getAppServices(selectedAppointment).length > 1 && (
-                    <div className="mt-2 pt-2 border-t border-border flex justify-between items-center">
-                      <p className="text-xs font-bold uppercase text-primary">Total da Venda</p>
-                      <p className="text-sm font-black text-primary">R$ {getAppServices(selectedAppointment).reduce((acc, srv) => acc + Number(srv.price||0), 0).toFixed(2).replace('.', ',')}</p>
-                    </div>
-                  )}
+
+                <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <User size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-foreground">{selectedAppointment.client_name}</p>
+                    <p className="text-xs text-primary font-medium">{selectedAppointment.client_phone}</p>
+                  </div>
+                  <button onClick={() => navigator.clipboard.writeText(selectedAppointment.client_phone)} className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Copiar Telefone">
+                    <Copy size={16} />
+                  </button>
                 </div>
+
+                <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
+                  <div className="w-10 h-10 rounded-full bg-pink-500/10 text-pink-500 flex items-center justify-center shrink-0">
+                    <Briefcase size={18} />
+                  </div>
+                  <div className="flex-1">
+                    {getAppServices(selectedAppointment).map((srv, idx) => (
+                      <div key={idx} className="flex justify-between items-center mb-1 last:mb-0">
+                        <p className="text-sm font-bold text-foreground">{srv.name}</p>
+                        <p className="text-xs text-muted font-medium">R$ {Number(srv.price||0).toFixed(2).replace('.', ',')}</p>
+                      </div>
+                    ))}
+                    {getAppServices(selectedAppointment).length > 1 && (
+                      <div className="mt-2 pt-2 border-t border-border flex justify-between items-center">
+                        <p className="text-xs font-bold uppercase text-primary">Total da Venda</p>
+                        <p className="text-sm font-black text-primary">R$ {getAppServices(selectedAppointment).reduce((acc, srv) => acc + Number(srv.price||0), 0).toFixed(2).replace('.', ',')}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 bg-muted/5 rounded-xl transition-colors border-b border-border/50">
+                  <div className="w-10 h-10 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center shrink-0">
+                    <DollarSign size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted font-medium mb-1">Forma de pagamento</p>
+                    <select 
+                      className="w-full bg-transparent border-none text-sm font-bold text-foreground focus:ring-0 p-0 cursor-pointer"
+                      value={getAppPaymentMethod(selectedAppointment.notes)}
+                      onChange={(e) => updateAppPaymentMethod(selectedAppointment.id, selectedAppointment.notes, e.target.value)}
+                    >
+                      <option value="Não definido">Não definido</option>
+                      <option value="Dinheiro">Dinheiro</option>
+                      <option value="PIX">PIX</option>
+                      <option value="Cartão de Crédito">Cartão de Crédito</option>
+                      <option value="Cartão de Débito">Cartão de Débito</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
+                  <div className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0">
+                    <FileText size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted font-medium mb-1">Observação</p>
+                    <p className="text-sm text-foreground">
+                      {(() => {
+                        const notes = selectedAppointment.notes || '';
+                        const parts = notes
+                          .split('|')
+                          .filter(p => !p.startsWith('BLOCK:') && !p.startsWith('PAYMENT:') && !p.startsWith('MULTI_SERVICES:'))
+                          .map(p => p.replace(/^NOTE:/, ''));
+                        return parts.join(' | ') || '-';
+                      })()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+                    <Tag size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-muted font-medium mb-1">Situação / Status</p>
+                    <p className={`text-sm font-bold ${
+                      selectedAppointment.status === 'concluído' ? 'text-green-500' :
+                      selectedAppointment.status === 'confirmado' ? 'text-emerald-400' : 'text-amber-500'
+                    } uppercase`}>
+                      {selectedAppointment.status === 'concluído' ? 'Pago / Concluído' :
+                       selectedAppointment.status === 'confirmado' ? '✅ Presença Confirmada' : '⏳ Aguardando Confirmação'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {selectedAppointment.status === 'agendado' && (
+                      <button onClick={() => { handleConfirmAppt(selectedAppointment.id); setSelectedAppointment(null); }} className="text-xs font-bold bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500 hover:text-white transition-colors">
+                        CONFIRMAR PRESENÇA
+                      </button>
+                    )}
+                    {selectedAppointment.status !== 'concluído' && (
+                      <button onClick={() => { handleCompleteAppt(selectedAppointment.id); setSelectedAppointment(null); }} className="text-xs font-bold bg-green-500/10 text-green-600 px-3 py-1.5 rounded-lg hover:bg-green-500 hover:text-white transition-colors">
+                        CONCLUIR
+                      </button>
+                    )}
+                  </div>
+                </div>
+
               </div>
 
-              <div className="flex items-center gap-4 p-3 bg-muted/5 rounded-xl transition-colors border-b border-border/50">
-                <div className="w-10 h-10 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center shrink-0">
-                  <DollarSign size={18} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-muted font-medium mb-1">Forma de pagamento</p>
-                  <select 
-                    className="w-full bg-transparent border-none text-sm font-bold text-foreground focus:ring-0 p-0 cursor-pointer"
-                    value={getAppPaymentMethod(selectedAppointment.notes)}
-                    onChange={(e) => updateAppPaymentMethod(selectedAppointment.id, selectedAppointment.notes, e.target.value)}
-                  >
-                    <option value="Não definido">Não definido</option>
-                    <option value="Dinheiro">Dinheiro</option>
-                    <option value="PIX">PIX</option>
-                    <option value="Cartão de Crédito">Cartão de Crédito</option>
-                    <option value="Cartão de Débito">Cartão de Débito</option>
-                  </select>
-                </div>
+              {/* Footer Actions */}
+              <div className="p-4 border-t border-border flex justify-between items-center bg-muted/10">
+                <button 
+                  onClick={() => handleAddCharge(selectedAppointment)}
+                  className="text-xs font-bold text-purple-600 uppercase tracking-wide px-4 py-2 hover:bg-purple-500/10 rounded-lg transition-colors"
+                >
+                  Adicionar Cobrança
+                </button>
+                <button 
+                  onClick={() => handleGenerateReceipt(selectedAppointment)}
+                  className="text-xs font-bold text-purple-600 flex items-center gap-2 uppercase tracking-wide px-4 py-2 hover:bg-purple-500/10 rounded-lg transition-colors"
+                >
+                  <Printer size={16} />
+                  Gerar Recibo
+                </button>
               </div>
 
-              <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
-                <div className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center shrink-0">
-                  <FileText size={18} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-muted font-medium mb-1">Observação</p>
-                  <p className="text-sm text-foreground">
-                    {(() => {
-                      const notes = selectedAppointment.notes || '';
-                      const parts = notes
-                        .split('|')
-                        .filter(p => !p.startsWith('BLOCK:') && !p.startsWith('PAYMENT:') && !p.startsWith('MULTI_SERVICES:'))
-                        .map(p => p.replace(/^NOTE:/, ''));
-                      return parts.join(' | ') || '-';
-                    })()}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors">
-                <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
-                  <Tag size={18} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-muted font-medium mb-1">Situação / Status</p>
-                  <p className={`text-sm font-bold ${
-                    selectedAppointment.status === 'concluído' ? 'text-green-500' :
-                    selectedAppointment.status === 'confirmado' ? 'text-emerald-400' : 'text-amber-500'
-                  } uppercase`}>
-                    {selectedAppointment.status === 'concluído' ? 'Pago / Concluído' :
-                     selectedAppointment.status === 'confirmado' ? '✅ Presença Confirmada' : '⏳ Aguardando Confirmação'}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  {selectedAppointment.status === 'agendado' && (
-                    <button onClick={() => { handleConfirmAppt(selectedAppointment.id); setSelectedAppointment(null); }} className="text-xs font-bold bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg hover:bg-emerald-500 hover:text-white transition-colors">
-                      CONFIRMAR PRESENÇA
-                    </button>
-                  )}
-                  {selectedAppointment.status !== 'concluído' && (
-                    <button onClick={() => { handleCompleteAppt(selectedAppointment.id); setSelectedAppointment(null); }} className="text-xs font-bold bg-green-500/10 text-green-600 px-3 py-1.5 rounded-lg hover:bg-green-500 hover:text-white transition-colors">
-                      CONCLUIR
-                    </button>
-                  )}
-                </div>
-              </div>
+              <button onClick={() => setSelectedAppointment(null)} className="w-full py-4 text-center font-bold text-muted hover:text-foreground border-t border-border bg-background transition-colors uppercase tracking-widest text-xs">
+                Fechar
+              </button>
 
             </div>
-
-            {/* Footer Actions */}
-            <div className="p-4 border-t border-border flex justify-between items-center bg-muted/10">
-              <button 
-                onClick={() => handleAddCharge(selectedAppointment)}
-                className="text-xs font-bold text-purple-600 uppercase tracking-wide px-4 py-2 hover:bg-purple-500/10 rounded-lg transition-colors"
-              >
-                Adicionar Cobrança
-              </button>
-              <button 
-                onClick={() => handleGenerateReceipt(selectedAppointment)}
-                className="text-xs font-bold text-purple-600 flex items-center gap-2 uppercase tracking-wide px-4 py-2 hover:bg-purple-500/10 rounded-lg transition-colors"
-              >
-                <Printer size={16} />
-                Gerar Recibo
-              </button>
-            </div>
-
-            <button onClick={() => setSelectedAppointment(null)} className="w-full py-4 text-center font-bold text-muted hover:text-foreground border-t border-border bg-background transition-colors uppercase tracking-widest text-xs">
-              Fechar
-            </button>
-
           </div>
-        </div>
+        )
       )}
 
       {showEditAppt && editAppt && (

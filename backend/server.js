@@ -1416,12 +1416,6 @@ app.post('/api/appointments/block', requireStaff(), async (req, res) => {
     }
     
     try {
-        // Validação básica do horário (não cruzar o expediente)
-        const settingsMap = await loadSettingsMap();
-        const professionalSchedule = buildProfessionalSchedule(settingsMap, professional_id);
-        
-        const scheduleValidation = validateAppointmentAgainstSchedule({ date, time, duration, schedule: professionalSchedule });
-        if (!scheduleValidation.valid) return res.status(400).json({ error: scheduleValidation.error });
         const newStart = timeToMinutes(time);
         const newEnd = newStart + duration;
         
