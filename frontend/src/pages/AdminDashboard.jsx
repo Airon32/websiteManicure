@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from '../router';
-import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, MessageCircle, Tag, Copy, FileText, Send, Printer } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, Clock, MessageCircle, Tag, Copy, FileText, Send, Printer } from 'lucide-react';
 import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, subYears, addYears, isSameMonth, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey } from '../utils/schedule';
@@ -1549,7 +1549,7 @@ export default function AdminDashboard() {
             </button>
 
             <div className="flex items-center gap-2">
-              <button onClick={() => { setShowBlockModal(true); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="p-2.5 md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md" title="Bloquear Horário">
+              <button onClick={() => { handleOpenBlockModal(null, '12:00', format(selectedCalendarDate || new Date(), 'yyyy-MM-dd')); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="p-2.5 md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md" title="Bloquear Horário">
                 <Lock size={16} />
               </button>
               <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary !py-2.5 !px-4 md:!px-5 glow-primary">
