@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, addDays, startOfToday, parseISO, isAfter, endOfWeek, isWithinInterval } from 'date-fns';
+
+const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
+  if (!dateStr || typeof dateStr !== 'string') return '--';
+  try {
+    const clean = dateStr.split('T')[0];
+    const parsed = parseISO(clean);
+    if (isNaN(parsed.getTime())) return dateStr;
+    return format(parsed, formatStr, options);
+  } catch {
+    return dateStr;
+  }
+};
 import { ptBR } from 'date-fns/locale';
 import { 
   Calendar, 
@@ -647,7 +659,7 @@ export default function ClientPortal() {
                                           </div>
                                           <div className="text-right">
                                              <p className="text-xl font-bold text-foreground">{app.time}</p>
-                                        <p className="text-[10px] text-muted uppercase font-bold tracking-widest mt-1">{format(parseISO(app.date), "dd MMM", {locale: ptBR})}</p>
+                                        <p className="text-[10px] text-muted uppercase font-bold tracking-widest mt-1">{safeFormatDate(app.date, "dd MMM", {locale: ptBR})}</p>
                                           </div>
                                        </div>
                                        <div className="flex items-center justify-between pt-4 border-t border-border/30">

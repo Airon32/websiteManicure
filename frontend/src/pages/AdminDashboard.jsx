@@ -1034,7 +1034,7 @@ export default function AdminDashboard() {
     let msg = '';
     if (isReminder) {
       const confirmLink = `${window.location.origin}/confirmar/${app.id}?token=${encodeURIComponent(app.confirmation_token || '')}`;
-      msg = `Olá ${app.client_name}! Passando para lembrar do seu agendamento de *${app.service_name}* no dia ${format(parseISO(app.date), 'dd/MM')} às ${app.time}.\n\nPara confirmar sua presença, clique no link abaixo:\n${confirmLink}\n\nAté breve!`;
+      msg = `Olá ${app.client_name}! Passando para lembrar do seu agendamento de *${app.service_name}* no dia ${safeFormatDate(app.date, 'dd/MM')} às ${app.time}.\n\nPara confirmar sua presença, clique no link abaixo:\n${confirmLink}\n\nAté breve!`;
     } else {
       msg = `Olá ${app.client_name}, tudo bem? Aqui é da ${businessName}.`;
     }
@@ -1075,7 +1075,7 @@ export default function AdminDashboard() {
             <div class="logo">Mary Esmalteria</div>
             <div class="subtitle">Comprovante de Serviço</div>
             <div class="row"><span class="label">Cliente</span><span class="value">${escapeHtml(app.client_name)}</span></div>
-            <div class="row"><span class="label">Data</span><span class="value">${format(parseISO(app.date), 'dd/MM/yyyy')}</span></div>
+            <div class="row"><span class="label">Data</span><span class="value">${safeFormatDate(app.date, 'dd/MM/yyyy')}</span></div>
             <div class="row"><span class="label">Profissional</span><span class="value">${escapeHtml(app.professional_name || 'Equipe')}</span></div>
             <div class="divider"></div>
             ${servicesHtml}

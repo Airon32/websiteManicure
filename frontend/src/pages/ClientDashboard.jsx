@@ -2,6 +2,18 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from '../router';
 import api from '../api';
 import { format, parseISO, isAfter, startOfToday, addDays, isBefore, isWithinInterval } from 'date-fns';
+
+const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
+  if (!dateStr || typeof dateStr !== 'string') return '--';
+  try {
+    const clean = dateStr.split('T')[0];
+    const parsed = parseISO(clean);
+    if (isNaN(parsed.getTime())) return dateStr;
+    return format(parsed, formatStr, options);
+  } catch {
+    return dateStr;
+  }
+};
 import { ptBR } from 'date-fns/locale';
 import { 
   Calendar, 
@@ -521,7 +533,7 @@ const ClientDashboard = () => {
                     <div className="text-right">
                       <p className="text-2xl font-bold text-foreground">{app.time}</p>
                       <p className="text-[10px] text-muted uppercase font-bold tracking-widest mt-1">
-                        {format(parseISO(app.date), "dd 'DE' MMMM", { locale: ptBR })}
+                        {safeFormatDate(app.date, "dd 'DE' MMMM", { locale: ptBR })}
                       </p>
                     </div>
                   </div>
