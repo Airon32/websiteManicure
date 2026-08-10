@@ -8,16 +8,24 @@ dist/
 frontend/dist/
 build/
 
-# Logs
+# Logs & Internal Assistant Data
 *.log
 scratch/
 *.err.log
 *.out.log
+.vibecode/
+.agents/
+.gemini/
 
-# Environment variables
+# Environment variables & secrets (CRITICAL SECURITY)
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.crt
 
 # IDE / System files
 .vscode/
@@ -25,7 +33,7 @@ scratch/
 .DS_Store
 Thumbs.db
 
-# Vercel
+# Vercel & SQLite
 .vercel
 *.sqlite
 *.sqlite-journal
