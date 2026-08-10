@@ -35,9 +35,26 @@ function validateAppointmentAgainstSchedule({ date, time, duration, schedule, ig
 
 function checkConflict(existingAppointments, newStart, totalDuration) {
     return (existingAppointments || []).some(appointment => {
-        const existingStart = timeToMinutes(appointment.time);
-        const existingDuration = Number(appointment.duration) || 30;
-        return newStart < existingStart + existingDuration && newStart + totalDuration > existingStart;
+        const existingStart = Number(timeToMinutes(appointment.time));
+        let existingDuration = 30;
+
+        if (appointment.notes?.startsWith('MULTI_SERVICES:')) {
+            try {
+                const marker = appointment.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
+                const multiData = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
+                existingDuration = multiData.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
+            } catch {}
+        } else if (appointment.notes?.startsWith('BLOCK:')) {
+            existingDuration = Number.parseInt(appointment.notes.split(':')[1], 10) || 30;
+        } else if (appointment.duration) {
+            existingDuration = Number(appointment.duration);
+        }
+
+        existingDuration = Number(existingDuration) || 30;
+        const existingEnd = existingStart + existingDuration;
+        const newEnd = Number(newStart) + Number(totalDuration);
+
+        return newStart < existingEnd && newEnd > existingStart;
     });
 }
 
@@ -94,9 +111,17 @@ test('Validação de Agendamentos e Agendamentos Sequenciais (Back-to-Back)', as
     });
 
     await t.test('permite agendamento sequencial de 12:00-13:20 e 13:20-14:40 sem conflito', () => {
-        const existing = [{ time: '12:00', duration: 80 }]; // 12:00 até 13:20
-        const newStart = timeToMinutes('13:20'); // 800 min
+        const existing = [{ time: '12:00', duration: 80 }];
+        const newStart = timeToMinutes('13:20');
         const duration = 80;
+        const hasConflict = checkConflict(existing, newStart, duration);
+        assert.equal(hasConflict, false);
+    });
+
+    await t.test('permite agendar atendimento às 12:00 logo após um bloqueio de 07:00-12:00 (300 min) sem falso conflito', () => {
+        const existing = [{ time: '07:00', notes: 'BLOCK:300|dentista' }];
+        const newStart = timeToMinutes('12:00'); // 720 min
+        const duration = 80; // 12:00 - 13:20
         const hasConflict = checkConflict(existing, newStart, duration);
         assert.equal(hasConflict, false);
     });

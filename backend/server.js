@@ -1290,7 +1290,7 @@ app.post('/api/appointments', rateLimit({
         });
         if (!validation.valid) return res.status(400).json({ error: validation.error });
 
-        const newStart = timeToMinutes(time);
+        const newStart = Number(timeToMinutes(time));
         let existing = [];
         try {
             const { data: dbExisting } = await supabase.from('appointments')
@@ -1302,8 +1302,9 @@ app.post('/api/appointments', rateLimit({
         } catch {}
 
         const conflict = (existing || []).some(appointment => {
-            const existingStart = timeToMinutes(appointment.time);
-            let existingDuration = Number(appointment.service?.duration) || 30;
+            const existingStart = Number(timeToMinutes(appointment.time));
+            let existingDuration = 30;
+
             if (appointment.notes?.startsWith('MULTI_SERVICES:')) {
                 try {
                     const marker = appointment.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
@@ -1311,9 +1312,19 @@ app.post('/api/appointments', rateLimit({
                     existingDuration = multiData.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
                 } catch {}
             } else if (appointment.notes?.startsWith('BLOCK:')) {
-                existingDuration = Number.parseInt(appointment.notes.split(':')[1], 10) || existingDuration;
+                existingDuration = Number.parseInt(appointment.notes.split(':')[1], 10) || 30;
+            } else if (appointment.service) {
+                const sDuration = Array.isArray(appointment.service)
+                    ? Number(appointment.service[0]?.duration)
+                    : Number(appointment.service?.duration);
+                if (Number.isFinite(sDuration) && sDuration > 0) existingDuration = sDuration;
             }
-            return newStart < existingStart + existingDuration && newStart + totalDuration > existingStart;
+
+            existingDuration = Number(existingDuration) || 30;
+            const existingEnd = existingStart + existingDuration;
+            const newEnd = newStart + Number(totalDuration);
+
+            return newStart < existingEnd && newEnd > existingStart;
         });
         if (conflict) return res.status(409).json({ error: 'Este horário acabou de ser ocupado. Escolha outro horário.' });
 
@@ -1441,9 +1452,9 @@ app.post('/api/appointments/block', requireStaff(), async (req, res) => {
             
         if (!eErr && existing) {
             const hasConflict = existing.some(app => {
-                const exStart = timeToMinutes(app.time);
-                
+                const exStart = Number(timeToMinutes(app.time));
                 let exDuration = 30;
+
                 if (app.notes?.startsWith('MULTI_SERVICES:')) {
                     try {
                         const marker = app.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
@@ -1451,16 +1462,20 @@ app.post('/api/appointments/block', requireStaff(), async (req, res) => {
                         exDuration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
                     } catch {}
                 } else if (app.notes?.startsWith('BLOCK:')) {
-                    exDuration = Number.parseInt(app.notes.split(':')[1], 10) || exDuration;
-                } else if (app.service && app.service.duration) {
-                    exDuration = Number(app.service.duration);
+                    exDuration = Number.parseInt(app.notes.split(':')[1], 10) || 30;
+                } else if (app.service) {
+                    const sDuration = Array.isArray(app.service)
+                        ? Number(app.service[0]?.duration)
+                        : Number(app.service?.duration);
+                    if (Number.isFinite(sDuration) && sDuration > 0) exDuration = sDuration;
                 }
-                
+
+                exDuration = Number(exDuration) || 30;
                 const exEnd = exStart + exDuration;
-                return (newStart < exEnd && newEnd > exStart);
+                return newStart < exEnd && newEnd > exStart;
             });
             if (hasConflict) {
-                return res.status(400).json({"error": "Já existe um agendamento ou bloqueio neste horário."});
+                return res.status(400).json({ "error": "Já existe um agendamento ou bloqueio neste horário." });
             }
         }
         
@@ -1632,10 +1647,12 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
             .neq('status', 'cancelado');
         if (collisionError) return res.status(500).json({ error: 'Não foi possível validar o novo horário.' });
 
-        const targetStart = timeToMinutes(targetTime);
+        const targetStart = Number(timeToMinutes(targetTime));
+        const targetEnd = targetStart + Number(duration);
         const hasCollision = (collisions || []).some(appointment => {
-            const existingStart = timeToMinutes(appointment.time);
-            let existingDuration = Number(appointment.service?.duration) || 30;
+            const existingStart = Number(timeToMinutes(appointment.time));
+            let existingDuration = 30;
+
             if (appointment.notes?.startsWith('MULTI_SERVICES:')) {
                 try {
                     const marker = appointment.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
@@ -1643,9 +1660,17 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
                     existingDuration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
                 } catch {}
             } else if (appointment.notes?.startsWith('BLOCK:')) {
-                existingDuration = Number.parseInt(appointment.notes.split(':')[1], 10) || existingDuration;
+                existingDuration = Number.parseInt(appointment.notes.split(':')[1], 10) || 30;
+            } else if (appointment.service) {
+                const sDuration = Array.isArray(appointment.service)
+                    ? Number(appointment.service[0]?.duration)
+                    : Number(appointment.service?.duration);
+                if (Number.isFinite(sDuration) && sDuration > 0) existingDuration = sDuration;
             }
-            return targetStart < existingStart + existingDuration && targetStart + duration > existingStart;
+
+            existingDuration = Number(existingDuration) || 30;
+            const existingEnd = existingStart + existingDuration;
+            return targetStart < existingEnd && targetEnd > existingStart;
         });
         if (hasCollision) return res.status(409).json({ error: 'O novo horário entra em conflito com outro compromisso.' });
     }
