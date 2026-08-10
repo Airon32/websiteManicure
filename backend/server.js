@@ -223,7 +223,11 @@ function buildProfessionalSchedule(settingsMap, professionalId) {
     };
 }
 
-function validateAppointmentAgainstSchedule({ date, time, duration, schedule }) {
+function validateAppointmentAgainstSchedule({ date, time, duration, schedule, ignoreExpedientLimit = false }) {
+    if (ignoreExpedientLimit) {
+        return { valid: true };
+    }
+
     const appointmentDate = new Date(`${date}T00:00:00`);
     const dayKey = DAY_NAME_MAP[appointmentDate.getDay()];
 
@@ -1280,7 +1284,15 @@ app.post('/api/appointments', rateLimit({
         const totalDuration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
 
         const professionalSchedule = buildProfessionalSchedule(settingsMap, professionalId);
-        const validation = validateAppointmentAgainstSchedule({ date, time, duration: totalDuration, schedule: professionalSchedule });
+        const allowOutsideHours = isStaff || Boolean(req.body.allow_outside_hours);
+        const validation = validateAppointmentAgainstSchedule({
+            date,
+            time,
+            duration: totalDuration,
+            schedule: professionalSchedule,
+            ignoreExpedientLimit: allowOutsideHours
+        });
+        if (!validation.valid) return res.status(400).json({ error: validation.error });
 
         const newStart = timeToMinutes(time);
         let existing = [];
@@ -1605,7 +1617,14 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
 
         const settingsMap = await loadSettingsMap();
         const schedule = buildProfessionalSchedule(settingsMap, targetProfessional);
-        const validation = validateAppointmentAgainstSchedule({ date: targetDate, time: targetTime, duration, schedule });
+        const allowOutsideHours = isStaff || Boolean(req.body.allow_outside_hours);
+        const validation = validateAppointmentAgainstSchedule({
+            date: targetDate,
+            time: targetTime,
+            duration,
+            schedule,
+            ignoreExpedientLimit: allowOutsideHours
+        });
         if (!validation.valid) return res.status(400).json({ error: validation.error });
 
         const { data: collisions, error: collisionError } = await supabase

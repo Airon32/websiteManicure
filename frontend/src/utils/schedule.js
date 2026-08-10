@@ -54,14 +54,20 @@ export function buildEffectiveSchedule(settings, professionalId = null) {
   };
 }
 
-export function buildTimeSlots(workStart, workEnd, slotInterval) {
+export function buildTimeSlots(workStart, workEnd, slotInterval, includeOutsideHours = false) {
   const slots = [];
-  const [startHour, startMinute] = String(workStart || DEFAULT_WORK_START).split(':').map(Number);
-  const [endHour, endMinute] = String(workEnd || DEFAULT_WORK_END).split(':').map(Number);
   const interval = Number(slotInterval) || Number(DEFAULT_SLOT_INTERVAL);
 
-  const startTotal = startHour * 60 + startMinute;
-  const endTotal = endHour * 60 + endMinute;
+  let startTotal, endTotal;
+  if (includeOutsideHours) {
+    startTotal = 6 * 60;
+    endTotal = 23 * 60 + 59;
+  } else {
+    const [startHour, startMinute] = String(workStart || DEFAULT_WORK_START).split(':').map(Number);
+    const [endHour, endMinute] = String(workEnd || DEFAULT_WORK_END).split(':').map(Number);
+    startTotal = startHour * 60 + startMinute;
+    endTotal = endHour * 60 + endMinute;
+  }
 
   for (let current = startTotal; current < endTotal; current += interval) {
     const hour = Math.floor(current / 60);

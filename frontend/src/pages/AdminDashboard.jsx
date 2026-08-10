@@ -32,6 +32,12 @@ const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
   }
 };
 
+const timeToMinutes = (t) => {
+  if (!t) return 0;
+  const [h, m] = String(t).split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
 const defaultPublicProfile = {
   address: '',
   mapsUrl: '',
@@ -61,7 +67,45 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
     return `${endH}:${endM}`;
   };
 
-  const timeSlots = buildTimeSlots(workStart, workEnd, slotInterval);
+  const { effectiveStart, effectiveEnd } = useMemo(() => {
+    let minMinutes = timeToMinutes(workStart || '09:00');
+    let maxMinutes = timeToMinutes(workEnd || '18:00');
+
+    (appointments || []).forEach(a => {
+      if (a.time) {
+        const appStart = timeToMinutes(a.time);
+        if (appStart < minMinutes) minMinutes = appStart;
+
+        let duration = Number(a.service_duration || a.duration) || 30;
+        if (a.notes?.startsWith('MULTI_SERVICES:')) {
+          try {
+            const marker = a.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
+            const multiData = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
+            duration = multiData.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
+          } catch {}
+        } else if (a.notes?.startsWith('BLOCK:')) {
+          duration = Number.parseInt(a.notes.split(':')[1], 10) || duration;
+        }
+        const appEnd = appStart + duration;
+        if (appEnd > maxMinutes) maxMinutes = appEnd;
+      }
+    });
+
+    const interval = Number(slotInterval) || 30;
+    const roundedMax = Math.min(24 * 60, Math.ceil(maxMinutes / interval) * interval);
+
+    const startH = Math.floor(minMinutes / 60);
+    const startM = minMinutes % 60;
+    const endH = Math.floor(roundedMax / 60);
+    const endM = roundedMax % 60;
+
+    return {
+      effectiveStart: `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`,
+      effectiveEnd: `${String(Math.min(23, endH)).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+    };
+  }, [workStart, workEnd, slotInterval, appointments]);
+
+  const timeSlots = buildTimeSlots(effectiveStart, effectiveEnd, slotInterval);
   const currentWeekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
   const weekDays = eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 6) });
   
@@ -462,6 +506,7 @@ export default function AdminDashboard() {
 
   const [showAddAppt, setShowAddAppt] = useState(false);
   const [newAppt, setNewAppt] = useState({ client_name: '', client_phone: '', service_ids: [], professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
+  const [allowOutsideHours, setAllowOutsideHours] = useState(false);
   const [noShowCount, setNoShowCount] = useState(0);
 
   useEffect(() => {
@@ -895,7 +940,8 @@ export default function AdminDashboard() {
 
       let payload = { 
         ...newAppt,
-        service_id: newAppt.service_ids[0]
+        service_id: newAppt.service_ids[0],
+        allow_outside_hours: allowOutsideHours
       };
       if (user.role !== 'admin') payload.professional_id = user.id;
 
@@ -1384,7 +1430,8 @@ export default function AdminDashboard() {
   const appointmentTimeSlots = buildTimeSlots(
     appointmentSchedule.workStart,
     appointmentSchedule.workEnd,
-    appointmentSchedule.slotInterval
+    appointmentSchedule.slotInterval,
+    allowOutsideHours
   );
   // Exclui cancelados de todas as visões da UI
   const activeAppointments = appointments.filter(a => a.status !== 'cancelado');
@@ -1655,6 +1702,15 @@ export default function AdminDashboard() {
                                   return <option key={t} value={t}>{t} - {calculateEndTime(t, duration)}</option>
                                 })}
                               </select>
+                              <label className="flex items-center gap-1.5 cursor-pointer mt-2 text-[10px] font-bold text-primary/90 hover:text-primary transition-colors select-none">
+                                <input 
+                                  type="checkbox" 
+                                  checked={allowOutsideHours} 
+                                  onChange={e => setAllowOutsideHours(e.target.checked)} 
+                                  className="rounded text-primary focus:ring-primary h-3.5 w-3.5 border-border bg-background cursor-pointer"
+                                />
+                                <span>Marcar fora do expediente (ex: 19h)</span>
+                              </label>
                             </div>
                           </div>
                         </div>
@@ -1733,6 +1789,15 @@ export default function AdminDashboard() {
                                 return <option key={t} value={t}>{t} - {calculateEndTime(t, duration)}</option>
                               })}
                             </select>
+                            <label className="flex items-center gap-2 cursor-pointer mt-2.5 text-xs font-bold text-primary/90 hover:text-primary transition-colors select-none">
+                              <input 
+                                type="checkbox" 
+                                checked={allowOutsideHours} 
+                                onChange={e => setAllowOutsideHours(e.target.checked)} 
+                                className="rounded text-primary focus:ring-primary h-4 w-4 border-border bg-background cursor-pointer"
+                              />
+                              <span>Marcar fora do expediente (ex: 19h às 20:30)</span>
+                            </label>
                           </div>
                         </div>
                       </div>
@@ -2277,6 +2342,8 @@ export default function AdminDashboard() {
                         onSelectAppt={(app) => setSelectedAppointment(app)}
                         onDropAppt={handleDropAppt}
                         onQuickAdd={(profId, dateStr, timeStr) => {
+                          const isOutside = timeToMinutes(timeStr) < timeToMinutes(workStart) || timeToMinutes(timeStr) >= timeToMinutes(workEnd);
+                          setAllowOutsideHours(isOutside);
                           setNewAppt(prev => ({ ...prev, professional_id: profId, date: dateStr, time: timeStr }));
                           setShowAddAppt(true);
                         }}
@@ -3708,12 +3775,21 @@ export default function AdminDashboard() {
                 <label className="text-sm text-muted mb-1 block">Horário</label>
                 <select className="input-field w-full" value={editAppt.time} onChange={e => setEditAppt({ ...editAppt, time: e.target.value })} required>
                   <option value="" disabled>Selecione um horário</option>
-                  {buildTimeSlots(workStart, workEnd, slotInterval).map(t => {
+                  {buildTimeSlots(workStart, workEnd, slotInterval, allowOutsideHours || (editAppt.time && (timeToMinutes(editAppt.time) < timeToMinutes(workStart) || timeToMinutes(editAppt.time) >= timeToMinutes(workEnd)))).map(t => {
                     const appOrig = appointments.find(a => a.id === editAppt.id);
                     const duration = appOrig ? appOrig.service_duration : 30;
                     return <option key={t} value={t}>{t} - {calculateEndTime(t, duration)}</option>
                   })}
                 </select>
+                <label className="flex items-center gap-2 cursor-pointer mt-2 text-xs font-bold text-primary/90 hover:text-primary transition-colors select-none">
+                  <input 
+                    type="checkbox" 
+                    checked={allowOutsideHours} 
+                    onChange={e => setAllowOutsideHours(e.target.checked)} 
+                    className="rounded text-primary focus:ring-primary h-4 w-4 border-border bg-background cursor-pointer"
+                  />
+                  <span>Permitir horário fora do expediente</span>
+                </label>
               </div>
 
               <div>
