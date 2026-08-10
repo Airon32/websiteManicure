@@ -130,8 +130,8 @@ export default function ClientPortal() {
     return acc;
   }, {});
 
-  // Gerar horários dinamicamente a partir das configurações
-  const timeSlots = useMemo(() => buildTimeSlots(workStart, workEnd, slotInterval), [workStart, workEnd, slotInterval]);
+  // Gerar horários dinamicamente a partir das configurações e agendamentos existentes
+  const timeSlots = useMemo(() => buildTimeSlots(workStart, workEnd, slotInterval, false, busyAppointments), [workStart, workEnd, slotInterval, busyAppointments]);
 
   useEffect(() => {
     api.get('/api/services').then(res => setServices(res.data.data)).catch(console.error);

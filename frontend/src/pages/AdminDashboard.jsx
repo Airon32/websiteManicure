@@ -1427,14 +1427,15 @@ export default function AdminDashboard() {
         workEnd,
         slotInterval: String(slotInterval)
       };
+  // Exclui cancelados de todas as visões da UI
+  const activeAppointments = appointments.filter(a => a.status !== 'cancelado');
   const appointmentTimeSlots = buildTimeSlots(
     appointmentSchedule.workStart,
     appointmentSchedule.workEnd,
     appointmentSchedule.slotInterval,
-    allowOutsideHours
+    allowOutsideHours,
+    activeAppointments.filter(a => a.date === newAppt.date)
   );
-  // Exclui cancelados de todas as visões da UI
-  const activeAppointments = appointments.filter(a => a.status !== 'cancelado');
   const selectedDayStr = format(selectedCalendarDate, 'yyyy-MM-dd');
   const selectedDayAppointments = activeAppointments.filter(app => app.date === selectedDayStr);
 
@@ -3775,7 +3776,7 @@ export default function AdminDashboard() {
                 <label className="text-sm text-muted mb-1 block">Horário</label>
                 <select className="input-field w-full" value={editAppt.time} onChange={e => setEditAppt({ ...editAppt, time: e.target.value })} required>
                   <option value="" disabled>Selecione um horário</option>
-                  {buildTimeSlots(workStart, workEnd, slotInterval, allowOutsideHours || (editAppt.time && (timeToMinutes(editAppt.time) < timeToMinutes(workStart) || timeToMinutes(editAppt.time) >= timeToMinutes(workEnd)))).map(t => {
+                  {buildTimeSlots(workStart, workEnd, slotInterval, allowOutsideHours || (editAppt.time && (timeToMinutes(editAppt.time) < timeToMinutes(workStart) || timeToMinutes(editAppt.time) >= timeToMinutes(workEnd))), activeAppointments.filter(a => a.date === editAppt.date)).map(t => {
                     const appOrig = appointments.find(a => a.id === editAppt.id);
                     const duration = appOrig ? appOrig.service_duration : 30;
                     return <option key={t} value={t}>{t} - {calculateEndTime(t, duration)}</option>

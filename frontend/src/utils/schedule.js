@@ -54,8 +54,8 @@ export function buildEffectiveSchedule(settings, professionalId = null) {
   };
 }
 
-export function buildTimeSlots(workStart, workEnd, slotInterval, includeOutsideHours = false) {
-  const slots = [];
+export function buildTimeSlots(workStart, workEnd, slotInterval, includeOutsideHours = false, existingAppointments = []) {
+  const slotsSet = new Set();
   const interval = Number(slotInterval) || Number(DEFAULT_SLOT_INTERVAL);
 
   let startTotal, endTotal;
@@ -72,8 +72,36 @@ export function buildTimeSlots(workStart, workEnd, slotInterval, includeOutsideH
   for (let current = startTotal; current < endTotal; current += interval) {
     const hour = Math.floor(current / 60);
     const minute = current % 60;
-    slots.push(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+    slotsSet.add(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
   }
 
-  return slots;
+  if (Array.isArray(existingAppointments) && existingAppointments.length > 0) {
+    existingAppointments.forEach(a => {
+      if (a && a.time && a.status !== 'cancelado') {
+        const [h, m] = String(a.time).split(':').map(Number);
+        if (!isNaN(h) && !isNaN(m)) {
+          let duration = Number(a.service_duration || a.duration) || 30;
+          if (a.notes?.startsWith('MULTI_SERVICES:')) {
+            try {
+              const marker = a.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
+              const multiData = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
+              duration = multiData.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
+            } catch {}
+          } else if (a.notes?.startsWith('BLOCK:')) {
+            duration = Number.parseInt(a.notes.split(':')[1], 10) || duration;
+          }
+          const endTotalM = h * 60 + m + duration;
+          if (includeOutsideHours || (endTotalM >= startTotal && endTotalM < endTotal)) {
+            const endH = Math.floor(endTotalM / 60);
+            const endM = endTotalM % 60;
+            if (endH < 24) {
+              slotsSet.add(`${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`);
+            }
+          }
+        }
+      }
+    });
+  }
+
+  return Array.from(slotsSet).sort((a, b) => a.localeCompare(b));
 }

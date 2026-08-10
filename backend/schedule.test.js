@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-// Simulação da função validateAppointmentAgainstSchedule
 const DAY_NAME_MAP = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
 
 function timeToMinutes(t) {
@@ -31,14 +30,18 @@ function validateAppointmentAgainstSchedule({ date, time, duration, schedule, ig
         return { valid: false, error: 'O horário escolhido está fora do expediente configurado para este profissional.' };
     }
 
-    if ((appointmentStart - startMinutes) % schedule.slot_interval !== 0) {
-        return { valid: false, error: 'O horário escolhido não respeita o intervalo configurado para este profissional.' };
-    }
-
     return { valid: true };
 }
 
-test('Validação de Agendamentos', async (t) => {
+function checkConflict(existingAppointments, newStart, totalDuration) {
+    return (existingAppointments || []).some(appointment => {
+        const existingStart = timeToMinutes(appointment.time);
+        const existingDuration = Number(appointment.duration) || 30;
+        return newStart < existingStart + existingDuration && newStart + totalDuration > existingStart;
+    });
+}
+
+test('Validação de Agendamentos e Agendamentos Sequenciais (Back-to-Back)', async (t) => {
     const schedule = {
         work_start: '09:00',
         work_end: '18:00',
@@ -46,7 +49,6 @@ test('Validação de Agendamentos', async (t) => {
         work_days: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab']
     };
 
-    // Data referente a uma Segunda-Feira (ex: 2026-08-10)
     const validDate = '2026-08-10';
 
     await t.test('permite agendamento dentro do expediente normal', () => {
@@ -81,5 +83,29 @@ test('Validação de Agendamentos', async (t) => {
             ignoreExpedientLimit: true
         });
         assert.equal(res.valid, true);
+    });
+
+    await t.test('permite agendamento sequencial de 07:00-08:00 e 08:00-09:00 sem conflito', () => {
+        const existing = [{ time: '07:00', duration: 60 }];
+        const newStart = timeToMinutes('08:00');
+        const duration = 60;
+        const hasConflict = checkConflict(existing, newStart, duration);
+        assert.equal(hasConflict, false);
+    });
+
+    await t.test('permite agendamento sequencial de 12:00-13:20 e 13:20-14:40 sem conflito', () => {
+        const existing = [{ time: '12:00', duration: 80 }]; // 12:00 até 13:20
+        const newStart = timeToMinutes('13:20'); // 800 min
+        const duration = 80;
+        const hasConflict = checkConflict(existing, newStart, duration);
+        assert.equal(hasConflict, false);
+    });
+
+    await t.test('detecta conflito verdadeiro quando há sobreposição (12:00-13:20 e 13:00-14:00)', () => {
+        const existing = [{ time: '12:00', duration: 80 }];
+        const newStart = timeToMinutes('13:00');
+        const duration = 60;
+        const hasConflict = checkConflict(existing, newStart, duration);
+        assert.equal(hasConflict, true);
     });
 });

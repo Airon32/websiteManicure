@@ -244,10 +244,6 @@ function validateAppointmentAgainstSchedule({ date, time, duration, schedule, ig
         return { valid: false, error: 'O horário escolhido está fora do expediente configurado para este profissional.' };
     }
 
-    if ((appointmentStart - startMinutes) % schedule.slot_interval !== 0) {
-        return { valid: false, error: 'O horário escolhido não respeita o intervalo configurado para este profissional.' };
-    }
-
     return { valid: true };
 }
 
