@@ -2,11 +2,11 @@
 
 ## Última atualização: 10/08/2026
 
-### Funcionalidade Recente
-- **Agendamentos Fora do Expediente para Profissionais**:
-  - Adicionada opção nos modais de agendamento (AdminDashboard) para permitir agendar horários fora do expediente programado (ex: 19:00 às 20:30).
-  - Atualizada a `TimelineView` para expandir dinamicamente a grade horária e exibir agendamentos noturnos ou matutinos fora do expediente padrão.
-  - Atualizada a validação no backend (`server.js`) para aceitar `ignoreExpedientLimit` / `allow_outside_hours` em chamadas efetuadas pela equipe.
-  - Mantida a restrição normal de expediente para clientes no portal público.
-  - Adicionados testes automatizados em `backend/schedule.test.js`.
-  - Código compilado, testado e commitado na branch `main`.
+### Funcionalidades Recentes
+- **Agendamentos Fora do Expediente**:
+  - Opção no AdminDashboard e backend para marcar fora do expediente (ex: 19:00 às 20:30).
+- **Agendamentos Sequenciais (Back-to-Back)**:
+  - Liberados agendamentos no horário exato de término do atendimento anterior (ex: 07:00-08:00 seguido de 08:00-09:00; ou 12:00-13:20 seguido de 13:20-14:40).
+  - Atualizada a função `buildTimeSlots` para incluir os horários exatos de término de atendimentos ativos como opções válidas no dropdown.
+  - Testes unitários atualizados em `backend/schedule.test.js` e aprovados (7/7).
+  - Alterações compiladas e commitadas na branch `main`.
