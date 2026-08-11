@@ -1254,7 +1254,7 @@ app.post('/api/appointments', rateLimit({
         const today = getDateStringInTimeZone();
         const maxAdvanceDays = Math.min(365, Math.max(1, Number(settingsMap.max_advance_days) || 60));
         const dayDistance = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
-        if (dayDistance < 0 || dayDistance > maxAdvanceDays) {
+        if (!isStaff && (dayDistance < 0 || dayDistance > maxAdvanceDays)) {
             return res.status(400).json({ error: `Escolha uma data entre hoje e os próximos ${maxAdvanceDays} dias.` });
         }
 

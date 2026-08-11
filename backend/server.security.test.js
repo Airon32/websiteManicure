@@ -8,13 +8,25 @@ process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SECRET_KEY = createTestCredential();
 delete process.env.SESSION_SECRET;
 
-function createQueryBuilder() {
-    const result = { data: [], error: null };
+const tableRows = {
+    professionals: [{ id: 7, name: 'Profissional Teste', role: 'admin', status: 'ativo' }],
+    services: [{ id: 11, name: 'Serviço Teste', duration: 40, price: 50, status: 'ativo' }],
+    settings: [{ key: 'max_advance_days', value: '30' }]
+};
+
+function createQueryBuilder(table) {
+    let result = { data: table === 'professionals' ? [] : (tableRows[table] || []), error: null };
     const builder = new Proxy({}, {
         get(_target, property) {
             if (property === 'then') return (resolve) => resolve(result);
             if (property === 'maybeSingle' || property === 'single') {
-                return () => Promise.resolve({ data: null, error: null });
+                return () => Promise.resolve({ data: tableRows[table]?.[0] || result.data?.[0] || null, error: null });
+            }
+            if (property === 'insert') {
+                return rows => {
+                    result = { data: rows, error: null };
+                    return builder;
+                };
             }
             return () => builder;
         }
@@ -25,7 +37,7 @@ function createQueryBuilder() {
 const originalLoad = Module._load;
 Module._load = function mockSupabase(request, parent, isMain) {
     if (request === '@supabase/supabase-js') {
-        return { createClient: () => ({ from: () => createQueryBuilder() }) };
+        return { createClient: () => ({ from: table => createQueryBuilder(table) }) };
     }
     return originalLoad.call(this, request, parent, isMain);
 };
@@ -130,4 +142,45 @@ test('OTP endpoints clearly advertise when the WhatsApp provider is not configur
     });
     assert.equal(response.status, 503);
     assert.equal((await response.json()).code, 'OTP_NOT_CONFIGURED');
+});
+
+test('client appointments respect the configured advance window', async () => {
+    const response = await fetch(`${baseUrl}/api/appointments`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+            client_name: 'Cliente Teste',
+            client_phone: '11987654321',
+            professional_id: 7,
+            service_id: 11,
+            date: '2099-01-01',
+            time: '10:00'
+        })
+    });
+
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /próximos 30 dias/);
+});
+
+test('staff appointments can be created beyond the client advance window', async () => {
+    const { signSession } = require('./security');
+    const session = signSession({ type: 'staff', id: '7', role: 'admin' }, 60);
+    const response = await fetch(`${baseUrl}/api/appointments`, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            cookie: `mary_session=${encodeURIComponent(session)}`,
+            origin: baseUrl
+        },
+        body: JSON.stringify({
+            client_name: 'Cliente Teste',
+            client_phone: '11987654321',
+            professional_id: 7,
+            service_id: 11,
+            date: '2099-01-01',
+            time: '10:00'
+        })
+    });
+
+    assert.equal(response.status, 201);
 });

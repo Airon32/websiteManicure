@@ -122,7 +122,7 @@ export default function ClientPortal() {
 
   const today = startOfToday();
   const dayNameMap = { 0: 'dom', 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sab' };
-  const nextDays = Array.from({ length: maxAdvanceDays }).map((_, i) => addDays(today, i))
+  const nextDays = Array.from({ length: maxAdvanceDays + 1 }).map((_, i) => addDays(today, i))
     .filter(date => workDays.includes(dayNameMap[date.getDay()]));
   const groupedDays = nextDays.reduce((acc, date) => {
     const month = format(date, 'MMMM yyyy', { locale: ptBR });

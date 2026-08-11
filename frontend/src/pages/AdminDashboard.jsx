@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from '../router';
 import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, Clock, MessageCircle, Tag, Copy, FileText, Send, Printer } from 'lucide-react';
-import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, subYears, addYears, isSameMonth, formatDistanceToNow } from 'date-fns';
+import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, isSameMonth, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey } from '../utils/schedule';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -484,17 +484,12 @@ export default function AdminDashboard() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(startOfToday());
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(startOfToday()));
 
-  const minMonth = startOfMonth(subYears(startOfToday(), 1));
-  const maxMonth = startOfMonth(addYears(startOfToday(), 1));
-
   const handlePrevMonth = () => {
-    const prev = subMonths(currentMonth, 1);
-    if (prev >= minMonth) setCurrentMonth(prev);
+    setCurrentMonth(previousMonth => subMonths(previousMonth, 1));
   }
 
   const handleNextMonth = () => {
-    const next = addMonths(currentMonth, 1);
-    if (next <= maxMonth) setCurrentMonth(next);
+    setCurrentMonth(previousMonth => addMonths(previousMonth, 1));
   }
 
   const startDate = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
@@ -1690,7 +1685,7 @@ export default function AdminDashboard() {
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Data</label>
-                              <input type="date" className="input-field w-full text-sm" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} min={format(subYears(startOfToday(), 1), 'yyyy-MM-dd')} max={format(addYears(startOfToday(), 1), 'yyyy-MM-dd')} required />
+                              <input type="date" className="input-field w-full text-sm" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} required />
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Horário</label>
@@ -1777,7 +1772,7 @@ export default function AdminDashboard() {
                           )}
                           <div>
                             <label className="text-[10px] md:text-xs font-bold text-primary uppercase tracking-widest block mb-1">Data</label>
-                            <input type="date" className="input-field w-full" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} min={format(subYears(startOfToday(), 1), 'yyyy-MM-dd')} max={format(addYears(startOfToday(), 1), 'yyyy-MM-dd')} required />
+                            <input type="date" className="input-field w-full" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} required />
                           </div>
                           <div>
                             <label className="text-[10px] md:text-xs font-bold text-primary uppercase tracking-widest block mb-1">Horário</label>
@@ -2164,9 +2159,9 @@ export default function AdminDashboard() {
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                              <h3 className="text-xl md:text-2xl font-serif text-foreground">Navegador de Datas</h3>
                              <div className="flex items-center gap-2 bg-background border border-border/50 rounded-lg p-1 w-fit">
-                                <button onClick={handlePrevMonth} disabled={currentMonth <= minMonth} className="p-1.5 md:p-2 text-muted hover:text-foreground disabled:opacity-30 transition-colors"><ChevronLeft size={18} /></button>
+                                <button onClick={handlePrevMonth} className="p-1.5 md:p-2 text-muted hover:text-foreground transition-colors"><ChevronLeft size={18} /></button>
                                 <span className="font-medium text-foreground min-w-[100px] md:min-w-[120px] text-center capitalize text-sm md:text-base">{format(currentMonth, 'MMMM yyyy', {locale: ptBR})}</span>
-                                <button onClick={handleNextMonth} disabled={currentMonth >= maxMonth} className="p-1.5 md:p-2 text-muted hover:text-foreground disabled:opacity-30 transition-colors"><ChevronRight size={18} /></button>
+                                <button onClick={handleNextMonth} className="p-1.5 md:p-2 text-muted hover:text-foreground transition-colors"><ChevronRight size={18} /></button>
                              </div>
                           </div>
 
