@@ -9,9 +9,10 @@ process.env.SUPABASE_SECRET_KEY = createTestCredential();
 delete process.env.SESSION_SECRET;
 
 const tableRows = {
-    professionals: [{ id: 7, name: 'Profissional Teste', role: 'admin', status: 'ativo' }],
+    professionals: [{ id: 7, name: 'Profissional Teste', role: 'professional', status: 'ativo' }],
     services: [{ id: 11, name: 'Serviço Teste', duration: 40, price: 50, status: 'ativo' }],
     settings: [{ key: 'max_advance_days', value: '30' }],
+    clients: [{ id: 21, name: 'Cliente Teste', phone: '11987654321' }],
     appointments: [{
         id: 101,
         service_id: 11,
@@ -24,6 +25,14 @@ const tableRows = {
         notes: ''
     }]
 };
+
+function getNextBusinessDate() {
+    const date = new Date();
+    do {
+        date.setUTCDate(date.getUTCDate() + 1);
+    } while (date.getUTCDay() === 0);
+    return date.toISOString().slice(0, 10);
+}
 
 function createQueryBuilder(table) {
     const startsEmpty = ['professionals', 'appointments'].includes(table);
@@ -174,6 +183,25 @@ test('client appointments respect the configured advance window', async () => {
     assert.match((await response.json()).error, /próximos 30 dias/);
 });
 
+test('clients cannot bypass the regular schedule with a forged staff option', async () => {
+    const response = await fetch(`${baseUrl}/api/appointments`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+            client_name: 'Cliente Teste',
+            client_phone: '11987654321',
+            professional_id: 7,
+            service_id: 11,
+            date: getNextBusinessDate(),
+            time: '07:30',
+            allow_outside_hours: true
+        })
+    });
+
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /fora do expediente/);
+});
+
 test('staff appointments can be created beyond the client advance window', async () => {
     const { signSession } = require('./security');
     const session = signSession({ type: 'staff', id: '7', role: 'admin' }, 60);
@@ -197,9 +225,32 @@ test('staff appointments can be created beyond the client advance window', async
     assert.equal(response.status, 201);
 });
 
-test('staff can move an appointment to an earlier or later time', async () => {
+test('professionals can intentionally create an appointment over an occupied start time', async () => {
     const { signSession } = require('./security');
-    const session = signSession({ type: 'staff', id: '7', role: 'admin' }, 60);
+    const session = signSession({ type: 'staff', id: '7', role: 'professional' }, 60);
+    const response = await fetch(`${baseUrl}/api/appointments`, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            cookie: `mary_session=${encodeURIComponent(session)}`,
+            origin: baseUrl
+        },
+        body: JSON.stringify({
+            client_name: 'Outra Cliente',
+            client_phone: '11999999999',
+            professional_id: 7,
+            service_id: 11,
+            date: '2026-08-11',
+            time: '10:00'
+        })
+    });
+
+    assert.equal(response.status, 201);
+});
+
+test('professionals can move their own appointment outside hours without collision restrictions', async () => {
+    const { signSession } = require('./security');
+    const session = signSession({ type: 'staff', id: '7', role: 'professional' }, 60);
     const response = await fetch(`${baseUrl}/api/appointments/101`, {
         method: 'PUT',
         headers: {
@@ -210,8 +261,7 @@ test('staff can move an appointment to an earlier or later time', async () => {
         body: JSON.stringify({
             date: '2026-08-12',
             time: '22:00',
-            professional_id: 7,
-            allow_outside_hours: true
+            professional_id: 7
         })
     });
 
@@ -219,6 +269,53 @@ test('staff can move an appointment to an earlier or later time', async () => {
     assert.deepEqual((await response.json()).data, {
         date: '2026-08-12',
         time: '22:00',
-        professional_id: 7
+        professional_id: '7'
     });
+});
+
+test('clients can reschedule up to one hour outside the professional schedule', async () => {
+    const { signSession } = require('./security');
+    const session = signSession({
+        type: 'client',
+        id: '21',
+        name: 'Cliente Teste',
+        phone: '11987654321'
+    }, 60);
+    const date = getNextBusinessDate();
+    const response = await fetch(`${baseUrl}/api/appointments/101/reschedule`, {
+        method: 'PUT',
+        headers: {
+            'content-type': 'application/json',
+            cookie: `mary_session=${encodeURIComponent(session)}`,
+            origin: baseUrl
+        },
+        body: JSON.stringify({ date, time: '08:30' })
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).data, { date, time: '08:30', status: 'agendado' });
+});
+
+test('clients are directed to support beyond the one-hour reschedule tolerance', async () => {
+    const { signSession } = require('./security');
+    const session = signSession({
+        type: 'client',
+        id: '21',
+        name: 'Cliente Teste',
+        phone: '11987654321'
+    }, 60);
+    const response = await fetch(`${baseUrl}/api/appointments/101/reschedule`, {
+        method: 'PUT',
+        headers: {
+            'content-type': 'application/json',
+            cookie: `mary_session=${encodeURIComponent(session)}`,
+            origin: baseUrl
+        },
+        body: JSON.stringify({ date: getNextBusinessDate(), time: '07:30' })
+    });
+
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.code, 'CLIENT_RESCHEDULE_CONTACT_REQUIRED');
+    assert.equal(body.contact_required, true);
 });

@@ -131,10 +131,8 @@ $$;
 revoke all on function public.consume_client_login_code(text, text, timestamptz) from public, anon, authenticated;
 grant execute on function public.consume_client_login_code(text, text, timestamptz) to service_role;
 
--- Prevent two active appointments from starting in the same slot. The backend
--- also checks overlaps involving longer and multi-service appointments.
-create unique index if not exists appointments_unique_active_start
-    on public.appointments (professional_id, date, time)
-    where status <> 'cancelado';
+-- A equipe pode criar sobreposições intencionais na própria agenda. Clientes
+-- continuam protegidos contra conflitos pelas validações autenticadas da API.
+drop index if exists public.appointments_unique_active_start;
 
 commit;

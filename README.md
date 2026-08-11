@@ -11,7 +11,8 @@ Sistema de agendamento com portal público, área da cliente e painel para admin
 - disponibilidade pública sem nomes, telefones ou observações;
 - limitação de tentativas, validação de origem, tamanho máximo de requisição e cabeçalhos de segurança;
 - confirmação de presença com link assinado e prazo de validade;
-- validação de conflitos de horário na criação, edição, bloqueio e remarcação;
+- validação de conflitos para clientes, com tolerância de até 1 hora fora do expediente em remarcações;
+- autonomia para profissionais criarem ou moverem compromissos com sobreposição e fora do expediente;
 - dependências atualizadas e páginas carregadas sob demanda para melhorar a abertura do site.
 - consulta de serviços, preços, profissionais e horários antes de solicitar dados da cliente;
 - página pública com localização, funcionamento, pagamentos, portfólio, avaliações verificáveis, políticas e rodapé configuráveis pelo painel;
@@ -56,11 +57,13 @@ Antes de publicar:
 
 1. faça um backup do banco;
 2. teste `supabase/security_hardening.sql` em um projeto de homologação;
-3. confirme se não há usuários duplicados nem dois agendamentos ativos iniciando no mesmo horário;
+3. confirme se não há usuários duplicados;
 4. execute o arquivo no SQL Editor do projeto de produção;
 5. valide login, novo agendamento, remarcação, cancelamento e confirmação.
 
 A migração fecha o acesso direto das funções `anon` e `authenticated` às tabelas. O site passa a acessá-las exclusivamente pelo backend protegido. Se houver dados duplicados, a transação é cancelada sem aplicar mudanças parciais.
+
+Em um banco que já recebeu uma versão anterior do reforço, execute também `supabase/allow_staff_overbooking.sql` uma vez. Esse ajuste remove somente o índice legado que impedia duas reservas no mesmo horário; as regras de conflito das clientes continuam sendo aplicadas pelo backend.
 
 ## Testes
 

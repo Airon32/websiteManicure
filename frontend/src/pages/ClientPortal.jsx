@@ -65,6 +65,12 @@ function readSavedClientData() {
   }
 }
 
+function shiftTime(time, minutes) {
+  const [hours, currentMinutes] = String(time || '00:00').split(':').map(Number);
+  const shifted = Math.min(23 * 60 + 59, Math.max(0, (hours * 60) + currentMinutes + minutes));
+  return `${String(Math.floor(shifted / 60)).padStart(2, '0')}:${String(shifted % 60).padStart(2, '0')}`;
+}
+
 export default function ClientPortal() {
   const [step, setStep] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -97,6 +103,8 @@ export default function ClientPortal() {
   const [accountError, setAccountError] = useState('');
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState(null);
+  const [rescheduleContactRequired, setRescheduleContactRequired] = useState(false);
+  const [wasRescheduled, setWasRescheduled] = useState(false);
   const [busyAppointments, setBusyAppointments] = useState([]);
   
   // Theme Toggle
@@ -132,7 +140,11 @@ export default function ClientPortal() {
   }, {});
 
   // Gerar horários dinamicamente a partir das configurações e agendamentos existentes
-  const timeSlots = useMemo(() => buildTimeSlots(workStart, workEnd, slotInterval, false, busyAppointments), [workStart, workEnd, slotInterval, busyAppointments]);
+  const timeSlots = useMemo(() => {
+    const rangeStart = reschedulingAppointmentId ? shiftTime(workStart, -60) : workStart;
+    const rangeEnd = reschedulingAppointmentId ? shiftTime(workEnd, 60) : workEnd;
+    return buildTimeSlots(rangeStart, rangeEnd, slotInterval, false, busyAppointments);
+  }, [workStart, workEnd, slotInterval, busyAppointments, reschedulingAppointmentId]);
 
   useEffect(() => {
     api.get('/api/services')
@@ -344,6 +356,7 @@ export default function ClientPortal() {
 
   const handleConfirm = async () => {
     if (bookingSubmitting) return;
+    const isRescheduling = Boolean(reschedulingAppointmentId);
     const payload = {
       client_name: clientData.name,
       client_phone: clientData.phone,
@@ -357,20 +370,18 @@ export default function ClientPortal() {
     
     localStorage.setItem('client_portal_data', JSON.stringify(clientData));
     setConfirmError(null);
+    setRescheduleContactRequired(false);
     setBookingSubmitting(true);
 
     try {
-      const response = await api.post('/api/appointments', payload);
-      if (reschedulingAppointmentId) {
-        try {
-          await api.post(`/api/appointments/${reschedulingAppointmentId}/cancel`);
-          setReschedulingAppointmentId(null);
-        } catch {
-          await api.post(`/api/appointments/${response.data.data.id}/cancel`).catch(() => {});
-          setConfirmError('Não foi possível concluir a remarcação. O horário antigo foi mantido; tente novamente.');
-          return;
-        }
-      }
+      const response = isRescheduling
+        ? await api.put(`/api/appointments/${reschedulingAppointmentId}/reschedule`, {
+            date: payload.date,
+            time: payload.time
+          })
+        : await api.post('/api/appointments', payload);
+
+      if (isRescheduling) setReschedulingAppointmentId(null);
       if (response.data.client_authenticated && response.data.client) {
         const nextClient = { ...emptyClientData, ...response.data.client };
         setClientData(nextClient);
@@ -379,9 +390,11 @@ export default function ClientPortal() {
         setLoginPhone(nextClient.phone);
         localStorage.setItem('client_portal_data', JSON.stringify(nextClient));
       }
+      setWasRescheduled(isRescheduling);
       setStep(6);
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Ops! Não foi possível confirmar seu agendamento. Por favor, tente novamente.';
+      setRescheduleContactRequired(err.response?.data?.code === 'CLIENT_RESCHEDULE_CONTACT_REQUIRED');
       setConfirmError(errorMsg);
     } finally {
       setBookingSubmitting(false);
@@ -458,11 +471,14 @@ export default function ClientPortal() {
   useEffect(() => {
     if (selectedDate && selectedPro) {
       const dStr = format(selectedDate, 'yyyy-MM-dd');
-      api.get(`/api/availability?date=${dStr}&professional_id=${selectedPro.id}`)
+      const excludedAppointment = reschedulingAppointmentId
+        ? `&exclude_appointment_id=${encodeURIComponent(reschedulingAppointmentId)}`
+        : '';
+      api.get(`/api/availability?date=${dStr}&professional_id=${selectedPro.id}${excludedAppointment}`)
         .then(res => setBusyAppointments(res.data.data))
         .catch(console.error);
     }
-  }, [selectedDate, selectedPro]);
+  }, [selectedDate, selectedPro, reschedulingAppointmentId]);
 
   const filteredTimeSlots = useMemo(() => {
     return timeSlots.filter(slot => {
@@ -471,7 +487,8 @@ export default function ClientPortal() {
       
       const slotStart = timeToMinutes(slot);
       const slotEnd = slotStart + totalDuration;
-      const scheduleEnd = timeToMinutes(workEnd);
+      const scheduleStart = timeToMinutes(workStart) - (reschedulingAppointmentId ? 60 : 0);
+      const scheduleEnd = timeToMinutes(workEnd) + (reschedulingAppointmentId ? 60 : 0);
 
       if (selectedDate) {
         const slotDate = new Date(selectedDate);
@@ -480,7 +497,7 @@ export default function ClientPortal() {
         if (!isAfter(slotDate, new Date())) return false;
       }
 
-      if (slotEnd > scheduleEnd) return false;
+      if (slotStart < scheduleStart || slotEnd > scheduleEnd) return false;
       
       // Regra de Ouro da Agenda: (InícioA < FimB) && (FimA > InícioB) -> CONFLITO
       const hasConflict = busyAppointments.some(app => {
@@ -496,7 +513,24 @@ export default function ClientPortal() {
       
       return !hasConflict;
     });
-  }, [timeSlots, busyAppointments, selectedServices, totalDuration, selectedPro, selectedDate, workEnd]);
+  }, [timeSlots, busyAppointments, selectedServices, totalDuration, selectedPro, selectedDate, workStart, workEnd, reschedulingAppointmentId]);
+
+  const handleRescheduleSupport = () => {
+    const digits = String(whatsappNumber || '').replace(/\D/g, '');
+    if (digits.length < 10) {
+      setConfirmError('O WhatsApp da equipe ainda não foi configurado. Entre em contato diretamente com a profissional responsável.');
+      return;
+    }
+    const destination = digits.length <= 11 ? `55${digits}` : digits;
+    const message = [
+      'Olá! Preciso de ajuda para remarcar meu horário fora do limite disponível no site.',
+      `Cliente: ${clientData.name || 'não informado'}`,
+      `Profissional: ${selectedPro?.name || 'não informada'}`,
+      `Data desejada: ${selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'não informada'}`,
+      `Horário desejado: ${selectedTime || 'não informado'}`
+    ].join('\n');
+    window.open(`https://wa.me/${destination}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  };
 
   const handleWhatsApp = () => {
     const digits = String(whatsappNumber || '').replace(/\D/g, '');
@@ -1089,6 +1123,14 @@ export default function ClientPortal() {
                   </div>
                   <div>
                     <h3 className="text-lg md:text-xl font-serif text-foreground mb-6">⏰ Escolha seu Horário</h3>
+                    {reschedulingAppointmentId && (
+                      <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted">
+                        <p>Você pode remarcar até 1 hora antes ou depois do expediente, desde que o horário esteja livre.</p>
+                        <button type="button" onClick={handleRescheduleSupport} className="mt-2 font-bold text-primary hover:underline">
+                          Precisa de outro horário? Fale com a equipe pelo WhatsApp
+                        </button>
+                      </div>
+                    )}
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 md:gap-3">
                        {filteredTimeSlots.length > 0 ? (
                          filteredTimeSlots.map(t => (
@@ -1122,9 +1164,11 @@ export default function ClientPortal() {
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
                       </div>
                     </div>
-                    <h3 className="text-3xl font-serif text-foreground mb-2">Agendamento Realizado!</h3>
+                    <h3 className="text-3xl font-serif text-foreground mb-2">{wasRescheduled ? 'Agendamento Remarcado!' : 'Agendamento Realizado!'}</h3>
                     <p className="text-muted mb-8 max-w-sm mx-auto">
-                      Sua reserva foi confirmada com sucesso em nossa base de dados.
+                      {wasRescheduled
+                        ? 'Seu novo horário foi salvo e o agendamento anterior foi atualizado com sucesso.'
+                        : 'Sua reserva foi confirmada com sucesso em nossa base de dados.'}
                     </p>
                     
                     <div className="bg-primary/5 border border-primary/20 rounded-2xl p-8 mb-8 inline-block text-left text-foreground w-full">
@@ -1164,10 +1208,17 @@ export default function ClientPortal() {
 
               {/* Error Alert */}
               {confirmError && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
                   <X size={20} className="text-red-500 shrink-0" />
-                  <p className="text-sm text-red-500 font-medium">{confirmError}</p>
-                  <button onClick={() => setConfirmError(null)} className="ml-auto text-red-400 hover:text-red-600 shrink-0"><X size={16} /></button>
+                  <div className="flex-1">
+                    <p className="text-sm text-red-500 font-medium">{confirmError}</p>
+                    {rescheduleContactRequired && (
+                      <button type="button" onClick={handleRescheduleSupport} className="mt-3 rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700">
+                        Pedir esse horário pelo WhatsApp
+                      </button>
+                    )}
+                  </div>
+                  <button onClick={() => { setConfirmError(null); setRescheduleContactRequired(false); }} className="ml-auto text-red-400 hover:text-red-600 shrink-0"><X size={16} /></button>
                 </div>
               )}
 
@@ -1190,7 +1241,9 @@ export default function ClientPortal() {
                     } 
                     className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {step === 4 ? (bookingSubmitting ? 'Confirmando...' : 'Confirmar Agendamento') : 'Próximo Passo'} <ChevronRight size={18} />
+                    {step === 4
+                      ? (bookingSubmitting ? 'Confirmando...' : (reschedulingAppointmentId ? 'Confirmar Remarcação' : 'Confirmar Agendamento'))
+                      : 'Próximo Passo'} <ChevronRight size={18} />
                   </button>
                 </div>
               )}

@@ -193,6 +193,16 @@ function getDateStringInTimeZone(date = new Date(), timeZone = process.env.BUSIN
     return `${values.year}-${values.month}-${values.day}`;
 }
 
+function getTimeStringInTimeZone(date = new Date(), timeZone = process.env.BUSINESS_TIMEZONE || 'America/Sao_Paulo') {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        hour: '2-digit', minute: '2-digit',
+        hourCycle: 'h23'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.hour}:${values.minute}`;
+}
+
 function getProfessionalSettingKey(professionalId, suffix) {
     return `professional_${professionalId}_${suffix}`;
 }
@@ -244,6 +254,31 @@ function validateAppointmentAgainstSchedule({ date, time, duration, schedule, ig
 
     if (appointmentStart < startMinutes || appointmentEnd > endMinutes) {
         return { valid: false, error: 'O horário escolhido está fora do expediente configurado para este profissional.' };
+    }
+
+    return { valid: true };
+}
+
+function validateClientRescheduleAgainstSchedule({ date, time, duration, schedule, toleranceMinutes = 60 }) {
+    const appointmentDate = new Date(`${date}T00:00:00`);
+    const dayKey = DAY_NAME_MAP[appointmentDate.getDay()];
+
+    if (!schedule.work_days.includes(dayKey)) {
+        return { valid: false, error: 'A profissional não atende nesse dia. Fale com a equipe para solicitar uma exceção.' };
+    }
+
+    const scheduleStart = timeToMinutes(schedule.work_start);
+    const scheduleEnd = timeToMinutes(schedule.work_end);
+    const appointmentStart = timeToMinutes(time);
+    const appointmentEnd = appointmentStart + duration;
+    const earliestStart = Math.max(0, scheduleStart - toleranceMinutes);
+    const latestEnd = Math.min(24 * 60, scheduleEnd + toleranceMinutes);
+
+    if (appointmentStart < earliestStart || appointmentEnd > latestEnd) {
+        return {
+            valid: false,
+            error: 'Esse horário ultrapassa o limite de 1 hora fora do expediente. Fale com a profissional ou com a equipe.'
+        };
     }
 
     return { valid: true };
@@ -1140,12 +1175,22 @@ app.get('/api/availability', rateLimit({
         return res.status(400).json({ error: 'Data e profissional são obrigatórios.' });
     }
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('appointments')
         .select('time, notes, status, service:services(duration)')
         .eq('date', date)
         .eq('professional_id', professionalId)
         .neq('status', 'cancelado');
+
+    const excludedAppointmentId = String(req.query.exclude_appointment_id || '');
+    if (/^\d+$/.test(excludedAppointmentId)) {
+        const excluded = await loadAppointmentForAuthorization(excludedAppointmentId);
+        if (!excluded.error && canAccessAppointment(req.auth, excluded.data, { allowClient: true })) {
+            query = query.neq('id', excludedAppointmentId);
+        }
+    }
+
+    const { data, error } = await query;
     if (error) return res.status(500).json({ error: 'Não foi possível consultar os horários.' });
 
     const busy = (data || []).map(appointment => {
@@ -1289,7 +1334,7 @@ app.post('/api/appointments', rateLimit({
         const totalDuration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
 
         const professionalSchedule = buildProfessionalSchedule(settingsMap, professionalId);
-        const allowOutsideHours = isStaff || Boolean(req.body.allow_outside_hours);
+        const allowOutsideHours = isStaff;
         const validation = validateAppointmentAgainstSchedule({
             date,
             time,
@@ -1299,43 +1344,21 @@ app.post('/api/appointments', rateLimit({
         });
         if (!validation.valid) return res.status(400).json({ error: validation.error });
 
-        const newStart = Number(timeToMinutes(time));
         let existing = [];
-        try {
-            const { data: dbExisting } = await supabase.from('appointments')
-                .select('time, notes, service:services(duration)')
-                .eq('professional_id', professionalId)
-                .eq('date', date)
-                .neq('status', 'cancelado');
-            existing = dbExisting || [];
-        } catch {}
+        if (!isStaff) {
+            try {
+                const { data: dbExisting } = await supabase.from('appointments')
+                    .select('time, notes, service:services(duration)')
+                    .eq('professional_id', professionalId)
+                    .eq('date', date)
+                    .neq('status', 'cancelado');
+                existing = dbExisting || [];
+            } catch {}
+        }
 
-        const conflict = (existing || []).some(appointment => {
-            const existingStart = Number(timeToMinutes(appointment.time));
-            let existingDuration = 30;
-
-            if (appointment.notes?.startsWith('MULTI_SERVICES:')) {
-                try {
-                    const marker = appointment.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
-                    const multiData = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
-                    existingDuration = multiData.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
-                } catch {}
-            } else if (appointment.notes?.startsWith('BLOCK:')) {
-                existingDuration = Number.parseInt(appointment.notes.split(':')[1], 10) || 30;
-            } else if (appointment.service) {
-                const sDuration = Array.isArray(appointment.service)
-                    ? Number(appointment.service[0]?.duration)
-                    : Number(appointment.service?.duration);
-                if (Number.isFinite(sDuration) && sDuration > 0) existingDuration = sDuration;
-            }
-
-            existingDuration = Number(existingDuration) || 30;
-            const existingEnd = existingStart + existingDuration;
-            const newEnd = newStart + Number(totalDuration);
-
-            return newStart < existingEnd && newEnd > existingStart;
-        });
-        if (conflict) return res.status(409).json({ error: 'Este horário acabou de ser ocupado. Escolha outro horário.' });
+        if (!isStaff && hasAppointmentCollision(existing, time, totalDuration)) {
+            return res.status(409).json({ error: 'Este horário acabou de ser ocupado. Escolha outro horário.' });
+        }
 
         const userNotes = isStaff ? safeText(req.body.notes, 500) : '';
         const multiInfo = services.map(service => ({
@@ -1351,9 +1374,7 @@ app.post('/api/appointments', rateLimit({
             ? req.body.service_id
             : services[0].id;
 
-        let insertedAppointment = null;
-        try {
-            const { data: dbInserted } = await supabase.from('appointments').insert([{
+        const { data: dbInserted, error: insertError } = await supabase.from('appointments').insert([{
                 client_name: clientName,
                 client_phone: clientPhone,
                 service_id: primaryServiceId,
@@ -1363,22 +1384,14 @@ app.post('/api/appointments', rateLimit({
                 status: 'agendado',
                 notes: appointmentNotes
             }]).select();
-            if (dbInserted && dbInserted[0]) insertedAppointment = dbInserted[0];
-        } catch {}
-
-        if (!insertedAppointment) {
-            insertedAppointment = {
-                id: `appt-${Date.now()}`,
-                client_name: clientName,
-                client_phone: clientPhone,
-                service_id: primaryServiceId,
-                professional_id: professionalId,
-                date,
-                time,
-                status: 'agendado',
-                notes: appointmentNotes
-            };
+        if (insertError) {
+            const message = insertError.code === '23505' && isStaff
+                ? 'A trava antiga de sobreposição ainda está ativa no banco de dados. Aplique a atualização do Supabase e tente novamente.'
+                : 'Não foi possível salvar o agendamento.';
+            return res.status(insertError.code === '23505' ? 409 : 400).json({ error: message });
         }
+        const insertedAppointment = dbInserted?.[0];
+        if (!insertedAppointment) return res.status(500).json({ error: 'O banco não confirmou o novo agendamento.' });
 
         try {
             await supabase.from('notifications').insert([{
@@ -1525,6 +1538,53 @@ function timeToMinutes(timeStr) {
     return h * 60 + m;
 }
 
+function getAppointmentDurationFromRow(appointment, fallback = 30) {
+    let duration = Number(fallback) || 30;
+
+    if (appointment?.notes?.startsWith('MULTI_SERVICES:')) {
+        try {
+            const marker = appointment.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
+            const services = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
+            duration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
+        } catch {}
+    } else if (appointment?.notes?.startsWith('BLOCK:')) {
+        duration = Number.parseInt(appointment.notes.split(':')[1], 10) || duration;
+    } else if (appointment?.service) {
+        const serviceDuration = Array.isArray(appointment.service)
+            ? Number(appointment.service[0]?.duration)
+            : Number(appointment.service?.duration);
+        if (Number.isFinite(serviceDuration) && serviceDuration > 0) duration = serviceDuration;
+    }
+
+    return Number.isFinite(Number(duration)) && Number(duration) > 0 ? Number(duration) : 30;
+}
+
+async function loadAppointmentDuration(appointment) {
+    const embeddedDuration = getAppointmentDurationFromRow(appointment, 0);
+    if (appointment?.notes?.startsWith('MULTI_SERVICES:') || appointment?.notes?.startsWith('BLOCK:')) {
+        return embeddedDuration;
+    }
+    if (!appointment?.service_id) return embeddedDuration;
+
+    const { data: service } = await supabase
+        .from('services')
+        .select('duration')
+        .eq('id', appointment.service_id)
+        .maybeSingle();
+    return Number(service?.duration) || embeddedDuration;
+}
+
+function hasAppointmentCollision(appointments, targetTime, targetDuration) {
+    const targetStart = Number(timeToMinutes(targetTime));
+    const targetEnd = targetStart + Number(targetDuration);
+
+    return (appointments || []).some(appointment => {
+        const existingStart = Number(timeToMinutes(appointment.time));
+        const existingEnd = existingStart + getAppointmentDurationFromRow(appointment);
+        return targetStart < existingEnd && targetEnd > existingStart;
+    });
+}
+
 function sanitizeAppointmentNotes(value, existingNotes = '') {
     if (existingNotes.startsWith('BLOCK:')) return existingNotes;
 
@@ -1573,6 +1633,90 @@ function canAccessAppointment(session, appointment, { allowClient = false } = {}
     return allowClient && session.type === 'client' && normalizePhone(session.phone) === normalizePhone(appointment.client_phone);
 }
 
+app.put('/api/appointments/:id/reschedule', rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 20,
+    keyPrefix: 'client-reschedule',
+    message: 'Muitas remarcações foram enviadas deste dispositivo. Tente novamente mais tarde.'
+}), requireClient, async (req, res) => {
+    const { id } = req.params;
+    const date = String(req.body.date || '');
+    const time = String(req.body.time || '');
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+        return res.status(400).json({ error: 'Data ou horário inválido.' });
+    }
+
+    const ownership = await loadAppointmentForAuthorization(id);
+    if (ownership.error || !ownership.data) return res.status(404).json({ error: 'Agendamento não encontrado.' });
+    if (!canAccessAppointment(req.auth, ownership.data, { allowClient: true })) {
+        return res.status(403).json({ error: 'Você não pode remarcar este agendamento.' });
+    }
+    if (['cancelado', 'concluído'].includes(ownership.data.status)) {
+        return res.status(400).json({ error: 'Este agendamento não pode mais ser remarcado.' });
+    }
+
+    const settingsMap = await loadSettingsMap();
+    const today = getDateStringInTimeZone();
+    const maxAdvanceDays = Math.min(365, Math.max(1, Number(settingsMap.max_advance_days) || 60));
+    const dayDistance = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
+    if (dayDistance < 0 || dayDistance > maxAdvanceDays) {
+        return res.status(400).json({ error: `Escolha uma data entre hoje e os próximos ${maxAdvanceDays} dias.` });
+    }
+
+    if (date === today && timeToMinutes(time) <= timeToMinutes(getTimeStringInTimeZone())) {
+        return res.status(400).json({ error: 'Escolha um horário futuro.' });
+    }
+
+    const duration = await loadAppointmentDuration(ownership.data);
+    const schedule = buildProfessionalSchedule(settingsMap, ownership.data.professional_id);
+    const scheduleValidation = validateClientRescheduleAgainstSchedule({
+        date,
+        time,
+        duration,
+        schedule,
+        toleranceMinutes: 60
+    });
+    if (!scheduleValidation.valid) {
+        return res.status(400).json({
+            error: scheduleValidation.error,
+            code: 'CLIENT_RESCHEDULE_CONTACT_REQUIRED',
+            contact_required: true
+        });
+    }
+
+    const { data: collisions, error: collisionError } = await supabase
+        .from('appointments')
+        .select('time, notes, service:services(duration)')
+        .eq('professional_id', ownership.data.professional_id)
+        .eq('date', date)
+        .neq('id', id)
+        .neq('status', 'cancelado');
+    if (collisionError) return res.status(500).json({ error: 'Não foi possível validar o novo horário.' });
+    if (hasAppointmentCollision(collisions, time, duration)) {
+        return res.status(409).json({ error: 'O novo horário entra em conflito com outro compromisso. Escolha outro horário.' });
+    }
+
+    const { data, error } = await supabase
+        .from('appointments')
+        .update({ date, time, status: 'agendado' })
+        .eq('id', id)
+        .select();
+    if (error) return res.status(400).json({ error: 'Não foi possível remarcar o agendamento.' });
+
+    try {
+        await supabase.from('notifications').insert([{
+            client_name: ownership.data.client_name,
+            service_name: 'Remarcação solicitada pela cliente',
+            date,
+            time,
+            is_read: false
+        }]);
+    } catch {}
+
+    res.json({ message: 'success', data: data?.[0] || { ...ownership.data, date, time, status: 'agendado' } });
+});
+
 app.delete('/api/appointments/:id', requireStaff(), async (req, res) => {
     const ownership = await loadAppointmentForAuthorization(req.params.id);
     if (ownership.error || !ownership.data) return res.status(404).json({ error: 'Agendamento não encontrado.' });
@@ -1611,78 +1755,6 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
         updatePayload.notes = sanitizeAppointmentNotes(notes, ownership.data.notes || '');
     }
     if (Object.keys(updatePayload).length === 0) return res.status(400).json({ error: 'Nenhuma alteração válida foi enviada.' });
-
-    if (date !== undefined || time !== undefined || professional_id !== undefined) {
-        const targetDate = updatePayload.date || ownership.data.date;
-        const targetTime = updatePayload.time || ownership.data.time;
-        const targetProfessional = updatePayload.professional_id || ownership.data.professional_id;
-        let duration = 30;
-
-        if (ownership.data.notes?.startsWith('MULTI_SERVICES:')) {
-            try {
-                const marker = ownership.data.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
-                const multiData = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
-                duration = multiData.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
-            } catch {}
-        } else if (ownership.data.notes?.startsWith('BLOCK:')) {
-            duration = Number.parseInt(ownership.data.notes.split(':')[1], 10) || duration;
-        } else if (ownership.data.service_id) {
-            const { data: service } = await supabase
-                .from('services')
-                .select('duration')
-                .eq('id', ownership.data.service_id)
-                .maybeSingle();
-            duration = Number(service?.duration) || duration;
-        }
-
-        const settingsMap = await loadSettingsMap();
-        const schedule = buildProfessionalSchedule(settingsMap, targetProfessional);
-        const allowOutsideHours = Boolean(req.body.allow_outside_hours);
-        const validation = validateAppointmentAgainstSchedule({
-            date: targetDate,
-            time: targetTime,
-            duration,
-            schedule,
-            ignoreExpedientLimit: allowOutsideHours
-        });
-        if (!validation.valid) return res.status(400).json({ error: validation.error });
-
-        const { data: collisions, error: collisionError } = await supabase
-            .from('appointments')
-            .select('time, notes, service:services(duration)')
-            .eq('professional_id', targetProfessional)
-            .eq('date', targetDate)
-            .neq('id', id)
-            .neq('status', 'cancelado');
-        if (collisionError) return res.status(500).json({ error: 'Não foi possível validar o novo horário.' });
-
-        const targetStart = Number(timeToMinutes(targetTime));
-        const targetEnd = targetStart + Number(duration);
-        const hasCollision = (collisions || []).some(appointment => {
-            const existingStart = Number(timeToMinutes(appointment.time));
-            let existingDuration = 30;
-
-            if (appointment.notes?.startsWith('MULTI_SERVICES:')) {
-                try {
-                    const marker = appointment.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
-                    const services = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
-                    existingDuration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
-                } catch {}
-            } else if (appointment.notes?.startsWith('BLOCK:')) {
-                existingDuration = Number.parseInt(appointment.notes.split(':')[1], 10) || 30;
-            } else if (appointment.service) {
-                const sDuration = Array.isArray(appointment.service)
-                    ? Number(appointment.service[0]?.duration)
-                    : Number(appointment.service?.duration);
-                if (Number.isFinite(sDuration) && sDuration > 0) existingDuration = sDuration;
-            }
-
-            existingDuration = Number(existingDuration) || 30;
-            const existingEnd = existingStart + existingDuration;
-            return targetStart < existingEnd && targetEnd > existingStart;
-        });
-        if (hasCollision) return res.status(409).json({ error: 'O novo horário entra em conflito com outro compromisso.' });
-    }
 
     const { data, error } = await supabase
         .from('appointments')
