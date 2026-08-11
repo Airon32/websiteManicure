@@ -57,6 +57,16 @@ const defaultPublicProfile = {
 function TimelineView({ selectedDate, setSelectedDate, appointments, professionals, currentUser, isAdmin, onCancel, onComplete, onConfirm, onSelectAppt, onDropAppt, onQuickAdd, workStart, workEnd, slotInterval }) {
   const [timelineMode, setTimelineMode] = useState('dia'); // 'dia' ou 'semana'
   const [selectedProfId, setSelectedProfId] = useState('all');
+  const [mobileProfessionalId, setMobileProfessionalId] = useState(() => String(currentUser?.id || ''));
+  const [isMobileTimeline, setIsMobileTimeline] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const syncViewport = event => setIsMobileTimeline(event.matches);
+    setIsMobileTimeline(mediaQuery.matches);
+    mediaQuery.addEventListener?.('change', syncViewport);
+    return () => mediaQuery.removeEventListener?.('change', syncViewport);
+  }, []);
 
   const calculateEndTime = (startTime, duration) => {
     if (!startTime) return '';
@@ -109,11 +119,20 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
   const currentWeekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
   const weekDays = eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 6) });
   
-  const visibleProfessionals = professionals.filter(p => {
+  const visibleProfessionals = useMemo(() => professionals.filter(p => {
     const isSocio = p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio');
     if (isSocio) return false;
-    return isAdmin || p.id === currentUser.id || p.is_public_agenda;
-  });
+    return isAdmin || String(p.id) === String(currentUser.id) || p.is_public_agenda;
+  }), [professionals, isAdmin, currentUser.id]);
+
+  useEffect(() => {
+    if (visibleProfessionals.length === 0) return;
+    const currentSelectionExists = visibleProfessionals.some(professional => String(professional.id) === mobileProfessionalId);
+    if (!currentSelectionExists) {
+      const ownProfile = visibleProfessionals.find(professional => String(professional.id) === String(currentUser.id));
+      setMobileProfessionalId(String((ownProfile || visibleProfessionals[0]).id));
+    }
+  }, [visibleProfessionals, currentUser.id, mobileProfessionalId]);
 
   const [now, setNow] = useState(new Date());
 
@@ -133,31 +152,62 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
     return ((totalMin - dayStartMin) / Number(slotInterval || 30)) * SLOT_HEIGHT;
   })();
 
-  const columns = timelineMode === 'dia' ? visibleProfessionals : weekDays;
+  const columns = timelineMode === 'dia'
+    ? (isMobileTimeline
+        ? visibleProfessionals.filter(professional => String(professional.id) === mobileProfessionalId)
+        : visibleProfessionals)
+    : weekDays;
 
   return (
-    <div className="glass-panel p-0 overflow-hidden border-border/50 shadow-2xl flex flex-col h-[calc(100vh-140px)] md:h-fit md:min-h-[75vh] mb-0 md:mb-20 bg-background/80">
+    <div className="glass-panel p-0 overflow-hidden border-border/50 shadow-2xl flex flex-col h-[calc(100dvh-8.5rem)] md:h-fit md:min-h-[75vh] mb-0 md:mb-20 bg-background/80">
       
       {/* NAVBAR DE CONTROLE DE DIAS & MODO - PREMIUM REDESIGN */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 md:p-5 bg-card/60 border-b border-border/50 relative z-30 shrink-0">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-2.5 p-3 md:p-5 bg-card/60 border-b border-border/50 relative z-30 shrink-0">
         <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="flex bg-background/60 p-1 rounded-2xl border border-border/60 flex-1 md:flex-none">
+          <div className="grid grid-cols-2 bg-background/60 p-1 rounded-2xl border border-border/60 flex-1 md:flex-none">
             <button 
               onClick={() => setTimelineMode('dia')} 
-              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${timelineMode === 'dia' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
+              className={`px-3 md:px-6 py-2.5 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all ${timelineMode === 'dia' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
             >
-              Visão por Profissional (Dia)
+              <span className="md:hidden">Profissional</span>
+              <span className="hidden md:inline">Visão por Profissional (Dia)</span>
             </button>
             <button 
               onClick={() => setTimelineMode('semana')} 
-              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${timelineMode === 'semana' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
+              className={`px-3 md:px-6 py-2.5 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider transition-all ${timelineMode === 'semana' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
             >
-              Visão Semanal
+              <span className="md:hidden">Semana</span>
+              <span className="hidden md:inline">Visão Semanal</span>
             </button>
           </div>
         </div>
 
-        <div className="flex items-center justify-between w-full md:w-auto gap-3">
+        <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 w-full md:hidden">
+          <button
+            onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? -7 : -1))}
+            className="h-11 rounded-xl bg-card border border-border/60 text-muted hover:text-primary transition-colors shadow-sm flex items-center justify-center"
+            title="Anterior"
+          >
+            <ChevronLeft size={18}/>
+          </button>
+          <button
+            onClick={() => setSelectedDate(startOfToday())}
+            className="h-11 min-w-0 rounded-xl bg-primary/10 border border-primary/20 px-3 text-primary shadow-sm"
+            title="Voltar para hoje"
+          >
+            <span className="block truncate text-xs font-black uppercase tracking-wider">{format(selectedDate, "EEE, dd 'de' MMMM", { locale: ptBR })}</span>
+            <span className="block text-[9px] font-bold uppercase tracking-widest text-muted">{isSameDay(selectedDate, startOfToday()) ? 'Hoje' : 'Toque para voltar para hoje'}</span>
+          </button>
+          <button
+            onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? 7 : 1))}
+            className="h-11 rounded-xl bg-card border border-border/60 text-muted hover:text-primary transition-colors shadow-sm flex items-center justify-center"
+            title="Próximo"
+          >
+            <ChevronRight size={18}/>
+          </button>
+        </div>
+
+        <div className="hidden md:flex items-center justify-between w-full md:w-auto gap-3">
           <div className="flex items-center gap-1.5">
             <button 
               onClick={() => setSelectedDate(addDays(selectedDate, timelineMode === 'semana' ? -7 : -1))} 
@@ -201,12 +251,12 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
       </div>
 
       {timelineMode === 'dia' && (
-        <div className="flex gap-1 overflow-x-auto no-scrollbar w-full px-3 py-2 bg-card/30 border-b border-border/40">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar w-full px-3 py-3 md:py-2 bg-card/30 border-b border-border/40">
           {weekDays.map(d => (
             <button 
               key={d.toISOString()} 
               onClick={() => setSelectedDate(d)}
-              className={`px-4 py-2 rounded-2xl border transition-all whitespace-nowrap shrink-0 flex flex-col items-center min-w-[64px] ${isSameDay(d, selectedDate) ? 'bg-primary text-white border-primary font-black scale-105 shadow-md glow-primary' : 'border-border/50 bg-card/40 text-muted font-bold hover:text-foreground'}`}
+              className={`px-3 md:px-4 py-2 rounded-xl md:rounded-2xl border transition-all whitespace-nowrap shrink-0 flex flex-col items-center min-w-[68px] md:min-w-[64px] ${isSameDay(d, selectedDate) ? 'bg-primary text-white border-primary font-black md:scale-105 shadow-md glow-primary' : 'border-border/50 bg-card/40 text-muted font-bold hover:text-foreground'}`}
             >
               <span className="opacity-70 uppercase text-[9px] mb-0.5">{format(d, 'EEE', {locale: ptBR})}</span>
               <span className="text-xs font-black">{format(d, 'dd/MM')}</span>
@@ -215,13 +265,42 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
         </div>
       )}
 
+      {timelineMode === 'dia' && visibleProfessionals.length > 1 && (
+        <div className="md:hidden shrink-0 border-b border-border/40 bg-background/70 px-3 py-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted">Agenda de</span>
+            <span className="truncate text-[10px] font-black uppercase tracking-wider text-primary">
+              {visibleProfessionals.find(professional => String(professional.id) === mobileProfessionalId)?.name}
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+            {visibleProfessionals.map(professional => {
+              const isSelected = String(professional.id) === mobileProfessionalId;
+              return (
+                <button
+                  key={professional.id}
+                  type="button"
+                  onClick={() => setMobileProfessionalId(String(professional.id))}
+                  className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 transition-all ${isSelected ? 'border-primary bg-primary text-white shadow-md shadow-primary/20' : 'border-border/60 bg-card/70 text-muted'}`}
+                >
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-[10px] font-black ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
+                    {professional.avatar || professional.name?.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="max-w-[120px] truncate text-[10px] font-black uppercase tracking-wide">{professional.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Grid com Sticky Header e Sticky Column */}
-      <div className="flex-1 overflow-auto relative no-scrollbar">
+      <div className="flex-1 overflow-auto relative no-scrollbar snap-x snap-mandatory md:snap-none">
         <div className="inline-flex flex-col min-w-full">
           
           {/* Header de Colunas (Profissionais / Dias) */}
           <div className="flex sticky top-0 z-40 bg-card/95 backdrop-blur-2xl border-b border-border/50">
-            <div className="w-16 md:w-20 flex-shrink-0 border-r border-border/50 bg-background/95 flex items-center justify-center text-[10px] font-black text-primary uppercase tracking-widest sticky left-0 z-50">
+            <div className="w-14 md:w-20 flex-shrink-0 border-r border-border/50 bg-background/95 flex items-center justify-center text-[9px] md:text-[10px] font-black text-primary uppercase tracking-widest sticky left-0 z-50">
               Hora
             </div>
             {columns.map((col, idx) => {
@@ -243,7 +322,7 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
               const colRevenue = colApps.reduce((acc, a) => acc + Number(a.service_price || 0), 0);
 
               return (
-                <div key={key} className="min-w-[250px] md:min-w-[240px] flex-1 border-r border-border/50 py-3.5 px-4 flex items-center justify-between gap-3 bg-card/40">
+                <div key={key} className="min-w-[calc(100vw-3.5rem)] md:min-w-[240px] md:flex-1 snap-start border-r border-border/50 py-3 px-3 md:py-3.5 md:px-4 flex items-center justify-between gap-3 bg-card/40">
                   {isDia ? (
                     <div className="flex items-center gap-3 w-full">
                       <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary via-pink-500 to-primary-dark text-white flex items-center justify-center font-black text-xs shadow-md shrink-0">
@@ -279,7 +358,7 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
           {/* Corpo da Grid */}
           <div className="flex relative">
             {/* Coluna de Horas Sticky */}
-            <div className="w-16 md:w-20 flex-shrink-0 border-r border-border/50 bg-background/95 sticky left-0 z-30">
+            <div className="w-14 md:w-20 flex-shrink-0 border-r border-border/50 bg-background/95 sticky left-0 z-30">
               {timeSlots.map(slot => (
                 <div key={slot} className="h-16 border-b border-border/40 flex items-start justify-center pt-2.5 bg-background/90">
                   <span className="text-[10px] font-black text-foreground tracking-tighter bg-primary/10 px-1.5 py-0.5 rounded-lg border border-primary/20 shadow-sm">{slot}</span>
@@ -320,7 +399,7 @@ function TimelineView({ selectedDate, setSelectedDate, appointments, professiona
                 const sortedApps = [...colApps].sort((a,b) => a.time.localeCompare(b.time));
                 
                 return (
-                  <div key={key} className="min-w-[250px] md:min-w-[240px] flex-1 border-r border-border/50 relative bg-grid-pattern opacity-90" style={{ backgroundSize: '100% 64px' }}>
+                  <div key={key} className="min-w-[calc(100vw-3.5rem)] md:min-w-[240px] md:flex-1 snap-start border-r border-border/50 relative bg-grid-pattern opacity-90" style={{ backgroundSize: '100% 64px' }}>
                     {timeSlots.map(slot => (
                       <div 
                         key={slot} 
@@ -1578,29 +1657,32 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-y-auto relative bg-background w-full pb-24 lg:pb-0">
-        <header className="h-16 md:h-20 border-b border-border/40 flex items-center justify-between px-4 md:px-8 bg-background/80 backdrop-blur-2xl sticky top-0 z-40">
-          <div className="flex items-center gap-3">
-            <button className="lg:hidden text-muted hover:text-primary p-2.5 rounded-xl bg-card/60 border border-border/50 transition-all" onClick={() => setIsMobileMenuOpen(true)}>
-              <Menu size={20} />
+        <header className="min-h-16 md:h-20 border-b border-border/40 flex items-center justify-between gap-2 px-3 py-2 md:px-8 md:py-0 bg-background/80 backdrop-blur-2xl sticky top-0 z-40">
+          <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
+            <button className="lg:hidden h-10 w-10 shrink-0 text-muted hover:text-primary rounded-xl bg-card/60 border border-border/50 transition-all flex items-center justify-center" onClick={() => setIsMobileMenuOpen(true)}>
+              <Menu size={19} />
             </button>
-            <div>
-              <h2 className="text-sm md:text-xl font-serif font-black text-foreground uppercase tracking-wider">{getPageTitle()}</h2>
+            <div className="min-w-0">
+              <h2 className="truncate text-base md:text-xl font-serif font-black text-foreground uppercase tracking-wide md:tracking-wider">
+                <span className="md:hidden">{activeTab === 'agenda' ? 'Agenda' : getPageTitle()}</span>
+                <span className="hidden md:inline">{getPageTitle()}</span>
+              </h2>
               <p className="text-[10px] text-muted hidden sm:block">Painel de Agendamentos & Controle do Estabelecimento</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2 md:gap-3">
-            <button onClick={() => setIsDark(!isDark)} className="text-muted hover:text-primary transition-all p-2.5 md:p-3 rounded-xl md:rounded-2xl bg-card/60 border border-border/50" title="Alternar Tema">
-              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          <div className="flex shrink-0 items-center gap-1.5 md:gap-3">
+            <button onClick={() => setIsDark(!isDark)} className="h-10 w-10 md:h-auto md:w-auto text-muted hover:text-primary transition-all md:p-3 rounded-xl md:rounded-2xl bg-card/60 border border-border/50 flex items-center justify-center" title="Alternar Tema">
+              {isDark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
 
-            <div className="flex items-center gap-2">
-              <button onClick={() => { handleOpenBlockModal(null, '12:00', format(selectedCalendarDate || new Date(), 'yyyy-MM-dd')); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="p-2.5 md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md" title="Bloquear Horário">
+            <div className="flex items-center gap-1.5 md:gap-2">
+              <button onClick={() => { handleOpenBlockModal(null, '12:00', format(selectedCalendarDate || new Date(), 'yyyy-MM-dd')); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="h-10 w-10 md:h-auto md:w-auto md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md flex items-center justify-center" title="Bloquear Horário">
                 <Lock size={16} />
               </button>
-              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary !py-2.5 !px-4 md:!px-5 glow-primary">
-                {showAddAppt ? <X size={18} /> : <Plus size={18} />}
-                <span className="ml-1 uppercase font-black tracking-wider text-xs">Marcar</span>
+              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary h-10 !py-0 !px-3 md:h-auto md:!py-2.5 md:!px-5 glow-primary whitespace-nowrap">
+                {showAddAppt ? <X size={17} /> : <Plus size={17} />}
+                <span className="ml-0.5 md:ml-1 uppercase font-black tracking-wider text-[10px] md:text-xs">Marcar</span>
               </button>
             </div>
           </div>
