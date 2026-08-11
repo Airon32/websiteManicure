@@ -11,20 +11,32 @@ delete process.env.SESSION_SECRET;
 const tableRows = {
     professionals: [{ id: 7, name: 'Profissional Teste', role: 'admin', status: 'ativo' }],
     services: [{ id: 11, name: 'Serviço Teste', duration: 40, price: 50, status: 'ativo' }],
-    settings: [{ key: 'max_advance_days', value: '30' }]
+    settings: [{ key: 'max_advance_days', value: '30' }],
+    appointments: [{
+        id: 101,
+        service_id: 11,
+        professional_id: 7,
+        client_phone: '11987654321',
+        client_name: 'Cliente Teste',
+        date: '2026-08-11',
+        time: '10:00',
+        status: 'agendado',
+        notes: ''
+    }]
 };
 
 function createQueryBuilder(table) {
-    let result = { data: table === 'professionals' ? [] : (tableRows[table] || []), error: null };
+    const startsEmpty = ['professionals', 'appointments'].includes(table);
+    let result = { data: startsEmpty ? [] : (tableRows[table] || []), error: null };
     const builder = new Proxy({}, {
         get(_target, property) {
             if (property === 'then') return (resolve) => resolve(result);
             if (property === 'maybeSingle' || property === 'single') {
                 return () => Promise.resolve({ data: tableRows[table]?.[0] || result.data?.[0] || null, error: null });
             }
-            if (property === 'insert') {
+            if (property === 'insert' || property === 'update') {
                 return rows => {
-                    result = { data: rows, error: null };
+                    result = { data: Array.isArray(rows) ? rows : [rows], error: null };
                     return builder;
                 };
             }
@@ -183,4 +195,30 @@ test('staff appointments can be created beyond the client advance window', async
     });
 
     assert.equal(response.status, 201);
+});
+
+test('staff can move an appointment to an earlier or later time', async () => {
+    const { signSession } = require('./security');
+    const session = signSession({ type: 'staff', id: '7', role: 'admin' }, 60);
+    const response = await fetch(`${baseUrl}/api/appointments/101`, {
+        method: 'PUT',
+        headers: {
+            'content-type': 'application/json',
+            cookie: `mary_session=${encodeURIComponent(session)}`,
+            origin: baseUrl
+        },
+        body: JSON.stringify({
+            date: '2026-08-12',
+            time: '22:00',
+            professional_id: 7,
+            allow_outside_hours: true
+        })
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).data, {
+        date: '2026-08-12',
+        time: '22:00',
+        professional_id: 7
+    });
 });

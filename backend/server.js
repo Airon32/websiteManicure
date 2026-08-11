@@ -1637,7 +1637,7 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
 
         const settingsMap = await loadSettingsMap();
         const schedule = buildProfessionalSchedule(settingsMap, targetProfessional);
-        const allowOutsideHours = isStaff || Boolean(req.body.allow_outside_hours);
+        const allowOutsideHours = Boolean(req.body.allow_outside_hours);
         const validation = validateAppointmentAgainstSchedule({
             date: targetDate,
             time: targetTime,

@@ -1015,18 +1015,21 @@ export default function AdminDashboard() {
       const payload = {
         date: editAppt.date,
         time: editAppt.time,
-        professional_id: editAppt.professional_id
+        professional_id: editAppt.professional_id,
+        allow_outside_hours: allowOutsideHours
       };
       
-      const res = await api.put(`/api/appointments/${editAppt.id}`, payload);
-      const prof = professionals.find(p => p.id === editAppt.professional_id);
-      setAppointments(prev => prev.map(a => a.id === editAppt.id ? { ...a, ...payload, professional_name: prof ? prof.name : a.professional_name } : a));
+      const response = await api.put(`/api/appointments/${editAppt.id}`, payload);
+      const updatedAppointment = response.data?.data || payload;
+      const prof = professionals.find(p => String(p.id) === String(updatedAppointment.professional_id));
+      setAppointments(prev => prev.map(a => a.id === editAppt.id ? { ...a, ...updatedAppointment, professional_name: prof ? prof.name : a.professional_name } : a));
       setShowEditAppt(false);
       setEditAppt(null);
+      setAllowOutsideHours(false);
       openModal({ title: 'Sucesso', message: 'Agendamento atualizado com sucesso.', type: 'success' });
     } catch (err) {
       console.error(err);
-      openModal({ title: 'Erro', message: 'Falha ao editar o agendamento.', type: 'error' });
+      openModal({ title: 'Erro', message: err.response?.data?.error || 'Falha ao editar o agendamento.', type: 'error' });
     }
   };
 
@@ -3579,12 +3582,14 @@ export default function AdminDashboard() {
                   <span className="text-[10px] font-bold uppercase tracking-widest">Lembrete</span>
                 </button>
                 <button onClick={() => {
+                  const currentTime = timeToMinutes(selectedAppointment.time);
+                  setAllowOutsideHours(currentTime < timeToMinutes(workStart) || currentTime >= timeToMinutes(workEnd));
                   setEditAppt({
                     id: selectedAppointment.id,
                     client_name: selectedAppointment.client_name,
                     date: selectedAppointment.date,
                     time: selectedAppointment.time,
-                    professional_id: selectedAppointment.professional_id,
+                    professional_id: String(selectedAppointment.professional_id),
                     service_name: selectedAppointment.service_name 
                   });
                   setSelectedAppointment(null);
