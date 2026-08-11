@@ -12,13 +12,13 @@ function base64url(value) {
 }
 
 function getSessionSecret() {
-    const source = process.env.SESSION_SECRET;
+    const source = process.env.SESSION_SECRET || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY;
     if (!source || source.length < 32) {
         throw new Error('Configure SESSION_SECRET com pelo menos 32 caracteres.');
     }
 
-    // Derive a dedicated signing key so the configured value is never used
-    // directly as an HMAC key.
+    // Domain separation produces a dedicated HMAC key even while an existing
+    // deployment is migrating from the Supabase key to SESSION_SECRET.
     return crypto.createHash('sha256').update('mary-esmalteria/session/v1').update(source).digest();
 }
 

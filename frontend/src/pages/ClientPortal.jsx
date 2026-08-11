@@ -97,6 +97,7 @@ export default function ClientPortal() {
   const [accountError, setAccountError] = useState('');
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState(null);
+  const [busyAppointments, setBusyAppointments] = useState([]);
   
   // Theme Toggle
   const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
@@ -134,10 +135,14 @@ export default function ClientPortal() {
   const timeSlots = useMemo(() => buildTimeSlots(workStart, workEnd, slotInterval, false, busyAppointments), [workStart, workEnd, slotInterval, busyAppointments]);
 
   useEffect(() => {
-    api.get('/api/services').then(res => setServices(res.data.data)).catch(console.error);
-    api.get('/api/professionals').then(res => setProfessionals(res.data.data)).catch(console.error);
+    api.get('/api/services')
+      .then(res => setServices(Array.isArray(res.data?.data) ? res.data.data : []))
+      .catch(() => setServices([]));
+    api.get('/api/professionals')
+      .then(res => setProfessionals(Array.isArray(res.data?.data) ? res.data.data : []))
+      .catch(() => setProfessionals([]));
     api.get('/api/settings').then(res => {
-      const settings = res.data.data;
+      const settings = Array.isArray(res.data?.data) ? res.data.data : [];
       setAllSettings(settings);
       const bName = settings.find(s => s.key === 'business_name');
       if(bName) setBusinessName(bName.value);
@@ -163,7 +168,7 @@ export default function ClientPortal() {
           setPublicProfile({});
         }
       }
-    }).catch(console.error);
+    }).catch(() => setAllSettings([]));
 
     api.get('/api/availability/next?limit=5')
       .then(response => setQuickSlots(response.data.data || []))
@@ -450,7 +455,6 @@ export default function ClientPortal() {
     return h * 60 + m;
   };
 
-  const [busyAppointments, setBusyAppointments] = useState([]);
   useEffect(() => {
     if (selectedDate && selectedPro) {
       const dStr = format(selectedDate, 'yyyy-MM-dd');

@@ -6,7 +6,7 @@ const { createTestCredential } = require('./fixtures');
 process.env.NODE_ENV = 'test';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SECRET_KEY = createTestCredential();
-process.env.SESSION_SECRET = createTestCredential();
+delete process.env.SESSION_SECRET;
 
 function createQueryBuilder() {
     const result = { data: [], error: null };

@@ -35,8 +35,12 @@ const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY;
 if (!supabaseUrl || !supabaseKey) {
     throw new Error('Configure SUPABASE_URL e SUPABASE_SECRET_KEY antes de iniciar o servidor.');
 }
-if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+const sessionKeySource = process.env.SESSION_SECRET || supabaseKey;
+if (sessionKeySource.length < 32) {
     throw new Error('Configure SESSION_SECRET com pelo menos 32 caracteres antes de iniciar o servidor.');
+}
+if (!process.env.SESSION_SECRET && process.env.NODE_ENV !== 'test') {
+    console.warn('[Security] SESSION_SECRET ausente; usando chave derivada durante a migração.');
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey, {

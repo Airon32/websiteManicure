@@ -38,6 +38,22 @@ test('signs tamper-evident staff and appointment tokens', () => {
     assert.equal(action.appointmentId, '42');
 });
 
+test('keeps sessions available while a deployment migrates to SESSION_SECRET', () => {
+    const configuredSessionCredential = process.env.SESSION_SECRET;
+    const configuredDatabaseCredential = process.env.SUPABASE_SECRET_KEY;
+    delete process.env.SESSION_SECRET;
+    process.env.SUPABASE_SECRET_KEY = createTestCredential();
+
+    try {
+        const session = signSession({ type: 'staff', id: '9', role: 'admin' }, 60);
+        assert.equal(verifySession(session).id, '9');
+    } finally {
+        process.env.SESSION_SECRET = configuredSessionCredential;
+        if (configuredDatabaseCredential === undefined) delete process.env.SUPABASE_SECRET_KEY;
+        else process.env.SUPABASE_SECRET_KEY = configuredDatabaseCredential;
+    }
+});
+
 test('normalizes Brazilian phones and names consistently', () => {
     assert.equal(normalizePhone('+55 (11) 99999-8888'), '11999998888');
     assert.equal(isValidPhone('(11) 99999-8888'), true);
