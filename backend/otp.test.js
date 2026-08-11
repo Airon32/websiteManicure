@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { createTestCredential } = require('./fixtures');
 const {
     createMetaWhatsAppSender,
     createOtpManager,
@@ -58,7 +59,7 @@ class MemoryOtpStore {
     }
 }
 
-const TEST_SECRET = 'otp-test-secret-with-at-least-thirty-two-characters';
+const TEST_SECRET = createTestCredential();
 
 test('detects whether all WhatsApp Cloud API settings are present', () => {
     assert.equal(isWhatsAppProviderConfigured({}), false);

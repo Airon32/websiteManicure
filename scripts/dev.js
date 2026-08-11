@@ -34,7 +34,7 @@ function stopChildren(signal = "SIGTERM") {
 }
 
 for (const service of services) {
-  console.log(`[root] iniciando ${service.name}...`);
+  console.log('[root] iniciando %s...', service.name);
 
   const child = spawn(service.command, service.args, {
     cwd: service.cwd,
@@ -50,7 +50,7 @@ for (const service of services) {
     shuttingDown = true;
 
     const reason = signal ? `sinal ${signal}` : `codigo ${code}`;
-    console.error(`[root] ${service.name} encerrou com ${reason}.`);
+    console.error('[root] %s encerrou com %s.', service.name, reason);
     stopChildren();
     process.exit(code ?? 1);
   });
@@ -61,7 +61,7 @@ for (const service of services) {
     }
 
     shuttingDown = true;
-    console.error(`[root] falha ao iniciar ${service.name}:`, error.message);
+    console.error('[root] falha ao iniciar %s: %s', service.name, error.message);
     stopChildren();
     process.exit(1);
   });

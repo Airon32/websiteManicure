@@ -1,11 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
+const { createTestCredential } = require('./fixtures');
 
 process.env.NODE_ENV = 'test';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
-process.env.SUPABASE_SECRET_KEY = 'integration-test-database-key-with-more-than-32-characters';
-process.env.SESSION_SECRET = 'integration-test-secret-with-more-than-32-characters';
+process.env.SUPABASE_SECRET_KEY = createTestCredential();
+process.env.SESSION_SECRET = createTestCredential();
 
 function createQueryBuilder() {
     const result = { data: [], error: null };
@@ -87,12 +88,38 @@ test('rejects cross-site writes and oversized JSON bodies', async () => {
     });
     assert.equal(crossSite.status, 403);
 
+    const fetchMetadataCrossSite = await fetch(`${baseUrl}/api/login`, {
+        method: 'POST',
+        headers: { 'sec-fetch-site': 'cross-site', 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'teste', password: 'teste' })
+    });
+    assert.equal(fetchMetadataCrossSite.status, 403);
+
     const oversized = await fetch(`${baseUrl}/api/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ username: 'teste', password: 'x'.repeat(40000) })
     });
     assert.equal(oversized.status, 413);
+});
+
+test('requires origin proof when a state-changing request carries a session', async () => {
+    const { signSession } = require('./security');
+    const session = signSession({ type: 'staff', id: '7', role: 'admin' }, 60);
+    const missingOrigin = await fetch(`${baseUrl}/api/logout`, {
+        method: 'POST',
+        headers: { cookie: `mary_session=${encodeURIComponent(session)}` }
+    });
+    assert.equal(missingOrigin.status, 403);
+
+    const sameOrigin = await fetch(`${baseUrl}/api/logout`, {
+        method: 'POST',
+        headers: {
+            cookie: `mary_session=${encodeURIComponent(session)}`,
+            origin: baseUrl
+        }
+    });
+    assert.equal(sameOrigin.status, 200);
 });
 
 test('OTP endpoints clearly advertise when the WhatsApp provider is not configured', async () => {

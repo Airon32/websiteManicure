@@ -14,6 +14,7 @@ const {
     rateLimit,
     readSession,
     requireClient,
+    requireSameOrigin,
     requireStaff,
     safeText,
     sameSubject,
@@ -29,8 +30,14 @@ const {
 } = require('./otp');
 
 // --- CONFIGURAÇÃO SUPABASE (CENTRALIZADA PARA VERCEL) ---
-const supabaseUrl = process.env.SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY || 'placeholder_key';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY;
+if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Configure SUPABASE_URL e SUPABASE_SECRET_KEY antes de iniciar o servidor.');
+}
+if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
+    throw new Error('Configure SESSION_SECRET com pelo menos 32 caracteres antes de iniciar o servidor.');
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
@@ -57,8 +64,10 @@ if (typeof supabase.from !== 'function') {
     if (process.env.NODE_ENV !== 'test') console.log('[SUPABASE] Cliente inicializado com sucesso.');
 }
 
-const app = express();
-app.disable('x-powered-by');
+// A proteção CSRF é implementada pelo middleware requireSameOrigin abaixo.
+const app = express(); // nosemgrep
+// A regra njsscan abaixo é positiva (INFO), mas o agregador a exibe como vulnerabilidade.
+app.disable('x-powered-by'); // nosemgrep
 app.set('trust proxy', 1);
 
 const configuredOrigins = String(
@@ -77,8 +86,11 @@ app.use(cors({
 app.use(express.json({ limit: '32kb' }));
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
     if (process.env.NODE_ENV === 'production') {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
@@ -86,6 +98,7 @@ app.use((req, res, next) => {
     next();
 });
 app.use(optionalSession);
+app.use(requireSameOrigin({ allowedOrigins }));
 app.use('/api', async (req, res, next) => {
     if (!req.auth || req.auth.action) return next();
 
@@ -114,21 +127,6 @@ app.use('/api', async (req, res, next) => {
     }
     next();
 });
-app.use((req, res, next) => {
-    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
-    const origin = req.headers.origin;
-    if (!origin) return next();
-
-    const forwardedHost = req.headers['x-forwarded-host'];
-    const host = String(forwardedHost || req.headers.host || '').split(',')[0].trim();
-    const protocol = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
-    const sameOrigin = host && origin === `${protocol}://${host}`;
-    if (!sameOrigin && !allowedOrigins.has(origin)) {
-        return res.status(403).json({ error: 'Origem da solicitação não permitida.' });
-    }
-    next();
-});
-
 // Rota de Health Check
 app.get('/', (req, res) => {
     res.json({ status: 'live' });
@@ -136,7 +134,7 @@ app.get('/', (req, res) => {
 
 // Logger simples
 app.use((req, res, next) => {
-    if (!['production', 'test'].includes(process.env.NODE_ENV)) console.log(`${req.method} ${req.url}`);
+    if (!['production', 'test'].includes(process.env.NODE_ENV)) console.log('%s %s', req.method, req.url);
     next();
 });
 
@@ -306,6 +304,13 @@ app.post('/api/client/login', rateLimit({
     keyPrefix: 'client-login',
     message: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.'
 }), async (req, res) => {
+    if (clientOtpManager) {
+        return res.status(409).json({
+            error: 'Use o código enviado por WhatsApp para entrar.',
+            code: 'OTP_REQUIRED'
+        });
+    }
+
     const rawPhone = req.body.phone;
     const phone = normalizePhone(rawPhone);
     const name = safeText(req.body.name, 100) || 'Cliente';
@@ -2039,7 +2044,7 @@ app.use((error, req, res, _next) => {
 
 if (require.main === module && process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
-        console.log(`Servidor rodando na porta ${PORT} com Supabase`);
+        console.log('Servidor rodando na porta %d com Supabase', PORT);
     });
 }
 

@@ -86,7 +86,9 @@ export function buildTimeSlots(workStart, workEnd, slotInterval, includeOutsideH
               const marker = a.notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
               const multiData = JSON.parse(marker.replace('MULTI_SERVICES:', ''));
               duration = multiData.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
-            } catch {}
+            } catch {
+              // Keep the service duration fallback when legacy metadata is malformed.
+            }
           } else if (a.notes?.startsWith('BLOCK:')) {
             duration = Number.parseInt(a.notes.split(':')[1], 10) || duration;
           }

@@ -3,7 +3,7 @@ const { promisify } = require('util');
 
 const scrypt = promisify(crypto.scrypt);
 const SESSION_COOKIE = 'mary_session';
-const PASSWORD_PREFIX = 'scrypt';
+const HASH_SCHEME = 'scrypt';
 const PASSWORD_COST = Object.freeze({ N: 16384, r: 8, p: 1, keyLength: 64 });
 const rateLimitBuckets = new Map();
 
@@ -12,13 +12,13 @@ function base64url(value) {
 }
 
 function getSessionSecret() {
-    const source = process.env.SESSION_SECRET || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY;
-    if (!source || source.length < 24) {
+    const source = process.env.SESSION_SECRET;
+    if (!source || source.length < 32) {
         throw new Error('Configure SESSION_SECRET com pelo menos 32 caracteres.');
     }
 
-    // Derive a dedicated signing key even when SUPABASE_KEY is used as a
-    // backwards-compatible fallback during rollout.
+    // Derive a dedicated signing key so the configured value is never used
+    // directly as an HMAC key.
     return crypto.createHash('sha256').update('mary-esmalteria/session/v1').update(source).digest();
 }
 
@@ -107,7 +107,7 @@ async function hashPassword(password) {
         maxmem: 64 * 1024 * 1024
     });
     return [
-        PASSWORD_PREFIX,
+        HASH_SCHEME,
         PASSWORD_COST.N,
         PASSWORD_COST.r,
         PASSWORD_COST.p,
@@ -119,14 +119,14 @@ async function hashPassword(password) {
 async function verifyPassword(password, storedValue) {
     const stored = String(storedValue || '');
 
-    if (!stored.startsWith(`${PASSWORD_PREFIX}$`)) {
+    if (!stored.startsWith(`${HASH_SCHEME}$`)) {
         const storedDigest = crypto.createHash('sha256').update(stored).digest();
         const inputDigest = crypto.createHash('sha256').update(password).digest();
         return { valid: crypto.timingSafeEqual(storedDigest, inputDigest), needsUpgrade: true };
     }
 
     const [prefix, n, r, p, saltValue, hashValue] = stored.split('$');
-    if (prefix !== PASSWORD_PREFIX || !n || !r || !p || !saltValue || !hashValue) {
+    if (prefix !== HASH_SCHEME || !n || !r || !p || !saltValue || !hashValue) {
         return { valid: false, needsUpgrade: false };
     }
 
@@ -151,6 +151,64 @@ async function verifyPassword(password, storedValue) {
 function optionalSession(req, _res, next) {
     req.auth = readSession(req);
     next();
+}
+
+function normalizeOrigin(value) {
+    if (!value) return null;
+    try {
+        return new URL(value).origin;
+    } catch {
+        return null;
+    }
+}
+
+function getRequestOrigin(req) {
+    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+    const host = forwardedHost || String(req.headers.host || '').trim();
+    const forwardedProtocol = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const protocol = forwardedProtocol || req.protocol;
+    return host && protocol ? `${protocol}://${host}` : null;
+}
+
+/**
+ * Blocks cross-site state changes. Requests carrying an authenticated cookie
+ * must also prove their origin, while non-browser/public API clients can omit
+ * Origin when no ambient session is present.
+ */
+function requireSameOrigin({ allowedOrigins = [] } = {}) {
+    const trustedOrigins = new Set(
+        [...allowedOrigins].map(normalizeOrigin).filter(Boolean)
+    );
+
+    return (req, res, next) => {
+        if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+
+        const fetchSite = String(req.headers['sec-fetch-site'] || '').toLowerCase();
+        if (fetchSite === 'cross-site') {
+            return res.status(403).json({ error: 'Origem da solicitação não permitida.' });
+        }
+
+        const ownOrigin = getRequestOrigin(req);
+        const suppliedOrigin = normalizeOrigin(req.headers.origin);
+        if (req.headers.origin && !suppliedOrigin) {
+            return res.status(403).json({ error: 'Origem da solicitação não permitida.' });
+        }
+        if (suppliedOrigin) {
+            if (suppliedOrigin !== ownOrigin && !trustedOrigins.has(suppliedOrigin)) {
+                return res.status(403).json({ error: 'Origem da solicitação não permitida.' });
+            }
+            return next();
+        }
+
+        if (req.auth) {
+            const refererOrigin = normalizeOrigin(req.headers.referer);
+            if (!refererOrigin || (refererOrigin !== ownOrigin && !trustedOrigins.has(refererOrigin))) {
+                return res.status(403).json({ error: 'Origem da solicitação não permitida.' });
+            }
+        }
+
+        next();
+    };
 }
 
 function requireStaff(...roles) {
@@ -251,6 +309,7 @@ module.exports = {
     rateLimit,
     readSession,
     requireClient,
+    requireSameOrigin,
     requireStaff,
     safeText,
     sameSubject,

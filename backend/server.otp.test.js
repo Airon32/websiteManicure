@@ -1,11 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
+const { createTestCredential } = require('./fixtures');
 
 process.env.NODE_ENV = 'test';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
-process.env.SUPABASE_SECRET_KEY = 'otp-integration-database-key-with-more-than-32-characters';
-process.env.SESSION_SECRET = 'otp-integration-session-key-with-more-than-32-characters';
+process.env.SUPABASE_SECRET_KEY = createTestCredential();
+process.env.SESSION_SECRET = createTestCredential();
 
 const client = { id: 7, name: 'Cliente Teste', phone: '11987654321' };
 const requestedCodes = [];
