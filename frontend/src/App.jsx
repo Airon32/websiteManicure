@@ -120,7 +120,7 @@ function LegalRoute() {
 
 function AppRoutes() {
   const location = useLocation();
-  const isConfirmationRoute = /^\/confirmar\/[^/]+$/.test(location.pathname);
+  const isConfirmationRoute = /^\/confirmar\/[^/]+(?:\/[^/]+)?$/.test(location.pathname);
 
   let page;
   if (location.pathname === '/') page = <ClientPortal />;

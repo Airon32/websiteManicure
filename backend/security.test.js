@@ -11,6 +11,7 @@ const {
     normalizeName,
     normalizePhone,
     signSession,
+    verifyAppointmentToken,
     verifyPassword,
     verifySession
 } = require('./security');
@@ -33,9 +34,15 @@ test('signs tamper-evident staff and appointment tokens', () => {
     assert.equal(verifySession(session).id, '7');
     assert.equal(verifySession(`${session}x`), null);
 
-    const action = verifySession(createAppointmentToken(42, 60));
-    assert.equal(action.action, 'confirm-appointment');
-    assert.equal(action.appointmentId, '42');
+    const actionToken = createAppointmentToken(42, 60);
+    assert.match(actionToken, /^v2\.[a-z0-9]+\.[A-Za-z0-9_-]{22}$/);
+    assert.ok(actionToken.length < 40);
+    assert.equal(verifyAppointmentToken(actionToken, 42), true);
+    assert.equal(verifyAppointmentToken(actionToken, 43), false);
+    assert.equal(verifyAppointmentToken(`${actionToken}x`, 42), false);
+
+    const legacyActionToken = signSession({ type: 'client', action: 'confirm-appointment', appointmentId: '42' }, 60);
+    assert.equal(verifyAppointmentToken(legacyActionToken, 42), true);
 });
 
 test('keeps sessions available while a deployment migrates to SESSION_SECRET', () => {

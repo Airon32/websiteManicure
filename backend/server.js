@@ -21,7 +21,7 @@ const {
     setSessionCookie,
     signSession,
     verifyPassword,
-    verifySession
+    verifyAppointmentToken
 } = require('./security');
 const {
     createMetaWhatsAppSenderFromEnv,
@@ -1776,8 +1776,7 @@ app.get('/api/appointments/:id/confirm-info', rateLimit({
     if (ownership.error || !ownership.data) return res.status(404).json({ error: 'Agendamento não encontrado.' });
     
     const token = String(req.query.token || '');
-    const actionToken = verifySession(token);
-    const validActionToken = actionToken?.action === 'confirm-appointment' && sameSubject(actionToken.appointmentId, id);
+    const validActionToken = verifyAppointmentToken(token, id);
     if (!validActionToken && !canAccessAppointment(req.auth, ownership.data, { allowClient: true })) {
         return res.status(401).json({ error: 'Este link de confirmação é inválido ou expirou.' });
     }
@@ -1840,8 +1839,7 @@ app.post('/api/appointments/:id/confirm', rateLimit({
     const { id } = req.params;
     const ownership = await loadAppointmentForAuthorization(id);
     if (ownership.error || !ownership.data) return res.status(404).json({ error: 'Agendamento não encontrado.' });
-    const actionToken = verifySession(String(req.body.token || req.query.token || ''));
-    const validActionToken = actionToken?.action === 'confirm-appointment' && sameSubject(actionToken.appointmentId, id);
+    const validActionToken = verifyAppointmentToken(String(req.body.token || req.query.token || ''), id);
     if (!validActionToken && !canAccessAppointment(req.auth, ownership.data, { allowClient: true })) {
         return res.status(401).json({ error: 'Este link de confirmação é inválido ou expirou.' });
     }

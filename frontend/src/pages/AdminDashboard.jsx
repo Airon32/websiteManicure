@@ -1183,14 +1183,31 @@ export default function AdminDashboard() {
   const handleWhatsAppAction = (app, isReminder) => {
     if (!app || !app.client_phone) return;
     const cleanPhone = app.client_phone.replace(/\D/g, "");
+    const destination = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     let msg = '';
     if (isReminder) {
-      const confirmLink = `${window.location.origin}/confirmar/${app.id}?token=${encodeURIComponent(app.confirmation_token || '')}`;
-      msg = `Olá ${app.client_name}! Passando para lembrar do seu agendamento de *${app.service_name}* no dia ${safeFormatDate(app.date, 'dd/MM')} às ${app.time}.\n\nPara confirmar sua presença, clique no link abaixo:\n${confirmLink}\n\nAté breve!`;
+      const confirmLink = `${window.location.origin}/confirmar/${encodeURIComponent(app.id)}/${encodeURIComponent(app.confirmation_token || '')}`;
+      msg = [
+        `✨ *Lembrete | ${businessName}*`,
+        '',
+        `Olá, *${app.client_name}*! Seu horário está reservado:`,
+        '',
+        `📅 *Data:* ${safeFormatDate(app.date, "EEEE, dd/MM", { locale: ptBR })}`,
+        `🕒 *Horário:* ${app.time}`,
+        `💅 *Serviço:* ${app.service_name}`,
+        ...(app.professional_name ? [`👤 *Profissional:* ${app.professional_name}`] : []),
+        '',
+        '*Confirme sua presença pelo nosso link oficial:*',
+        confirmLink,
+        '',
+        '🔒 Este link serve somente para confirmar este agendamento.',
+        '',
+        'Até breve! 💗'
+      ].join('\n');
     } else {
       msg = `Olá ${app.client_name}, tudo bem? Aqui é da ${businessName}.`;
     }
-    window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+    window.open(`https://wa.me/${destination}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleGenerateReceipt = (app) => {

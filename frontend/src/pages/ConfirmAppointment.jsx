@@ -9,9 +9,10 @@ import { buildGoogleCalendarUrl, downloadIcsFile } from '../utils/bookingExtras'
 function ConfirmAppointment() {
   const location = useLocation();
   const navigate = useNavigate();
-  const id = decodeURIComponent(location.pathname.split('/').pop() || '');
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const id = decodeURIComponent(pathParts[1] || '');
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const token = searchParams.get('token') || '';
+  const token = decodeURIComponent(pathParts[2] || searchParams.get('token') || '');
 
   const [status, setStatus] = useState('fetching'); // 'fetching', 'pending', 'loading', 'success', 'already_confirmed', 'error'
   const [errorMessage, setErrorMessage] = useState('');

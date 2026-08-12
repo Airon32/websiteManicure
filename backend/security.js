@@ -295,7 +295,43 @@ function sameSubject(left, right) {
 }
 
 function createAppointmentToken(appointmentId, ttlSeconds = 7 * 24 * 60 * 60) {
-    return signSession({ type: 'client', action: 'confirm-appointment', appointmentId: String(appointmentId) }, ttlSeconds);
+    const subject = String(appointmentId);
+    const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
+    const compactExpiry = expiresAt.toString(36);
+    const signature = crypto
+        .createHmac('sha256', getSessionSecret())
+        .update(`mary-esmalteria/appointment-confirmation/v2:${subject}:${compactExpiry}`)
+        .digest()
+        .subarray(0, 16)
+        .toString('base64url');
+    return `v2.${compactExpiry}.${signature}`;
+}
+
+function verifyAppointmentToken(token, appointmentId) {
+    if (!token || typeof token !== 'string') return false;
+
+    const [version, compactExpiry, signature, extra] = token.split('.');
+    if (version === 'v2' && compactExpiry && signature && !extra) {
+        const expiresAt = Number.parseInt(compactExpiry, 36);
+        if (!Number.isSafeInteger(expiresAt) || expiresAt <= Math.floor(Date.now() / 1000)) return false;
+
+        const expected = crypto
+            .createHmac('sha256', getSessionSecret())
+            .update(`mary-esmalteria/appointment-confirmation/v2:${String(appointmentId)}:${compactExpiry}`)
+            .digest()
+            .subarray(0, 16);
+        let provided;
+        try {
+            provided = Buffer.from(signature, 'base64url');
+        } catch {
+            return false;
+        }
+        return provided.length === expected.length && crypto.timingSafeEqual(provided, expected);
+    }
+
+    // Compatibilidade durante a validade dos lembretes enviados antes desta atualização.
+    const legacy = verifySession(token);
+    return legacy?.action === 'confirm-appointment' && sameSubject(legacy.appointmentId, appointmentId);
 }
 
 module.exports = {
@@ -315,6 +351,7 @@ module.exports = {
     sameSubject,
     setSessionCookie,
     signSession,
+    verifyAppointmentToken,
     verifyPassword,
     verifySession
 };
