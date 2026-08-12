@@ -1188,23 +1188,18 @@ export default function AdminDashboard() {
     if (isReminder) {
       const confirmLink = `${window.location.origin}/confirmar/${encodeURIComponent(app.id)}/${encodeURIComponent(app.confirmation_token || '')}`;
       msg = [
-        `*${businessName.toUpperCase()}*`,
-        '_Lembrete de agendamento_',
+        `*${businessName}*`,
         '',
-        `Olá, *${app.client_name}*! Seu horário está reservado.`,
+        `Olá, *${app.client_name}*! Lembramos do seu horário:`,
         '',
-        `*Data:* ${safeFormatDate(app.date, "EEEE, dd/MM", { locale: ptBR })}`,
-        `*Horário:* ${app.time}`,
+        `*Data:* ${safeFormatDate(app.date, 'dd/MM')} às ${app.time}`,
         `*Serviço:* ${app.service_name}`,
         ...(app.professional_name ? [`*Profissional:* ${app.professional_name}`] : []),
         '',
-        '*Confirme sua presença pelo nosso link oficial:*',
+        '*Confirme sua presença:*',
         confirmLink,
         '',
-        '_Este link serve somente para confirmar este agendamento._',
-        '',
-        'Até breve!',
-        `*${businessName}*`
+        'Até breve!'
       ].join('\n');
     } else {
       msg = `Olá ${app.client_name}, tudo bem? Aqui é da ${businessName}.`;
