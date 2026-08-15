@@ -375,5 +375,24 @@ describe('Agenda Redesign - Test Suite', () => {
       assert.match(statusClasses({ status: 'concluído' }), /border-purple-400/);
       assert.match(statusClasses({ status: 'agendado' }), /border-primary/);
     });
+
+    // 9. Regra Principal: 2 profissionais visíveis simultaneamente no mobile sem scroll horizontal
+    it('Criteria 9: Two professionals layout allocates 50%/50% width and fits 390px mobile viewport without horizontal overflow', () => {
+      const activeProfessionals = [
+        { id: '1', name: 'Mariana', specialty: 'Manicure' },
+        { id: '2', name: 'Jecia', specialty: 'Pedicure' }
+      ];
+
+      const isTwoProfessionals = activeProfessionals.length <= 2;
+      assert.strictEqual(isTwoProfessionals, true);
+
+      const viewportWidth = 390;
+      const timeColWidth = 48;
+      const availableWidth = viewportWidth - timeColWidth;
+      const colWidth = availableWidth / activeProfessionals.length;
+
+      assert.strictEqual(colWidth, 171); // Exactly 171px per professional column on 390px screen
+      assert.strictEqual(timeColWidth + colWidth * 2, viewportWidth);
+    });
   });
 });

@@ -1656,7 +1656,7 @@ export default function AdminDashboard() {
                             {(activeAppointments || []).filter(a => a && a.date === format(startOfToday(), 'yyyy-MM-dd')).length} <span className="text-sm font-sans font-medium text-muted">Apt.</span>
                           </p>
                         </div>
-                        <div className="glass-card p-6 flex flex-col justify-between">
+                                                <div className="glass-card p-6 flex flex-col justify-between">
                           <p className="text-muted text-sm mb-2 uppercase tracking-wider font-semibold">Esta Semana</p>
                           <p className="text-3xl font-serif text-primary">
                             {(activeAppointments || []).filter(a => {
@@ -1668,35 +1668,29 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      <div className="glass-card p-6 border-t-4 border-t-primary">
-                        <h3 className="text-xl font-serif text-foreground mb-6 flex justify-between items-center">
-                          Sua Agenda da Semana
-                          <span className="text-sm font-sans font-normal text-muted bg-muted/20 px-3 py-1 rounded-full">
-                            {format(startOfWeek(startOfToday(), { weekStartsOn: 0 }), 'dd/MM')} a {format(endOfWeek(startOfToday(), { weekStartsOn: 0 }), 'dd/MM')}
-                          </span>
-                        </h3>
-
+                      <div className="glass-card p-6 mb-8">
+                        <h3 className="text-xl font-serif text-foreground mb-4">Sua Agenda da Semana</h3>
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left border-collapse">
+                          <table className="w-full text-left text-sm">
                             <thead>
-                              <tr className="border-b border-border/50 text-muted text-sm">
-                                <th className="py-3 font-medium">Data/Hora</th>
-                                <th className="py-3 font-medium">Cliente</th>
-                                <th className="py-3 font-medium">Serviço</th>
-                                <th className="py-3 font-medium text-right shrink-0">Ações</th>
+                              <tr className="border-b border-border/70 text-muted uppercase text-xs">
+                                <th className="pb-3 px-2">Data / Hora</th>
+                                <th className="pb-3 px-2">Cliente</th>
+                                <th className="pb-3 px-2">Serviço</th>
+                                <th className="pb-3 px-2 text-right">Ação</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {(activeAppointments || []).filter(a => {
-                                const d = safeParseISO(a?.date);
-                                if (!d) return false;
-                                return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
-                              })
+                              {(activeAppointments || [])
+                                .filter(a => {
+                                  const d = safeParseISO(a?.date);
+                                  if (!d) return false;
+                                  return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
+                                })
                                 .sort((a, b) => {
-                                  const tA = a.time || '00:00';
-                                  const tB = b.time || '00:00';
-                                  const dA = new Date(`${a.date}T${tA}`);
-                                  const dB = new Date(`${b.date}T${tB}`);
+                                  const dA = safeParseISO(`${a.date}T${a.time || '00:00'}`);
+                                  const dB = safeParseISO(`${b.date}T${b.time || '00:00'}`);
+                                  if (!dA || !dB) return 0;
                                   return (isNaN(dA.getTime()) ? 0 : dA.getTime()) - (isNaN(dB.getTime()) ? 0 : dB.getTime());
                                 })
                                 .map(app => (
@@ -1739,229 +1733,35 @@ export default function AdminDashboard() {
             </div>
           )}
 
-
                 {activeTab === 'agenda' && (
-                    <div className="fade-in-up duration-500">
-                      <div className="flex justify-center mb-6 md:mb-10">
-                        <div className="bg-card/50 backdrop-blur-md border border-white/5 p-1 rounded-xl md:rounded-[1.5rem] flex gap-1 md:gap-2 shadow-2xl">
-                          <button 
-                            onClick={() => setViewMode('calendar')}
-                            className={`px-5 py-2 md:px-8 md:py-3 rounded-lg md:rounded-[1.1rem] text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'calendar' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
-                          >
-                            Calendário
-                          </button>
-                          <button 
-                            onClick={() => setViewMode('timeline')}
-                            className={`px-5 py-2 md:px-8 md:py-3 rounded-lg md:rounded-[1.1rem] text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'timeline' ? 'bg-primary text-white shadow-lg glow-primary' : 'text-muted hover:text-foreground'}`}
-                          >
-                            Timeline
-                          </button>
-                        </div>
-                      </div>
-
-                      {viewMode === 'calendar' ? (
-                        <div className="flex flex-col xl:flex-row gap-8 items-start">
-
-
-                        <div className="glass-card p-4 md:p-6 flex-2 xl:w-2/3 w-full">
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                             <h3 className="text-xl md:text-2xl font-serif text-foreground">Navegador de Datas</h3>
-                             <div className="flex items-center gap-2 bg-background border border-border/50 rounded-lg p-1 w-fit">
-                                <button onClick={handlePrevMonth} className="p-1.5 md:p-2 text-muted hover:text-foreground transition-colors"><ChevronLeft size={18} /></button>
-                                <span className="font-medium text-foreground min-w-[100px] md:min-w-[120px] text-center capitalize text-sm md:text-base">{format(currentMonth, 'MMMM yyyy', {locale: ptBR})}</span>
-                                <button onClick={handleNextMonth} className="p-1.5 md:p-2 text-muted hover:text-foreground transition-colors"><ChevronRight size={18} /></button>
-                             </div>
-                          </div>
-
-                          <div className="grid grid-cols-7 gap-1 md:gap-3 mb-2 text-center text-[10px] md:text-xs font-semibold text-muted uppercase tracking-wider">
-                            <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
-                          </div>
-
-                          <div className="grid grid-cols-7 gap-2 md:gap-3">
-                            {calendarDays.map((d, i) => {
-                              const isSelected = isSameDay(d, selectedCalendarDate);
-                              const isCurrentMonth = isSameMonth(d, currentMonth);
-                              const dayStr = format(d, 'yyyy-MM-dd');
-                              const dayApps = activeAppointments.filter(a => a.date === dayStr);
-                              const isToday = isSameDay(d, startOfToday());
-
-                              return (
-                                <button
-                                  key={i}
-                                  onClick={() => setSelectedCalendarDate(d)}
-                                  className={`aspect-square p-1 md:p-2 rounded-xl border flex flex-col items-center justify-center transition-all ${!isCurrentMonth ? 'opacity-30 hover:opacity-70 bg-transparent' : ''} ${isSelected ? 'border-primary bg-primary text-white scale-105 shadow-lg shadow-primary/30' : 'border-border bg-background/50 text-muted hover:border-primary/50 hover:text-foreground'}`}
-                                >
-                                  <span className={`text-base md:text-xl font-bold ${isToday && !isSelected ? 'text-primary' : ''}`}>{format(d, 'd')}</span>
-                                  <div className="mt-1 min-h-[4px] md:min-h-[12px] flex flex-wrap justify-center gap-0.5 md:gap-1">
-                                    {dayApps.length > 0 && (
-                                      <>
-                                        {dayApps.slice(0, 3).map((_, idx) => (
-                                          <div key={idx} className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${isSelected ? 'bg-white/80' : 'bg-primary'}`}></div>
-                                        ))}
-                                        {dayApps.length > 3 && <div className={`text-[8px] md:text-[9px] leading-none font-bold ${isSelected ? 'text-white/80' : 'text-primary'}`}>+</div>}
-                                      </>
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="glass-card p-6 flex-1 xl:w-1/3 w-full border-primary/20 shadow-[0_0_40px_rgba(244,114,182,0.06)] relative overflow-hidden flex flex-col">
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none"></div>
-                          <div className="flex items-center justify-between mb-4 pb-4 border-b border-border/50 relative z-10">
-                            <div>
-                              <h3 className="text-xl font-serif text-foreground">Agenda do Dia</h3>
-                              <p className="text-xs text-muted">Controle de atendimento diário</p>
-                            </div>
-                            <div className="bg-primary text-white font-black text-xs px-3 py-1.5 rounded-xl shadow-md">
-                              {format(selectedCalendarDate, 'dd/MM/yyyy')}
-                            </div>
-                          </div>
-
-                          {/* Resumo do Dia Selecionado */}
-                          <div className="flex items-center justify-between bg-card/80 p-3.5 rounded-2xl border border-border/60 text-xs font-bold mb-4 relative z-10">
-                            <span className="text-muted">Total: <strong className="text-foreground">{selectedDayAppointments.length} agend.</strong></span>
-                            <span className="text-emerald-500 font-black text-sm">
-                              R$ {selectedDayAppointments.reduce((sum, a) => sum + Number(a.service_price || 0), 0).toFixed(2)}
-                            </span>
-                          </div>
-
-                          <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1 relative z-10 custom-scrollbar">
-                            {selectedDayAppointments.length === 0 ? (
-                              <div className="text-center py-12 text-muted">
-                                <CalendarIcon className="mx-auto mb-3 opacity-20 text-primary" size={48} />
-                                <p className="text-sm font-medium">Livre. Nenhum atendimento para esta data.</p>
-                              </div>
-                            ) : (
-                              selectedDayAppointments.sort((a, b) => (a.time || '00:00').localeCompare(b.time || '00:00')).map(app => {
-                                const cleanPhone = (app.client_phone || '').replace(/\D/g, '');
-                                const durationMin = Number(app.service_duration) || 30;
-                                const endTime = (st, dur) => {
-                                  const [h, m] = (st || '00:00').split(':').map(Number);
-                                  const tot = (h || 0) * 60 + (m || 0) + dur;
-                                  return `${Math.floor(tot/60).toString().padStart(2,'0')}:${(tot%60).toString().padStart(2,'0')}`;
-                                };
-                                const isBlock = app.notes?.startsWith('BLOCK:');
-
-                                if (isBlock) {
-                                  return (
-                                    <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 flex flex-col gap-2 hover:border-amber-500 transition-all group relative shadow-sm cursor-pointer">
-                                      <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 font-black text-xs px-2.5 py-1 rounded-xl shrink-0 flex items-center gap-1">
-                                            <Lock size={12} /> {app.time} - {endTime(app.time, durationMin)}
-                                          </div>
-                                          <span className="badge-pending !bg-amber-500/20 !text-amber-300 !border-amber-500/30">🔒 Fechado ({durationMin}m)</span>
-                                        </div>
-                                      </div>
-
-                                      <div>
-                                        <h4 className="text-foreground font-black text-sm">{app.client_name || 'Bloqueio de Agenda'}</h4>
-                                        <p className="text-xs text-amber-400/80 font-bold">⏳ Pausa de Atendimento</p>
-                                        {isAdmin && <p className="text-[11px] text-amber-400 font-bold mt-1 flex items-center gap-1"><User size={12} /> {app.professional_name}</p>}
-                                      </div>
-
-                                      <div className="flex items-center justify-end pt-2 border-t border-amber-500/20 text-xs">
-                                        <button onClick={(e) => { e.stopPropagation(); handleCancelAppt(app.id); }} className="text-amber-300 hover:bg-amber-500/20 px-3 py-1.5 rounded-xl font-bold transition-colors flex items-center gap-1" title="Desbloquear Horário">
-                                          <Unlock size={14} /> Desbloquear
-                                        </button>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-
-                                return (
-                                  <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl border border-border/60 bg-card/80 flex flex-col gap-2 hover:border-primary/50 transition-all group relative shadow-sm cursor-pointer">
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="flex items-center gap-2">
-                                        <div className="bg-primary/10 border border-primary/20 text-primary font-black text-xs px-2.5 py-1 rounded-xl shrink-0">
-                                          {app.time} - {endTime(app.time, durationMin)}
-                                        </div>
-                                        {app.status === 'concluído' ? (
-                                          <span className="badge-completed">🟢 Pago</span>
-                                        ) : app.status === 'confirmado' ? (
-                                          <span className="badge-confirmed">✅ Confirmado</span>
-                                        ) : (
-                                          <span className="badge-pending">⏳ Pendente</span>
-                                        )}
-                                      </div>
-                                      <span className="text-sm font-black text-primary">R$ {Number(app.service_price || 0).toFixed(0)}</span>
-                                    </div>
-
-                                    <div>
-                                      <h4 className="text-foreground font-black text-sm">{app.client_name}</h4>
-                                      <p className="text-xs text-muted">{app.service_name}</p>
-                                      {isAdmin && <p className="text-[11px] text-primary/80 font-bold mt-1 flex items-center gap-1"><User size={12} /> {app.professional_name}</p>}
-                                    </div>
-
-                                    <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
-                                      {cleanPhone ? (
-                                        <a 
-                                          href={`https://wa.me/55${cleanPhone}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          onClick={e => e.stopPropagation()}
-                                          className="text-emerald-500 font-bold text-[11px] hover:underline flex items-center gap-1"
-                                        >
-                                          <MessageCircle size={13} /> {app.client_phone}
-                                        </a>
-                                      ) : <span />}
-
-                                      <div className="flex items-center gap-1">
-                                        {app.status === 'agendado' && (
-                                          <button onClick={(e) => { e.stopPropagation(); handleConfirmAppt(app.id); }} className="text-emerald-500 hover:bg-emerald-500/10 p-1.5 rounded-lg transition-colors" title="Confirmar Presença">
-                                            <CheckCircle size={16} />
-                                          </button>
-                                        )}
-                                        {app.status !== 'concluído' && (
-                                          <button onClick={(e) => { e.stopPropagation(); handleCompleteAppt(app.id); }} className="text-purple-400 hover:bg-purple-500/10 p-1.5 rounded-lg transition-colors" title="Concluir/Pago">
-                                            <CheckCircle size={16} />
-                                          </button>
-                                        )}
-                                        <button onClick={(e) => { e.stopPropagation(); handleCancelAppt(app.id); }} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors" title="Desmarcar">
-                                          <Trash2 size={16} />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <AgendaTimeline
-                        selectedDate={selectedCalendarDate} 
-                        setSelectedDate={setSelectedCalendarDate}
-                        appointments={activeAppointments}
-                        professionals={professionals}
-                        settings={settingsData}
-                        currentUser={user}
-                        isAdmin={isAdmin}
-                        onCancel={handleCancelAppt}
-                        onComplete={handleCompleteAppt}
-                        onConfirm={handleConfirmAppt}
-                        onSelectAppt={(app) => setSelectedAppointment(app)}
-                        onDropAppt={handleDropAppt}
-                        onQuickAdd={(profId, dateStr, timeStr) => {
-                          const isOutside = timeToMinutes(timeStr) < timeToMinutes(workStart) || timeToMinutes(timeStr) >= timeToMinutes(workEnd);
-                          setAllowOutsideHours(isOutside);
-                          setNewAppt(prev => ({ ...prev, professional_id: profId, date: dateStr, time: timeStr }));
-                          setShowAddAppt(true);
-                        }}
-                        workStart={workStart}
-                        workEnd={workEnd}
-                        slotInterval={slotInterval}
-                      />
-                    )}
+                  <div className="fade-in-up duration-500 w-full flex-1 flex flex-col min-h-0">
+                    <AgendaTimeline
+                      selectedDate={selectedCalendarDate} 
+                      setSelectedDate={setSelectedCalendarDate}
+                      appointments={activeAppointments}
+                      professionals={professionals}
+                      settings={settingsData}
+                      currentUser={user}
+                      isAdmin={isAdmin}
+                      onCancel={handleCancelAppt}
+                      onComplete={handleCompleteAppt}
+                      onConfirm={handleConfirmAppt}
+                      onSelectAppt={(app) => setSelectedAppointment(app)}
+                      onDropAppt={handleDropAppt}
+                      onQuickAdd={(profId, dateStr, timeStr) => {
+                        const isOutside = timeToMinutes(timeStr) < timeToMinutes(workStart) || timeToMinutes(timeStr) >= timeToMinutes(workEnd);
+                        setAllowOutsideHours(isOutside);
+                        setNewAppt(prev => ({ ...prev, professional_id: profId, date: dateStr, time: timeStr }));
+                        setShowAddAppt(true);
+                      }}
+                      workStart={workStart}
+                      workEnd={workEnd}
+                      slotInterval={slotInterval}
+                    />
                   </div>
                 )}
 
-
-                  {activeTab === 'catalog' && isAdmin && (
+                {activeTab === 'catalog' && isAdmin && (
                     <div className="fade-in-up duration-500">
                       <div className="glass-card p-6 mb-8">
                         <div className="flex justify-between items-center mb-6">
