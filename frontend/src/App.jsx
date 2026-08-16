@@ -1,5 +1,6 @@
 import Component, { lazy, Suspense, useEffect, useState } from 'react';
 import React from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import api from './api';
 import { RouterProvider, useLocation, useNavigate } from './router';
 
@@ -158,6 +159,7 @@ function App() {
       <RouterProvider>
         <AppRoutes />
       </RouterProvider>
+      <Analytics />
     </ErrorBoundary>
   );
 }
