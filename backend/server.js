@@ -152,6 +152,16 @@ const DEFAULT_WORK_START = '09:00';
 const DEFAULT_WORK_END = '20:00';
 const DEFAULT_SLOT_INTERVAL = '30';
 
+function safeDbErrorMessage(error, defaultMessage = 'Não foi possível processar a solicitação.') {
+    if (!error) return defaultMessage;
+    if (process.env.NODE_ENV !== 'test') {
+        console.error('[Database Error]:', error.code || 'UNKNOWN', error.message);
+    }
+    if (error.code === '23505') return 'Este registro já existe ou entra em conflito com outro item.';
+    if (error.code === '23503') return 'O item referenciado não existe ou não está mais disponível.';
+    return defaultMessage;
+}
+
 // Rota para buscar notificações (DEDICADA - Busca da tabela 'notifications')
 app.get('/api/notifications', requireStaff(), async (req, res) => {
     try {
@@ -162,13 +172,12 @@ app.get('/api/notifications', requireStaff(), async (req, res) => {
             .limit(50);
             
         if (error) {
-            console.error('[NOTIF] Erro ao buscar:', error.message);
-            return res.status(500).json({ error: error.message });
+            return res.status(500).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar as notificações.') });
         }
         
         res.json(data);
-    } catch (err) {
-        res.status(500).json({ error: 'Erro interno' });
+    } catch {
+        res.status(500).json({ error: 'Erro interno ao carregar notificações.' });
     }
 });
 
@@ -180,10 +189,12 @@ app.post('/api/notifications/clear', requireStaff('admin'), async (req, res) => 
             .delete()
             .not('id', 'is', null);
             
-        if (error) throw error;
+        if (error) {
+            return res.status(500).json({ error: safeDbErrorMessage(error, 'Não foi possível limpar as notificações.') });
+        }
         res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    } catch {
+        res.status(500).json({ error: 'Erro interno ao limpar notificações.' });
     }
 });
 const DEFAULT_WORK_DAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
@@ -1047,6 +1058,8 @@ app.post('/api/clients', requireStaff(), async (req, res) => {
 app.get('/api/clients/appointments', requireClient, async (req, res) => {
     const phone = req.auth.phone;
     const name = req.auth.name;
+    const cleanPhone = (phone || "").replace(/\D/g, "");
+    const suffix = cleanPhone.slice(-8);
     
     let query = supabase
         .from('appointments')
@@ -1055,16 +1068,15 @@ app.get('/api/clients/appointments', requireClient, async (req, res) => {
             service:services(id, name, price, duration),
             professional:professionals(id, name, avatar, specialty)
         `)
+        .or(`client_phone.eq.${phone},client_phone.eq.${cleanPhone},client_phone.ilike.%${suffix}`)
         .order('date', { ascending: false })
         .order('time', { ascending: false });
 
-    query = query.eq('client_name', name);
-
     const { data, error } = await query;
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar os agendamentos.') });
     
     // Formatar para manter compatibilidade com o frontend
-    const ownedAppointments = (data || []).filter(app => normalizePhone(app.client_phone) === normalizePhone(phone));
+    const ownedAppointments = (data || []).filter(app => normalizePhone(app.client_phone) === cleanPhone);
     const formatted = ownedAppointments.map(app => ({
         ...app,
         service_name: app.service?.name,
@@ -1085,10 +1097,10 @@ app.get('/api/clients/appointments', requireClient, async (req, res) => {
 app.get('/api/clients/my-history', requireClient, async (req, res) => {
     const { type } = req.query; // type can be 'future' or 'all'
     const phone = req.auth.phone;
-    const name = req.auth.name;
     
     // LIMPEZA DE TELEFONE: Remove tudo que não é número
     const cleanPhone = (phone || "").replace(/\D/g, "");
+    const suffix = cleanPhone.slice(-8);
     const today = new Date().toISOString().split('T')[0];
 
     let query = supabase
@@ -1097,9 +1109,8 @@ app.get('/api/clients/my-history', requireClient, async (req, res) => {
             *,
             service:services(id, name, price, duration),
             professional:professionals(id, name, avatar, specialty)
-        `);
-
-    query = query.eq('client_name', name);
+        `)
+        .or(`client_phone.eq.${phone},client_phone.eq.${cleanPhone},client_phone.ilike.%${suffix}`);
 
     // Filtro de tipo (futuros ou todos)
     if (type === 'future') {
@@ -1111,8 +1122,7 @@ app.get('/api/clients/my-history', requireClient, async (req, res) => {
     const { data, error } = await query;
 
     if (error) {
-        console.error('[Erro Supabase Histórico]:', error.message);
-        return res.status(400).json({"error": error.message});
+        return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar o histórico.') });
     }
     
     const ownedAppointments = (data || []).filter(app => normalizePhone(app.client_phone) === cleanPhone);
@@ -1130,9 +1140,9 @@ app.get('/api/clients/my-history', requireClient, async (req, res) => {
 // Busca apenas agendamentos futuros (Legado/Compatibilidade)
 app.get('/api/clients/future-appointments', requireClient, async (req, res) => {
     const phone = req.auth.phone;
-    const name = req.auth.name;
     
-    const cleanPhone = phone.replace(/\D/g, "");
+    const cleanPhone = (phone || "").replace(/\D/g, "");
+    const suffix = cleanPhone.slice(-8);
     const today = new Date().toISOString().split('T')[0];
 
     const { data, error } = await supabase
@@ -1142,13 +1152,13 @@ app.get('/api/clients/future-appointments', requireClient, async (req, res) => {
             service:services(id, name, price, duration),
             professional:professionals(id, name, avatar, specialty)
         `)
-        .eq('client_name', name)
+        .or(`client_phone.eq.${phone},client_phone.eq.${cleanPhone},client_phone.ilike.%${suffix}`)
         .gte('date', today)
         .neq('status', 'cancelado')
         .order('date', { ascending: true })
         .order('time', { ascending: true });
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar os agendamentos futuros.') });
     
     const ownedAppointments = (data || []).filter(app => normalizePhone(app.client_phone) === cleanPhone);
     const formatted = ownedAppointments.map(app => ({
@@ -1519,7 +1529,7 @@ app.post('/api/appointments', rateLimit({
         } catch {}
 
         const canStartClientSession = !isStaff && clientRecord && (
-            isClient || normalizeName(clientRecord.name) === normalizeName(clientName)
+            isClient || (!clientOtpManager && normalizeName(clientRecord.name) === normalizeName(clientName))
         );
         if (canStartClientSession) {
             const maxAge = 30 * 24 * 60 * 60;
@@ -1979,12 +1989,17 @@ app.post('/api/appointments/:id/confirm', rateLimit({
 
 app.post('/api/appointments/:id/cancel', async (req, res) => {
     const { id } = req.params;
+    const token = String(req.body?.token || req.query?.token || '');
+    const validActionToken = token ? verifyAppointmentToken(token, id) : false;
     const ownership = await loadAppointmentForAuthorization(id);
     if (ownership.error || !ownership.data) {
         // Se for id sintético do mock (ex: block-123 ou appt-123), considera sucesso
-        return res.json({ message: "success" });
+        if (String(id).startsWith('block-') || String(id).startsWith('mock-') || String(id).startsWith('appt-')) {
+            return res.json({ message: "success" });
+        }
+        return res.status(404).json({ error: 'Agendamento não encontrado.' });
     }
-    if (!canAccessAppointment(req.auth, ownership.data, { allowClient: true })) {
+    if (!validActionToken && !canAccessAppointment(req.auth, ownership.data, { allowClient: true })) {
         return res.status(403).json({ error: 'Você não pode desmarcar este compromisso.' });
     }
 
@@ -2003,7 +2018,7 @@ app.post('/api/appointments/:id/cancel', async (req, res) => {
         return res.status(409).json({ error: 'Um atendimento já concluído não pode ser cancelado.' });
     }
 
-    if (req.auth?.type === 'client') {
+    if (req.auth?.type === 'client' || validActionToken) {
         const appointmentDateTime = new Date(`${ownership.data.date}T${ownership.data.time}:00-03:00`);
         if (Number.isNaN(appointmentDateTime.getTime()) || appointmentDateTime <= new Date()) {
             return res.status(409).json({ error: 'Este horário já passou e não pode mais ser cancelado online.' });
@@ -2015,7 +2030,7 @@ app.post('/api/appointments/:id/cancel', async (req, res) => {
         .update({ status: 'cancelado' })
         .eq('id', id);
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível cancelar o agendamento.') });
     res.json({ message: "success" });
 });
 

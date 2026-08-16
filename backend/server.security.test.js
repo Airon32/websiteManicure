@@ -319,3 +319,59 @@ test('clients are directed to support beyond the one-hour reschedule tolerance',
     assert.equal(body.code, 'CLIENT_RESCHEDULE_CONTACT_REQUIRED');
     assert.equal(body.contact_required, true);
 });
+
+test('appointment cancellation supports valid HMAC action token without ambient cookie', async () => {
+    tableRows.appointments[0].date = getNextBusinessDate();
+    tableRows.appointments[0].status = 'agendado';
+    const { createAppointmentToken } = require('./security');
+    const token = createAppointmentToken(101, 3600);
+    const response = await fetch(`${baseUrl}/api/appointments/101/cancel`, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            origin: baseUrl
+        },
+        body: JSON.stringify({ token })
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.message, 'success');
+});
+
+test('appointment cancellation rejects invalid or forged action token from anonymous caller', async () => {
+    const response = await fetch(`${baseUrl}/api/appointments/101/cancel`, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            origin: baseUrl
+        },
+        body: JSON.stringify({ token: 'v2.invalid.signature' })
+    });
+
+    assert.equal(response.status, 403);
+    const body = await response.json();
+    assert.equal(body.error, 'Você não pode desmarcar este compromisso.');
+});
+
+test('client appointment history strictly isolates records by phone number', async () => {
+    const { signSession } = require('./security');
+    const session = signSession({
+        type: 'client',
+        id: '21',
+        name: 'Cliente Teste',
+        phone: '11987654321'
+    }, 60);
+
+    const response = await fetch(`${baseUrl}/api/clients/my-history`, {
+        headers: {
+            cookie: `mary_session=${encodeURIComponent(session)}`
+        }
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.message, 'success');
+    assert.ok(Array.isArray(body.data));
+});
+

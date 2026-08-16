@@ -36,9 +36,8 @@ function ConfirmAppointment() {
         }
       } catch (err) {
         if (!active) return;
-        console.error('Erro ao buscar informações:', err);
-        // Fallback: permitir tentar confirmar direto se não conseguir buscar info
-        setStatus('pending');
+        setErrorMessage(err.response?.data?.error || 'Link de confirmação inválido ou expirado.');
+        setStatus('error');
       }
     };
     fetchInfo();
