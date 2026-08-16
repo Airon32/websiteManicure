@@ -21,6 +21,18 @@ import {
   buildEffectiveSchedule
 } from '../utils/schedule.js';
 
+import {
+  VIEW_MODES,
+  getWeekDays,
+  getMonthMatrix,
+  groupAppointmentsByDate,
+  calculateDayMetrics,
+  formatViewTitle,
+  stepDate,
+  isCurrentPeriod,
+  getProfessionalGridClass
+} from '../utils/agendaMultiview.js';
+
 describe('Agenda Redesign - Test Suite', () => {
 
   describe('1. Timeline Layout & Time Conversion Utilities', () => {
@@ -395,4 +407,154 @@ describe('Agenda Redesign - Test Suite', () => {
       assert.strictEqual(timeColWidth + colWidth * 2, viewportWidth);
     });
   });
+
+  describe('8. Agenda Multiview V2 & Single Professional 100% Width Layout', () => {
+    it('should allocate 100% available width for a single professional (Personal Agenda)', () => {
+      const singleProfessional = [{ id: '1', name: 'Mariana Manicure', specialty: 'Manicure' }];
+      const gridClass = getProfessionalGridClass(singleProfessional.length);
+
+      assert.strictEqual(gridClass, 'w-full flex-1 flex flex-col');
+
+      // Em viewport 390px (Mobile):
+      const viewportMobile = 390;
+      const timeColWidthMobile = 48;
+      const availableWidthMobile = viewportMobile - timeColWidthMobile;
+      assert.strictEqual(availableWidthMobile, 342); // 100% da área restante para o profissional
+
+      // Em viewport 1440px (Desktop):
+      const viewportDesktop = 1440;
+      const timeColWidthDesktop = 64;
+      const availableWidthDesktop = viewportDesktop - timeColWidthDesktop;
+      assert.strictEqual(availableWidthDesktop, 1376); // 100% da área restante para o profissional
+    });
+
+    it('should allocate grid-cols-2 for 2 professionals and min-w-max for >2 professionals', () => {
+      assert.strictEqual(getProfessionalGridClass(2), 'grid grid-cols-2 w-full');
+      assert.strictEqual(getProfessionalGridClass(3), 'flex min-w-max md:grid md:grid-flow-col md:auto-cols-fr');
+      assert.strictEqual(getProfessionalGridClass(5), 'flex min-w-max md:grid md:grid-flow-col md:auto-cols-fr');
+    });
+
+    it('should generate 7 consecutive days for Week View', () => {
+      const baseDate = new Date(2026, 7, 16); // 16 Aug 2026 (Sunday)
+      const week = getWeekDays(baseDate, 0);
+
+      assert.strictEqual(week.length, 7);
+      assert.strictEqual(week[0].getDate(), 16); // Domingo 16
+      assert.strictEqual(week[6].getDate(), 22); // Sábado 22
+    });
+
+    it('should generate a 7-column matrix covering all weeks of a month', () => {
+      const baseDate = new Date(2026, 7, 1); // 1 Aug 2026
+      const monthMatrix = getMonthMatrix(baseDate, 0);
+
+      assert.strictEqual(Array.isArray(monthMatrix), true);
+      assert.strictEqual(monthMatrix.length >= 5, true);
+      monthMatrix.forEach(week => {
+        assert.strictEqual(week.length, 7);
+      });
+    });
+
+    it('should correctly group appointments by date', () => {
+      const rawAppointments = [
+        { id: 1, date: '2026-08-16', time: '09:00', client_name: 'Ana', service_price: 60 },
+        { id: 2, date: '2026-08-16', time: '10:00', client_name: 'Bia', service_price: 80 },
+        { id: 3, date: '2026-08-17', time: '11:00', client_name: 'Carol', service_price: 100 }
+      ];
+
+      const grouped = groupAppointmentsByDate(rawAppointments);
+      assert.strictEqual(grouped.get('2026-08-16').length, 2);
+      assert.strictEqual(grouped.get('2026-08-17').length, 1);
+      assert.strictEqual(grouped.get('2026-08-18'), undefined);
+    });
+
+    it('should calculate accurate day metrics including active count, blocks, revenue and status dots', () => {
+      const dayAppointments = [
+        { id: 1, date: '2026-08-16', status: 'confirmado', service_price: 70, notes: '' },
+        { id: 2, date: '2026-08-16', status: 'concluído', service_price: 90, notes: 'PAYMENT:pix' },
+        { id: 3, date: '2026-08-16', status: 'agendado', service_price: 50, notes: '' },
+        { id: 4, date: '2026-08-16', status: 'agendado', notes: 'BLOCK:60:Almoço' }
+      ];
+
+      const metrics = calculateDayMetrics(dayAppointments);
+
+      assert.strictEqual(metrics.total, 4);
+      assert.strictEqual(metrics.activeCount, 3);
+      assert.strictEqual(metrics.blocksCount, 1);
+      assert.strictEqual(metrics.revenue, 210); // 70 + 90 + 50
+      assert.strictEqual(metrics.hasConfirmed, true);
+      assert.strictEqual(metrics.hasCompleted, true);
+      assert.strictEqual(metrics.hasScheduled, true);
+      assert.strictEqual(metrics.hasBlock, true);
+      assert.strictEqual(metrics.statuses.confirmed, true);
+      assert.strictEqual(metrics.statuses.completed, true);
+      assert.strictEqual(metrics.statuses.scheduled, true);
+      assert.strictEqual(metrics.statuses.blocked, true);
+    });
+
+    it('should format view navigation titles appropriately for Day, Week and Month', () => {
+      const testDate = new Date(2026, 7, 16); // 16 Aug 2026
+
+      const dayTitle = formatViewTitle(VIEW_MODES.DAY, testDate);
+      assert.strictEqual(dayTitle.toLowerCase().includes('16 de agosto'), true);
+
+      const weekTitle = formatViewTitle(VIEW_MODES.WEEK, testDate);
+      assert.strictEqual(weekTitle.includes('16 a 22 de agosto'), true);
+
+      const monthTitle = formatViewTitle(VIEW_MODES.MONTH, testDate);
+      assert.strictEqual(monthTitle.toLowerCase().includes('agosto de 2026'), true);
+    });
+
+    it('should step dates appropriately according to active view mode', () => {
+      const baseDate = new Date(2026, 7, 16); // 16 Aug 2026
+
+      // Day mode step: +/- 1 day
+      const nextDay = stepDate(baseDate, 1, VIEW_MODES.DAY);
+      assert.strictEqual(nextDay.getDate(), 17);
+      const prevDay = stepDate(baseDate, -1, VIEW_MODES.DAY);
+      assert.strictEqual(prevDay.getDate(), 15);
+
+      // Week mode step: +/- 1 week (7 days)
+      const nextWeek = stepDate(baseDate, 1, VIEW_MODES.WEEK);
+      assert.strictEqual(nextWeek.getDate(), 23);
+      const prevWeek = stepDate(baseDate, -1, VIEW_MODES.WEEK);
+      assert.strictEqual(prevWeek.getDate(), 9);
+
+      // Month mode step: +/- 1 month
+      const nextMonth = stepDate(baseDate, 1, VIEW_MODES.MONTH);
+      assert.strictEqual(nextMonth.getMonth(), 8); // September
+      const prevMonth = stepDate(baseDate, -1, VIEW_MODES.MONTH);
+      assert.strictEqual(prevMonth.getMonth(), 6); // July
+    });
+
+    it('should evaluate current period detection for Hoje button visibility', () => {
+      const today = new Date();
+      assert.strictEqual(isCurrentPeriod(today, VIEW_MODES.DAY, today), true);
+      assert.strictEqual(isCurrentPeriod(today, VIEW_MODES.WEEK, today), true);
+      assert.strictEqual(isCurrentPeriod(today, VIEW_MODES.MONTH, today), true);
+
+      const pastDate = new Date(2025, 0, 1);
+      assert.strictEqual(isCurrentPeriod(pastDate, VIEW_MODES.DAY, today), false);
+      assert.strictEqual(isCurrentPeriod(pastDate, VIEW_MODES.WEEK, today), false);
+      assert.strictEqual(isCurrentPeriod(pastDate, VIEW_MODES.MONTH, today), false);
+    });
+
+    it('should execute 1-click month-to-day navigation transition', () => {
+      let currentMode = VIEW_MODES.MONTH;
+      let selectedDate = new Date(2026, 7, 1);
+      const targetDay = new Date(2026, 7, 21);
+
+      // Simula o clique na célula do dia no Modo MÊS
+      const handleMonthDayClick = (dayDate) => {
+        selectedDate = dayDate;
+        currentMode = VIEW_MODES.DAY;
+      };
+
+      handleMonthDayClick(targetDay);
+
+      assert.strictEqual(currentMode, VIEW_MODES.DAY);
+      assert.strictEqual(selectedDate.getDate(), 21);
+      assert.strictEqual(selectedDate.getMonth(), 7);
+    });
+  });
 });
+
