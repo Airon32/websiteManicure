@@ -53,7 +53,8 @@ function AppointmentCard({ item, startMinute, onCancel, onConfirm, onComplete, o
   const blockLabel = parseBlockDescription(appointment);
   const clientLabel = isBlock ? blockLabel : (appointment.client_name || 'Cliente sem nome');
   const serviceLabel = isBlock ? 'Pausa / Horário Fechado' : (appointment.service_name || 'Serviço');
-  const cleanPhone = (appointment.client_phone || '').replace(/\D/g, '');
+  const isPhoneProtected = !appointment.client_phone || String(appointment.client_phone).includes('Telefone protegido') || String(appointment.client_phone).includes('🔒');
+  const cleanPhone = isPhoneProtected ? '' : (appointment.client_phone || '').replace(/\D/g, '');
 
   const top = minuteToPixels(start, startMinute);
   const height = Math.max(minuteToPixels(duration, 0) - 4, 30);

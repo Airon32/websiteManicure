@@ -16,6 +16,7 @@ scratch/
 .vibecode/
 .agents/
 .gemini/
+.maestri/
 
 # Environment variables & secrets (CRITICAL SECURITY)
 .env

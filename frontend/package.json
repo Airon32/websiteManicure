@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test src/tests/agenda.test.js",
+    "test": "node --test src/tests/agenda.test.js src/tests/privacy.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

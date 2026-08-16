@@ -4,10 +4,15 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const {
+    PROTECTED_PHONE_PLACEHOLDER,
+    canViewClientPhone,
     clearSessionCookie,
     createAppointmentToken,
     hashPassword,
+    isOwner,
+    isProtectedPhone,
     isValidPhone,
+    maskPhone,
     normalizeName,
     normalizePhone,
     optionalSession,
@@ -233,6 +238,30 @@ function buildProfessionalSchedule(settingsMap, professionalId) {
         work_days: parseWorkDays(settingsMap[getProfessionalSettingKey(professionalId, 'work_days')] || settingsMap.work_days),
         is_public_agenda: settingsMap[getProfessionalSettingKey(professionalId, 'is_public_agenda')] === 'true'
     };
+}
+
+async function recordAuditLog({ action = 'update_setting', setting_key = null, old_value = null, new_value = null, user = null }) {
+    const auditEntry = {
+        action: String(action),
+        setting_key: setting_key ? String(setting_key) : null,
+        old_value: old_value !== null && old_value !== undefined ? String(old_value) : null,
+        new_value: new_value !== null && new_value !== undefined ? String(new_value) : null,
+        changed_by_id: user?.id ? String(user.id) : null,
+        changed_by_name: user?.profile?.name || user?.name || null,
+        changed_by_username: user?.profile?.username || user?.username || null,
+        created_at: new Date().toISOString()
+    };
+
+    try {
+        const { error } = await supabase.from('audit_logs').insert([auditEntry]);
+        if (error && process.env.NODE_ENV !== 'test') {
+            console.warn('[Audit] Erro ao registrar auditoria no banco:', error.message);
+        }
+    } catch (err) {
+        if (process.env.NODE_ENV !== 'test') {
+            console.warn('[Audit] Exceção ao gravar auditoria:', err.message);
+        }
+    }
 }
 
 function validateAppointmentAgainstSchedule({ date, time, duration, schedule, ignoreExpedientLimit = false }) {
@@ -562,8 +591,19 @@ app.get('/api/session', async (req, res) => {
         return res.json({ message: 'success', data: { type: 'client', name: session.name, phone: session.phone } });
     }
 
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+
     if (session.profile) {
-        return res.json({ message: 'success', data: { type: 'staff', ...session.profile } });
+        const staffObj = { type: 'staff', ...session.profile };
+        return res.json({
+            message: 'success',
+            data: {
+                type: 'staff',
+                ...session.profile,
+                is_owner: isOwner(staffObj),
+                can_view_client_phones: canViewClientPhone(staffObj, settingsMap)
+            }
+        });
     }
 
     const { data, error } = await supabase
@@ -576,7 +616,16 @@ app.get('/api/session', async (req, res) => {
         clearSessionCookie(res);
         return res.status(401).json({ error: 'Sessão expirada.' });
     }
-    res.json({ message: 'success', data: { type: 'staff', ...data } });
+    const staffObj = { type: 'staff', ...data };
+    res.json({
+        message: 'success',
+        data: {
+            type: 'staff',
+            ...data,
+            is_owner: isOwner(staffObj),
+            can_view_client_phones: canViewClientPhone(staffObj, settingsMap)
+        }
+    });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -872,6 +921,9 @@ app.get('/api/clients/check/:phone', requireStaff(), async (req, res) => {
     const { phone } = req.params;
     const cleanPhone = phone.replace(/\D/g, "");
     if (!isValidPhone(cleanPhone)) return res.status(400).json({ error: 'WhatsApp inválido.' });
+
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+    const canViewPhones = canViewClientPhone(req.auth, settingsMap);
     
     // Tenta exato ou limpo
     const { data: client, error } = await supabase
@@ -886,28 +938,60 @@ app.get('/api/clients/check/:phone', requireStaff(), async (req, res) => {
         return res.json({ "message": "new", "exists": false });
     }
     
-    res.json({ "message": "found", "exists": true, "data": client });
+    res.json({
+        "message": "found",
+        "exists": true,
+        "data": {
+            ...client,
+            phone: maskPhone(client.phone, canViewPhones)
+        }
+    });
 });
 
 app.get('/api/clients', requireStaff(), async (req, res) => {
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+    const canViewPhones = canViewClientPhone(req.auth, settingsMap);
     const { data, error } = await supabase.from('clients').select('id, name, phone').order('name');
     if (error) return res.status(400).json({"error": error.message});
-    res.json({ "message": "success", "data": data });
+    const formatted = (data || []).map(c => ({
+        ...c,
+        phone: maskPhone(c.phone, canViewPhones)
+    }));
+    res.json({ "message": "success", "data": formatted });
 });
 
 app.put('/api/clients/:id', requireStaff(), async (req, res) => {
     const { id } = req.params;
     const name = safeText(req.body.name, 100);
-    const phone = normalizePhone(req.body.phone);
-    if (!name || !isValidPhone(phone)) return res.status(400).json({ error: 'Nome e WhatsApp válidos são obrigatórios.' });
+    if (!name) return res.status(400).json({ error: 'Nome é obrigatório.' });
+
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+    const canViewPhones = canViewClientPhone(req.auth, settingsMap);
+    const rawPhone = req.body.phone;
+    const isProtected = isProtectedPhone(rawPhone);
+
+    const updatePayload = { name };
+    if (!isProtected && canViewPhones) {
+        const phone = normalizePhone(rawPhone);
+        if (!isValidPhone(phone)) return res.status(400).json({ error: 'WhatsApp inválido.' });
+        updatePayload.phone = phone;
+    }
+
     const { data, error } = await supabase
         .from('clients')
-        .update({ name, phone })
+        .update(updatePayload)
         .eq('id', id)
         .select();
     
     if (error) return res.status(400).json({"error": error.message});
-    res.json({ "message": "success", "data": data[0] });
+    if (!data || data.length === 0) return res.status(404).json({ error: 'Cliente não encontrado.' });
+    res.json({
+        "message": "success",
+        "data": {
+            ...data[0],
+            phone: maskPhone(data[0].phone, canViewPhones)
+        }
+    });
 });
 
 app.delete('/api/clients/:id', requireStaff('admin'), async (req, res) => {
@@ -922,11 +1006,14 @@ app.post('/api/clients', requireStaff(), async (req, res) => {
     const phone = normalizePhone(req.body.phone);
     if (!name || !isValidPhone(phone)) return res.status(400).json({ "error": "Nome e WhatsApp válidos são obrigatórios." });
 
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+    const canViewPhones = canViewClientPhone(req.auth, settingsMap);
+
     try {
         // Busca robusta: tenta pelo telefone exato OU pelo telefone limpo
         const cleanPhone = phone.replace(/\D/g, "");
-        const { data: byExact } = await supabase.from('clients').select('id').eq('phone', phone).maybeSingle();
-        const { data: byClean } = !byExact ? await supabase.from('clients').select('id').eq('phone', cleanPhone).maybeSingle() : { data: null };
+        const { data: byExact } = await supabase.from('clients').select('id, phone').eq('phone', phone).maybeSingle();
+        const { data: byClean } = !byExact ? await supabase.from('clients').select('id, phone').eq('phone', cleanPhone).maybeSingle() : { data: null };
         const existing = byExact || byClean;
         
         let result;
@@ -943,7 +1030,14 @@ app.post('/api/clients', requireStaff(), async (req, res) => {
         }
 
         if (result.error) return res.status(400).json({ "error": result.error.message });
-        res.json({ "message": "success", "data": result.data[0] });
+        const clientData = result.data[0];
+        res.json({
+            "message": "success",
+            "data": {
+                ...clientData,
+                phone: maskPhone(clientData.phone, canViewPhones)
+            }
+        });
     } catch (err) {
         console.error('Erro na rota POST /api/clients:', err);
         res.status(500).json({ "error": "Erro interno ao processar cliente." });
@@ -1225,8 +1319,11 @@ app.get('/api/appointments', requireStaff(), async (req, res) => {
 
     const { data, error } = await query;
     if (error) return res.status(400).json({"error": error.message});
+
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+    const canViewPhones = canViewClientPhone(req.auth, settingsMap);
     
-    const formatted = data.map(app => {
+    const formatted = (data || []).map(app => {
         let duration = app.service?.duration;
         let sName = app.service?.name;
         let sPrice = app.service?.price;
@@ -1253,6 +1350,7 @@ app.get('/api/appointments', requireStaff(), async (req, res) => {
         
         return {
             ...app,
+            client_phone: maskPhone(app.client_phone, canViewPhones),
             service_name: sName,
             service_price: sPrice,
             service_duration: duration,
@@ -1433,9 +1531,15 @@ app.post('/api/appointments', rateLimit({
             }, maxAge), maxAge);
         }
 
+        const canViewPhones = isStaff ? canViewClientPhone(req.auth, settingsMap) : true;
+        const responseData = {
+            ...insertedAppointment,
+            client_phone: maskPhone(insertedAppointment.client_phone, canViewPhones)
+        };
+
         res.status(201).json({
             message: 'success',
-            data: insertedAppointment,
+            data: responseData,
             client_authenticated: Boolean(canStartClientSession),
             client: canStartClientSession && clientRecord ? { name: clientRecord.name, phone: clientPhone } : undefined
         });
@@ -1714,7 +1818,13 @@ app.put('/api/appointments/:id/reschedule', rateLimit({
         }]);
     } catch {}
 
-    res.json({ message: 'success', data: data?.[0] || { ...ownership.data, date, time, status: 'agendado' } });
+    const isClientOwner = req.auth?.type === 'client' && sameSubject(req.auth.phone, ownership.data.client_phone);
+    const canViewPhones = isClientOwner || canViewClientPhone(req.auth, settingsMap);
+    const resultApp = { ...(data?.[0] || { ...ownership.data, date, time, status: 'agendado' }) };
+    if (resultApp.client_phone !== undefined) {
+        resultApp.client_phone = maskPhone(resultApp.client_phone, canViewPhones);
+    }
+    res.json({ message: 'success', data: resultApp });
 });
 
 app.delete('/api/appointments/:id', requireStaff(), async (req, res) => {
@@ -1763,7 +1873,16 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
         .select();
 
     if (error) return res.status(400).json({"error": error.message});
-    res.json({ "message": "success", "data": data[0] });
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+    const canViewPhones = canViewClientPhone(req.auth, settingsMap);
+    const updatedApp = { ...(data?.[0] || { ...ownership.data, ...updatePayload }) };
+    if (updatedApp.client_phone !== undefined) {
+        updatedApp.client_phone = maskPhone(updatedApp.client_phone, canViewPhones);
+    }
+    res.json({
+        "message": "success",
+        "data": updatedApp
+    });
 });
 
 app.get('/api/appointments/:id/confirm-info', rateLimit({
@@ -1814,12 +1933,17 @@ app.get('/api/appointments/:id/confirm-info', rateLimit({
         } catch {}
     }
 
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+    const canViewPhones = validActionToken || (req.auth?.type === 'client' && sameSubject(req.auth.phone, app.client_phone))
+        ? true
+        : canViewClientPhone(req.auth, settingsMap);
+
     res.json({
         message: 'success',
         data: {
             id: app.id,
             client_name: app.client_name,
-            client_phone: app.client_phone,
+            client_phone: maskPhone(app.client_phone, canViewPhones),
             date: app.date,
             time: app.time,
             status: app.status,
@@ -2013,16 +2137,31 @@ app.get('/api/settings', async (req, res) => {
     if (error) return res.status(400).json({"error": error.message});
     const publicKeys = new Set([
         'business_name', 'whatsapp_message', 'work_start', 'work_end', 'slot_interval',
-        'work_days', 'whatsapp_number', 'allow_online_booking', 'max_advance_days', 'public_profile'
+        'work_days', 'whatsapp_number', 'allow_online_booking', 'max_advance_days', 'public_profile',
+        'hide_client_phone_from_collaborators'
     ]);
     let visibleSettings = data || [];
     if (req.auth?.type !== 'staff') {
         visibleSettings = visibleSettings.filter(setting => publicKeys.has(setting.key));
-    } else if (req.auth.role !== 'admin') {
+    } else if (req.auth.role !== 'admin' && !isOwner(req.auth)) {
         const ownPrefix = `professional_${req.auth.id}_`;
         visibleSettings = visibleSettings.filter(setting => publicKeys.has(setting.key) || setting.key.startsWith(ownPrefix));
     }
     res.json({ "message": "success", "data": visibleSettings });
+});
+
+app.get('/api/settings/audit-logs', requireStaff('admin'), async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('audit_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50);
+        if (error) return res.json({ message: "success", data: [] });
+        res.json({ message: "success", data: data || [] });
+    } catch {
+        res.json({ message: "success", data: [] });
+    }
 });
 
 app.put('/api/settings', requireStaff(), async (req, res) => {
@@ -2030,10 +2169,12 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
     let value = String(req.body.value ?? '').replace(/\u0000/g, '').trim().slice(0, key === 'public_profile' ? 5000 : 2000);
     const globalKeys = new Set([
         'business_name', 'whatsapp_message', 'work_start', 'work_end', 'slot_interval',
-        'work_days', 'whatsapp_number', 'allow_online_booking', 'max_advance_days', 'public_profile'
+        'work_days', 'whatsapp_number', 'allow_online_booking', 'max_advance_days', 'public_profile',
+        'hide_client_phone_from_collaborators', 'allow_admins_view_client_phone', 'authorized_phone_viewer_ids'
     ]);
     const professionalMatch = key.match(/^professional_(\d+)_(work_start|work_end|slot_interval|work_days|is_public_agenda)$/);
-    const allowed = req.auth.role === 'admin'
+    const isGlobalAdmin = req.auth.role === 'admin' || isOwner(req.auth);
+    const allowed = isGlobalAdmin
         ? globalKeys.has(key) || Boolean(professionalMatch)
         : Boolean(professionalMatch && sameSubject(professionalMatch[1], req.auth.id));
     if (!allowed) return res.status(403).json({ error: 'Você não pode alterar esta configuração.' });
@@ -2048,8 +2189,16 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
     if (suffix === 'max_advance_days' && (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 365)) {
         return res.status(400).json({ error: 'O limite de antecedência deve ficar entre 1 e 365 dias.' });
     }
-    if (['allow_online_booking', 'is_public_agenda'].includes(suffix) && !['true', 'false'].includes(value)) {
+    if (['allow_online_booking', 'is_public_agenda', 'hide_client_phone_from_collaborators', 'allow_admins_view_client_phone'].includes(suffix) && !['true', 'false'].includes(value)) {
         return res.status(400).json({ error: 'Valor booleano inválido.' });
+    }
+    if (suffix === 'authorized_phone_viewer_ids') {
+        try {
+            const parsed = JSON.parse(value);
+            if (!Array.isArray(parsed)) throw new Error('invalid');
+        } catch {
+            return res.status(400).json({ error: 'Lista de permissões autorizadas inválida.' });
+        }
     }
     if (suffix === 'work_days') {
         try {
@@ -2095,6 +2244,30 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
             return res.status(400).json({ error: 'As informações públicas estão inválidas. Revise links e campos.' });
         }
     }
+
+    // Auditoria de alterações de configurações de privacidade e críticas
+    if (['hide_client_phone_from_collaborators', 'allow_admins_view_client_phone', 'authorized_phone_viewer_ids'].includes(key)) {
+        try {
+            const { data: existingRow } = await supabase
+                .from('settings')
+                .select('value')
+                .eq('key', key)
+                .maybeSingle();
+            const oldValue = existingRow ? existingRow.value : (key === 'authorized_phone_viewer_ids' ? '[]' : 'false');
+            if (oldValue !== value) {
+                await recordAuditLog({
+                    action: 'privacy_setting_change',
+                    setting_key: key,
+                    old_value: oldValue,
+                    new_value: value,
+                    user: req.auth
+                });
+            }
+        } catch (auditErr) {
+            console.warn('[Settings] Falha ao auditar mudança de configuração:', auditErr.message);
+        }
+    }
+
     const { error } = await supabase
         .from('settings')
         .upsert([{ key, value }]);

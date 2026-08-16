@@ -334,11 +334,71 @@ function verifyAppointmentToken(token, appointmentId) {
     return legacy?.action === 'confirm-appointment' && sameSubject(legacy.appointmentId, appointmentId);
 }
 
+const PROTECTED_PHONE_PLACEHOLDER = 'Telefone protegido 🔒';
+
+function isOwner(user) {
+    if (!user || user.type !== 'staff') return false;
+    if (user.role === 'owner') return true;
+    if (user.is_owner === true || user.is_owner === 'true') return true;
+    const username = String(user.username || user.profile?.username || '').toLowerCase();
+    const id = String(user.id || user.profile?.id || '');
+    if (user.role === 'admin' && (username === 'mari' || username === 'mariana' || id === '1' || id === 'pro-1')) {
+        return true;
+    }
+    return false;
+}
+
+function canViewClientPhone(auth, settingsMap = {}) {
+    if (!auth || auth.type !== 'staff') return false;
+    const hidePhones = String(settingsMap.hide_client_phone_from_collaborators || '').toLowerCase() === 'true';
+    if (!hidePhones) return true;
+
+    if (isOwner(auth)) return true;
+
+    if (auth.role === 'admin') {
+        const allowAdmins = String(settingsMap.allow_admins_view_client_phone || '').toLowerCase() === 'true';
+        if (allowAdmins) return true;
+    }
+
+    let authorizedIds = [];
+    try {
+        const raw = settingsMap.authorized_phone_viewer_ids;
+        if (raw) authorizedIds = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch {}
+
+    const currentId = String(auth.id || '');
+    const currentUsername = String(auth.username || auth.profile?.username || '').toLowerCase();
+    if (Array.isArray(authorizedIds) && (
+        authorizedIds.map(String).includes(currentId) ||
+        authorizedIds.map(v => String(v).toLowerCase()).includes(currentUsername)
+    )) {
+        return true;
+    }
+
+    return false;
+}
+
+function maskPhone(phone, canView) {
+    if (canView) return phone ? String(phone) : '';
+    return PROTECTED_PHONE_PLACEHOLDER;
+}
+
+function isProtectedPhone(value) {
+    if (!value) return true;
+    const str = String(value);
+    return str.includes('Telefone protegido') || str.includes('🔒');
+}
+
 module.exports = {
+    PROTECTED_PHONE_PLACEHOLDER,
+    canViewClientPhone,
     clearSessionCookie,
     createAppointmentToken,
     hashPassword,
+    isOwner,
+    isProtectedPhone,
     isValidPhone,
+    maskPhone,
     normalizeName,
     normalizePhone,
     optionalSession,
