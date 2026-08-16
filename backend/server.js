@@ -698,7 +698,7 @@ app.post('/api/services', requireStaff('admin'), async (req, res) => {
         }])
         .select();
     
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível cadastrar o serviço.') });
     res.json({ "message": "success", "data": data[0] });
 });
 
@@ -708,7 +708,7 @@ app.delete('/api/services/:id', requireStaff('admin'), async (req, res) => {
         .update({ status: 'inativo' })
         .eq('id', req.params.id);
         
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível desativar o serviço.') });
     res.json({ "message": "success" });
 });
 
@@ -731,7 +731,7 @@ app.put('/api/services/:id', requireStaff('admin'), async (req, res) => {
         .eq('id', id)
         .select();
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível atualizar o serviço.') });
 
     const updatedService = updatedServices && updatedServices[0] ? updatedServices[0] : { id, name, duration, price, category, description };
 
@@ -838,7 +838,7 @@ app.get('/api/professionals/:id', async (req, res) => {
             }
         });
     } catch (settingsError) {
-        res.status(400).json({ "error": settingsError.message });
+        res.status(400).json({ error: safeDbErrorMessage(settingsError, 'Não foi possível carregar as configurações do profissional.') });
     }
 });
 
@@ -865,7 +865,7 @@ app.post('/api/professionals', requireStaff('admin'), async (req, res) => {
         .insert([{ id: nextId, name, avatar, specialty, status: "ativo", username, password: passwordHash, role: "professional" }])
         .select('id, name, role, avatar, specialty, username, status');
     
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível cadastrar o profissional.') });
     res.json({ "message": "success", "data": data[0] });
 });
 
@@ -895,7 +895,7 @@ app.put('/api/professionals/:id', requireStaff(), async (req, res) => {
         .limit(1);
 
     if (usernameError) {
-        return res.status(400).json({ "error": usernameError.message });
+        return res.status(400).json({ error: safeDbErrorMessage(usernameError, 'Não foi possível validar o nome de usuário.') });
     }
 
     if (existingUsername && existingUsername.length > 0) {
@@ -912,7 +912,7 @@ app.put('/api/professionals/:id', requireStaff(), async (req, res) => {
         .select('id, name, role, avatar, specialty, username, status')
         .single();
 
-    if (error) return res.status(400).json({ "error": error.message });
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível atualizar o perfil.') });
     res.json({ "message": "success", "data": data });
 });
 
@@ -923,7 +923,7 @@ app.delete('/api/professionals/:id', requireStaff('admin'), async (req, res) => 
         .update({ status: 'inativo' })
         .eq('id', req.params.id);
         
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível desativar o profissional.') });
     res.json({ "message": "success" });
 });
 
@@ -943,7 +943,7 @@ app.get('/api/clients/check/:phone', requireStaff(), async (req, res) => {
         .or(`phone.eq.${phone},phone.eq.${cleanPhone}`)
         .maybeSingle();
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível consultar o cliente.') });
     
     if (!client) {
         return res.json({ "message": "new", "exists": false });
@@ -963,7 +963,7 @@ app.get('/api/clients', requireStaff(), async (req, res) => {
     const settingsMap = await loadSettingsMap().catch(() => ({}));
     const canViewPhones = canViewClientPhone(req.auth, settingsMap);
     const { data, error } = await supabase.from('clients').select('id, name, phone').order('name');
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível listar os clientes.') });
     const formatted = (data || []).map(c => ({
         ...c,
         phone: maskPhone(c.phone, canViewPhones)
@@ -994,7 +994,7 @@ app.put('/api/clients/:id', requireStaff(), async (req, res) => {
         .eq('id', id)
         .select();
     
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível atualizar o cliente.') });
     if (!data || data.length === 0) return res.status(404).json({ error: 'Cliente não encontrado.' });
     res.json({
         "message": "success",
@@ -1008,7 +1008,7 @@ app.put('/api/clients/:id', requireStaff(), async (req, res) => {
 app.delete('/api/clients/:id', requireStaff('admin'), async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('clients').delete().eq('id', id);
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível remover o cliente.') });
     res.json({ "message": "success" });
 });
 
@@ -1040,7 +1040,7 @@ app.post('/api/clients', requireStaff(), async (req, res) => {
             result = await supabase.from('clients').insert([{ name: name || 'Cliente Novo', phone: cleanPhone }]).select();
         }
 
-        if (result.error) return res.status(400).json({ "error": result.error.message });
+        if (result.error) return res.status(400).json({ error: safeDbErrorMessage(result.error, 'Não foi possível salvar o cliente.') });
         const clientData = result.data[0];
         res.json({
             "message": "success",
@@ -1049,8 +1049,7 @@ app.post('/api/clients', requireStaff(), async (req, res) => {
                 phone: maskPhone(clientData.phone, canViewPhones)
             }
         });
-    } catch (err) {
-        console.error('Erro na rota POST /api/clients:', err);
+    } catch {
         res.status(500).json({ "error": "Erro interno ao processar cliente." });
     }
 });
@@ -1328,7 +1327,7 @@ app.get('/api/appointments', requireStaff(), async (req, res) => {
     query = query.order('date', { ascending: false }).order('time', { ascending: false });
 
     const { data, error } = await query;
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar os agendamentos.') });
 
     const settingsMap = await loadSettingsMap().catch(() => ({}));
     const canViewPhones = canViewClientPhone(req.auth, settingsMap);
@@ -1627,7 +1626,7 @@ app.post('/api/appointments/block', requireStaff(), async (req, res) => {
             notes: description ? `BLOCK:${duration}|${description}` : `BLOCK:${duration}`
         }]).select();
         
-        if (insertError) return res.status(400).json({"error": insertError.message});
+        if (insertError) return res.status(400).json({ error: safeDbErrorMessage(insertError, 'Não foi possível registrar o bloqueio.') });
         
         // Enrich with same fields as GET /api/appointments
         const raw = insertData[0];
@@ -1642,8 +1641,8 @@ app.post('/api/appointments/block', requireStaff(), async (req, res) => {
         };
         
         res.json({ "message": "success", "data": formatted });
-    } catch (e) {
-         res.status(400).json({"error": e.message});
+    } catch {
+        res.status(400).json({ error: 'Não foi possível registrar o bloqueio de horário.' });
     }
 });
 
@@ -1842,7 +1841,7 @@ app.delete('/api/appointments/:id', requireStaff(), async (req, res) => {
     if (ownership.error || !ownership.data) return res.status(404).json({ error: 'Agendamento não encontrado.' });
     if (!canAccessAppointment(req.auth, ownership.data)) return res.status(403).json({ error: 'Você não pode excluir este agendamento.' });
     const { error } = await supabase.from('appointments').delete().eq('id', req.params.id);
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível excluir o agendamento.') });
     res.json({ "message": "success" });
 });
 
@@ -1882,7 +1881,7 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
         .eq('id', id)
         .select();
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível atualizar o agendamento.') });
     const settingsMap = await loadSettingsMap().catch(() => ({}));
     const canViewPhones = canViewClientPhone(req.auth, settingsMap);
     const updatedApp = { ...(data?.[0] || { ...ownership.data, ...updatePayload }) };
@@ -1983,7 +1982,7 @@ app.post('/api/appointments/:id/confirm', rateLimit({
         .update({ status: 'confirmado' })
         .eq('id', id);
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível confirmar o agendamento.') });
     res.json({ "message": "success", "status": "confirmado" });
 });
 
@@ -2044,7 +2043,7 @@ app.post('/api/appointments/:id/complete', requireStaff(), async (req, res) => {
         .update({ status: 'concluído' })
         .eq('id', id);
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível concluir o agendamento.') });
     res.json({ "message": "success" });
 });
 
@@ -2058,7 +2057,7 @@ app.get('/api/financial/stats', requireStaff('admin'), async (req, res) => {
         `)
         .neq('status', 'cancelado');
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar as estatísticas financeiras.') });
 
     const todayStr = getDateStringInTimeZone();
     const localNow = new Date(`${todayStr}T12:00:00Z`);
@@ -2149,7 +2148,7 @@ app.get('/api/financial/stats', requireStaff('admin'), async (req, res) => {
 // --- ROTAS DE CONFIGURAÇÃO ---
 app.get('/api/settings', async (req, res) => {
     const { data, error } = await supabase.from('settings').select('*');
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar as configurações.') });
     const publicKeys = new Set([
         'business_name', 'whatsapp_message', 'work_start', 'work_end', 'slot_interval',
         'work_days', 'whatsapp_number', 'allow_online_booking', 'max_advance_days', 'public_profile',
@@ -2287,7 +2286,7 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
         .from('settings')
         .upsert([{ key, value }]);
     
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível salvar a configuração.') });
     res.json({ "message": "success" });
 });
 
@@ -2298,6 +2297,9 @@ app.use('/api', (req, res) => {
 app.use((error, req, res, _next) => {
     if (process.env.NODE_ENV !== 'test') console.error('[API] Erro não tratado:', error.message);
     if (res.headersSent) return;
+    if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+        return res.status(400).json({ error: 'Formato de dados (JSON) inválido.' });
+    }
     const status = error.type === 'entity.too.large' ? 413 : 500;
     res.status(status).json({
         error: status === 413 ? 'Os dados enviados são muito grandes.' : 'Erro interno. Tente novamente.'
