@@ -1,12 +1,18 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../api';
 import { useNavigate } from '../router';
-import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, Clock, MessageCircle, Tag, Copy, FileText, Send, Printer } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, Clock, MessageCircle, Tag, Copy, FileText, Send, Printer, Shield, ShieldCheck } from 'lucide-react';
 import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, isSameMonth, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey } from '../utils/schedule';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import AgendaTimeline from '../components/agenda/AgendaTimeline';
+
+const isPhoneProtected = (phone) => {
+  if (!phone) return false;
+  const str = String(phone);
+  return str.includes('Telefone protegido') || str.includes('🔒');
+};
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
@@ -190,6 +196,12 @@ export default function AdminDashboard() {
   const [showNotifModal, setShowNotifModal] = useState(false);
 
   const [maxAdvanceDays, setMaxAdvanceDays] = useState('60');
+
+  // Privacidade e Permissões
+  const [hideClientPhone, setHideClientPhone] = useState(false);
+  const [allowAdminsViewPhone, setAllowAdminsViewPhone] = useState(false);
+  const [auditLogs, setAuditLogs] = useState([]);
+
   const [profileForm, setProfileForm] = useState({
     name: '',
     specialty: '',
@@ -336,6 +348,18 @@ export default function AdminDashboard() {
       if (ao) setAllowOnlineBooking(ao.value === 'true');
       const mad = incomingSettings.find(s => s.key === 'max_advance_days');
       if (mad) setMaxAdvanceDays(mad.value);
+
+      // Configurações de privacidade
+      const hcp = incomingSettings.find(s => s.key === 'hide_client_phone_from_collaborators');
+      if (hcp) setHideClientPhone(hcp.value === 'true');
+      const aav = incomingSettings.find(s => s.key === 'allow_admins_view_client_phone');
+      if (aav) setAllowAdminsViewPhone(aav.value === 'true');
+
+      if (loggedUser.role === 'admin' || loggedUser.is_owner) {
+        api.get('/api/settings/audit-logs')
+          .then(res => setAuditLogs(res.data?.data || []))
+          .catch(() => setAuditLogs([]));
+      }
     } catch (err) {
       console.error("Erro ao carregar os dados:", err);
       if (err.response?.status === 401) navigate('/login', { replace: true });
@@ -437,7 +461,11 @@ export default function AdminDashboard() {
   }, [newAppt.client_name, newAppt.client_phone, clients]);
 
   const selectSuggestedClient = (client) => {
-    setNewAppt({ ...newAppt, client_name: client.name, client_phone: client.phone });
+    setNewAppt({
+      ...newAppt,
+      client_name: client.name,
+      client_phone: isPhoneProtected(client.phone) ? '' : (client.phone || '')
+    });
     setShowSuggestions(false);
   };
 
@@ -691,7 +719,17 @@ export default function AdminDashboard() {
 
   const handleWhatsAppAction = (app, isReminder) => {
     if (!app || !app.client_phone) return;
-    const cleanPhone = app.client_phone.replace(/\D/g, "");
+    if (isPhoneProtected(app.client_phone)) {
+      openModal({
+        title: 'Telefone Protegido',
+        message: 'O telefone desta cliente está protegido pelas configurações de privacidade do proprietário.',
+        type: 'info',
+        confirmText: 'Entendido'
+      });
+      return;
+    }
+    const cleanPhone = String(app.client_phone).replace(/\D/g, "");
+    if (cleanPhone.length < 10) return;
     const destination = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     let msg = '';
     if (isReminder) {
@@ -856,7 +894,16 @@ export default function AdminDashboard() {
         api.put('/api/settings', { key: 'allow_online_booking', value: String(allowOnlineBooking) }),
         api.put('/api/settings', { key: 'max_advance_days', value: maxAdvanceDays }),
         api.put('/api/settings', { key: 'public_profile', value: JSON.stringify(publicProfile) }),
+        api.put('/api/settings', { key: 'hide_client_phone_from_collaborators', value: String(hideClientPhone) }),
+        api.put('/api/settings', { key: 'allow_admins_view_client_phone', value: String(allowAdminsViewPhone) }),
       ]);
+
+      if (isAdmin || user?.is_owner) {
+        api.get('/api/settings/audit-logs')
+          .then(res => setAuditLogs(res.data?.data || []))
+          .catch(() => {});
+      }
+
       openModal({ title: 'Sucesso!', message: 'Todas as configurações foram salvas com sucesso!', type: 'success', confirmText: 'Ótimo' });
     } catch (err) { 
       openModal({ title: 'Erro crítico', message: 'Erro ao salvar configuração no banco de dados.', type: 'error', confirmText: 'Fechar' });
@@ -1268,7 +1315,13 @@ export default function AdminDashboard() {
                                   >
                                     <div>
                                       <p className="text-foreground font-medium text-sm">{c.name}</p>
-                                      <p className="text-muted text-xs">{c.phone}</p>
+                                      {isPhoneProtected(c.phone) ? (
+                                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-500 font-medium">
+                                          <Lock size={10} /> Telefone protegido 🔒
+                                        </span>
+                                      ) : (
+                                        <p className="text-muted text-xs">{c.phone}</p>
+                                      )}
                                     </div>
                                     <Plus size={14} className="text-primary" />
                                   </div>
@@ -2079,13 +2132,20 @@ export default function AdminDashboard() {
                               })
                               .map(client => {
                                 const cleanPhone = (client.phone || '').replace(/\D/g, '');
+                                const protectedPhone = isPhoneProtected(client.phone);
                                 return (
                                   <tr key={client.id} className="border-b border-border/30 text-foreground hover:bg-card/40 transition-colors">
                                     <td className="py-4 px-4 font-semibold text-sm">{client.name}</td>
                                     <td className="py-4 px-4 text-sm text-muted">
-                                      <a href={`https://wa.me/55${cleanPhone}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-emerald-500 hover:underline">
-                                        <MessageCircle size={14} /> {client.phone}
-                                      </a>
+                                      {protectedPhone ? (
+                                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                          <Lock size={12} /> Telefone protegido 🔒
+                                        </span>
+                                      ) : (
+                                        <a href={`https://wa.me/55${cleanPhone}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-emerald-500 hover:underline font-medium">
+                                          <MessageCircle size={14} /> {client.phone}
+                                        </a>
+                                      )}
                                     </td>
                                     <td className="py-2 px-4 text-right space-x-2">
                                       <button 
@@ -2123,13 +2183,20 @@ export default function AdminDashboard() {
                           })
                           .map(client => {
                             const cleanPhone = (client.phone || '').replace(/\D/g, '');
+                            const protectedPhone = isPhoneProtected(client.phone);
                             return (
                               <div key={client.id} className="p-4 rounded-2xl bg-card border border-border/60 flex items-center justify-between gap-3 shadow-sm">
                                 <div className="min-w-0">
                                   <h4 className="font-bold text-foreground text-sm truncate">{client.name}</h4>
-                                  <a href={`https://wa.me/55${cleanPhone}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-emerald-500 hover:underline mt-1 font-medium">
-                                    <MessageCircle size={13} /> {client.phone}
-                                  </a>
+                                  {protectedPhone ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 mt-1 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                      <Lock size={11} /> Telefone protegido 🔒
+                                    </span>
+                                  ) : (
+                                    <a href={`https://wa.me/55${cleanPhone}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-emerald-500 hover:underline mt-1 font-medium">
+                                      <MessageCircle size={13} /> {client.phone}
+                                    </a>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   <button 
@@ -2177,12 +2244,19 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <label className="text-sm font-medium text-muted mb-1 block">Telefone / WhatsApp</label>
-                            <input 
-                              className="input-field w-full" 
-                              value={selectedClient.phone} 
-                              onChange={e => setSelectedClient({...selectedClient, phone: e.target.value})}
-                              required 
-                            />
+                            {isPhoneProtected(selectedClient.phone) ? (
+                              <div className="flex items-center gap-2 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-medium">
+                                <Lock size={16} className="shrink-0" />
+                                <span>Telefone protegido pelas configurações de privacidade do proprietário.</span>
+                              </div>
+                            ) : (
+                              <input 
+                                className="input-field w-full" 
+                                value={selectedClient.phone} 
+                                onChange={e => setSelectedClient({...selectedClient, phone: e.target.value})}
+                                required 
+                              />
+                            )}
                           </div>
                           <div className="pt-6 flex gap-3">
                             <button 
@@ -2399,6 +2473,141 @@ export default function AdminDashboard() {
                         <div>
                           <p className="text-xs text-muted mb-3">Tags suportadas: <code className="bg-primary/10 text-primary px-1 py-0.5 rounded break-words mr-1">{"{cliente}"}</code> <code className="bg-primary/10 text-primary px-1 py-0.5 rounded break-words mr-1">{"{servico}"}</code> <code className="bg-primary/10 text-primary px-1 py-0.5 rounded break-words mr-1">{"{profissional}"}</code> <code className="bg-primary/10 text-primary px-1 py-0.5 rounded break-words mr-1">{"{data}"}</code> <code className="bg-primary/10 text-primary px-1 py-0.5 rounded break-words">{"{hora}"}</code></p>
                           <textarea className="input-field w-full h-40 resize-y" value={whatsappMessage} onChange={(e) => setWhatsappMessage(e.target.value)} placeholder="Sua mensagem de WhatsApp..." />
+                        </div>
+                      </div>
+
+                      {/* Seção 5: Privacidade e Permissões */}
+                      <div className="glass-card p-6 border-l-4 border-amber-500/80">
+                        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/50">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                            <ShieldCheck size={20} className="text-amber-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-serif text-foreground">Privacidade e Permissões</h3>
+                            <p className="text-xs text-muted">Controle de proteção de dados sensíveis e privacidade das clientes</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-6">
+                          {/* Switch Principal */}
+                          <div className="flex items-start justify-between p-4 rounded-xl border border-border bg-background/60 gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-foreground font-bold text-sm sm:text-base">Ocultar telefone das clientes para colaboradores</p>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                  hideClientPhone ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-muted/20 text-muted'
+                                }`}>
+                                  {hideClientPhone ? 'Ativado' : 'Desativado'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted mt-1 leading-relaxed">
+                                Quando ativado, somente o proprietário e usuários explicitamente autorizados poderão visualizar o telefone completo das clientes.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setHideClientPhone(!hideClientPhone)}
+                              className={`relative w-14 h-8 rounded-full transition-colors duration-300 shrink-0 ${
+                                hideClientPhone ? 'bg-amber-500' : 'bg-border'
+                              }`}
+                              aria-label="Alternar ocultação de telefone para colaboradores"
+                            >
+                              <span className={`absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow transition-transform duration-300 ${
+                                hideClientPhone ? 'translate-x-6' : 'translate-x-0'
+                              }`} />
+                            </button>
+                          </div>
+
+                          {/* Sub-opção: Administradores */}
+                          {hideClientPhone && (
+                            <div className="ml-2 sm:ml-4 pl-4 border-l-2 border-amber-500/30 space-y-3">
+                              <div className="flex items-start justify-between p-3.5 rounded-xl border border-border/70 bg-card/40 gap-4">
+                                <div className="flex-1">
+                                  <p className="text-foreground font-semibold text-xs sm:text-sm">Permitir que administradores visualizem telefones completos</p>
+                                  <p className="text-[11px] text-muted mt-0.5">
+                                    Se desmarcado, administradores não-proprietários também receberão os telefones protegidos como <em>Telefone protegido 🔒</em>.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setAllowAdminsViewPhone(!allowAdminsViewPhone)}
+                                  className={`relative w-12 h-7 rounded-full transition-colors duration-300 shrink-0 ${
+                                    allowAdminsViewPhone ? 'bg-primary' : 'bg-border'
+                                  }`}
+                                  aria-label="Alternar permissão de visualização para administradores"
+                                >
+                                  <span className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ${
+                                    allowAdminsViewPhone ? 'translate-x-5' : 'translate-x-0'
+                                  }`} />
+                                </button>
+                              </div>
+
+                              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5 leading-relaxed">
+                                <Lock size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                                <span>
+                                  <strong>Segurança Ativa no Backend:</strong> O telefone real das clientes é filtrado no servidor antes de qualquer envio. Colaboradores e profissionais não autorizados não recebem o número em nenhuma API ou tela, e links de WhatsApp direto são ocultados automaticamente.
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Histórico de Auditoria */}
+                          <div className="pt-4 border-t border-border/50">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                <Clock size={16} className="text-muted" /> Histórico de Auditoria de Privacidade
+                              </h4>
+                              {auditLogs.length > 0 && (
+                                <span className="text-[10px] text-muted font-bold bg-muted/20 px-2 py-0.5 rounded-md">
+                                  {auditLogs.length} registro(s)
+                                </span>
+                              )}
+                            </div>
+
+                            {auditLogs.length === 0 ? (
+                              <p className="text-xs text-muted italic bg-background/40 p-4 rounded-xl border border-border/40 text-center">
+                                Nenhum histórico de alteração registrado ainda. As alterações desta configuração serão registradas com autor, data e valores.
+                              </p>
+                            ) : (
+                              <div className="overflow-x-auto rounded-xl border border-border/60 max-h-60 overflow-y-auto">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="bg-card text-muted uppercase text-[10px] font-bold tracking-wider border-b border-border/50">
+                                      <th className="py-2.5 px-3">Data / Hora</th>
+                                      <th className="py-2.5 px-3">Responsável</th>
+                                      <th className="py-2.5 px-3">Configuração</th>
+                                      <th className="py-2.5 px-3">Alteração</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/30">
+                                    {auditLogs.map((log) => {
+                                      let keyLabel = log.setting_key;
+                                      if (log.setting_key === 'hide_client_phone_from_collaborators') keyLabel = 'Ocultar telefone';
+                                      else if (log.setting_key === 'allow_admins_view_client_phone') keyLabel = 'Acesso Admins';
+
+                                      const formatVal = (v) => v === 'true' ? 'Ativado' : v === 'false' ? 'Desativado' : String(v || '-');
+                                      return (
+                                        <tr key={log.id} className="hover:bg-card/40 transition-colors">
+                                          <td className="py-2.5 px-3 whitespace-nowrap text-muted font-mono text-[11px]">
+                                            {log.created_at ? format(new Date(log.created_at), 'dd/MM/yyyy HH:mm:ss') : '-'}
+                                          </td>
+                                          <td className="py-2.5 px-3 font-semibold text-foreground">
+                                            {log.changed_by_name || log.changed_by_username || 'Administrador'}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-muted">{keyLabel}</td>
+                                          <td className="py-2.5 px-3 whitespace-nowrap">
+                                            <span className="text-red-400 font-medium line-through mr-1.5">{formatVal(log.old_value)}</span>
+                                            <span className="text-muted mr-1.5">→</span>
+                                            <span className="text-emerald-400 font-bold">{formatVal(log.new_value)}</span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -2978,15 +3187,19 @@ export default function AdminDashboard() {
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
             <div className="bg-card border border-primary/20 rounded-[2.5rem] w-full max-w-md shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
               
-              <div className="grid grid-cols-4 gap-1 p-4 bg-gradient-to-br from-muted/20 to-transparent border-b border-border/50">
-                <button onClick={() => handleWhatsAppAction(selectedAppointment, false)} className="flex flex-col items-center gap-1 text-green-500 hover:text-green-600 transition-colors p-2 rounded-2xl hover:bg-green-500/10">
-                  <MessageCircle size={20} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Whats</span>
-                </button>
-                <button onClick={() => handleWhatsAppAction(selectedAppointment, true)} className="flex flex-col items-center gap-1 text-primary hover:text-primary-dark transition-colors p-2 rounded-2xl hover:bg-primary/10">
-                  <Send size={20} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Lembrete</span>
-                </button>
+              <div className={`grid ${isPhoneProtected(selectedAppointment.client_phone) ? 'grid-cols-2' : 'grid-cols-4'} gap-1 p-4 bg-gradient-to-br from-muted/20 to-transparent border-b border-border/50`}>
+                {!isPhoneProtected(selectedAppointment.client_phone) && (
+                  <>
+                    <button onClick={() => handleWhatsAppAction(selectedAppointment, false)} className="flex flex-col items-center gap-1 text-green-500 hover:text-green-600 transition-colors p-2 rounded-2xl hover:bg-green-500/10">
+                      <MessageCircle size={20} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Whats</span>
+                    </button>
+                    <button onClick={() => handleWhatsAppAction(selectedAppointment, true)} className="flex flex-col items-center gap-1 text-primary hover:text-primary-dark transition-colors p-2 rounded-2xl hover:bg-primary/10">
+                      <Send size={20} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Lembrete</span>
+                    </button>
+                  </>
+                )}
                 <button onClick={() => {
                   const currentTime = timeToMinutes(selectedAppointment.time);
                   setAllowOutsideHours(currentTime < timeToMinutes(workStart) || currentTime >= timeToMinutes(workEnd));
@@ -3029,11 +3242,19 @@ export default function AdminDashboard() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-foreground">{selectedAppointment.client_name}</p>
-                    <p className="text-xs text-primary font-medium">{selectedAppointment.client_phone}</p>
+                    {isPhoneProtected(selectedAppointment.client_phone) ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 mt-0.5 rounded-md bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        <Lock size={12} /> Telefone protegido 🔒
+                      </span>
+                    ) : (
+                      <p className="text-xs text-primary font-medium">{selectedAppointment.client_phone}</p>
+                    )}
                   </div>
-                  <button onClick={() => navigator.clipboard.writeText(selectedAppointment.client_phone)} className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Copiar Telefone">
-                    <Copy size={16} />
-                  </button>
+                  {!isPhoneProtected(selectedAppointment.client_phone) && (
+                    <button onClick={() => navigator.clipboard.writeText(selectedAppointment.client_phone)} className="p-2 text-muted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Copiar Telefone">
+                      <Copy size={16} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4 p-3 hover:bg-muted/10 rounded-xl transition-colors border-b border-border/50">
