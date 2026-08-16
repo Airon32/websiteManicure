@@ -358,22 +358,21 @@ function canViewClientPhone(auth, settingsMap = {}) {
     if (auth.role === 'admin') {
         const allowAdmins = String(settingsMap.allow_admins_view_client_phone || '').toLowerCase() === 'true';
         if (allowAdmins) return true;
+    }
 
-        let authorizedIds = [];
-        try {
-            const raw = settingsMap.authorized_phone_viewer_ids;
-            if (raw) authorizedIds = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        } catch {}
+    let authorizedIds = [];
+    try {
+        const raw = settingsMap.authorized_phone_viewer_ids;
+        if (raw) authorizedIds = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch {}
 
-        const currentId = String(auth.id || '');
-        const currentUsername = String(auth.username || auth.profile?.username || '').toLowerCase();
-        if (Array.isArray(authorizedIds) && (
-            authorizedIds.map(String).includes(currentId) ||
-            authorizedIds.map(v => String(v).toLowerCase()).includes(currentUsername)
-        )) {
-            return true;
-        }
-        return false;
+    const currentId = String(auth.id || '');
+    const currentUsername = String(auth.username || auth.profile?.username || '').toLowerCase();
+    if (Array.isArray(authorizedIds) && (
+        authorizedIds.map(String).includes(currentId) ||
+        authorizedIds.map(v => String(v).toLowerCase()).includes(currentUsername)
+    )) {
+        return true;
     }
 
     return false;

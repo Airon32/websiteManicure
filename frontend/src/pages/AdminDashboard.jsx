@@ -11,7 +11,15 @@ import AgendaTimeline from '../components/agenda/AgendaTimeline';
 const isPhoneProtected = (phone) => {
   if (!phone) return false;
   const str = String(phone);
-  return str.includes('Telefone protegido') || str.includes('🔒');
+  return str.includes('Telefone protegido') || str.includes('🔒') || /^\(\*{2}\)\s*\*{5}-\d{4}$/.test(str);
+};
+
+const checkIsOwner = (u) => {
+  if (!u) return false;
+  if (u.role === 'owner' || u.is_owner === true || u.is_owner === 'true') return true;
+  const uname = String(u.username || '').toLowerCase();
+  const uid = String(u.id || '');
+  return (u.role === 'admin' && (uname === 'mari' || uname === 'mariana' || uid === '1' || uid === 'pro-1')) || uname === 'mari' || uname === 'mariana' || uid === '1';
 };
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, character => ({
@@ -200,6 +208,7 @@ export default function AdminDashboard() {
   // Privacidade e Permissões
   const [hideClientPhone, setHideClientPhone] = useState(false);
   const [allowAdminsViewPhone, setAllowAdminsViewPhone] = useState(false);
+  const [authorizedPhoneViewerIds, setAuthorizedPhoneViewerIds] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
 
   const [profileForm, setProfileForm] = useState({
@@ -354,6 +363,15 @@ export default function AdminDashboard() {
       if (hcp) setHideClientPhone(hcp.value === 'true');
       const aav = incomingSettings.find(s => s.key === 'allow_admins_view_client_phone');
       if (aav) setAllowAdminsViewPhone(aav.value === 'true');
+      const apv = incomingSettings.find(s => s.key === 'authorized_phone_viewer_ids');
+      if (apv) {
+        try {
+          const parsed = typeof apv.value === 'string' ? JSON.parse(apv.value) : apv.value;
+          if (Array.isArray(parsed)) setAuthorizedPhoneViewerIds(parsed);
+        } catch {
+          setAuthorizedPhoneViewerIds([]);
+        }
+      }
 
       if (loggedUser.role === 'admin' || loggedUser.is_owner) {
         api.get('/api/settings/audit-logs')
@@ -881,6 +899,28 @@ export default function AdminDashboard() {
     });
   };
 
+  const handleToggleAuthorizedPhoneViewer = async (profId) => {
+    const strId = String(profId);
+    const nextList = authorizedPhoneViewerIds.map(String).includes(strId)
+      ? authorizedPhoneViewerIds.map(String).filter(id => id !== strId)
+      : [...authorizedPhoneViewerIds.map(String), strId];
+    setAuthorizedPhoneViewerIds(nextList);
+    try {
+      await api.put('/api/settings', {
+        key: 'authorized_phone_viewer_ids',
+        value: JSON.stringify(nextList)
+      });
+      if (isAdmin || user?.is_owner) {
+        api.get('/api/settings/audit-logs')
+          .then(res => setAuditLogs(res.data?.data || []))
+          .catch(() => {});
+      }
+    } catch (err) {
+      console.error("Erro ao alternar permissão de telefone:", err);
+      openModal({ title: 'Erro ao salvar', message: 'Não foi possível atualizar a permissão do colaborador.', type: 'error' });
+    }
+  };
+
   const handleSaveSettings = async () => {
     try {
       await Promise.all([
@@ -896,6 +936,7 @@ export default function AdminDashboard() {
         api.put('/api/settings', { key: 'public_profile', value: JSON.stringify(publicProfile) }),
         api.put('/api/settings', { key: 'hide_client_phone_from_collaborators', value: String(hideClientPhone) }),
         api.put('/api/settings', { key: 'allow_admins_view_client_phone', value: String(allowAdminsViewPhone) }),
+        api.put('/api/settings', { key: 'authorized_phone_viewer_ids', value: JSON.stringify(authorizedPhoneViewerIds) }),
       ]);
 
       if (isAdmin || user?.is_owner) {
@@ -2010,9 +2051,13 @@ export default function AdminDashboard() {
                               <input className="input-field" placeholder="Iniciais (Ex: AB)" required maxLength={2} value={newStaff.avatar} onChange={e => setNewStaff({ ...newStaff, avatar: e.target.value })} />
                             </div>
                             <h4 className="text-foreground mb-4 mt-6 font-medium">Credenciais de Login</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                               <input className="input-field" placeholder="Nome de Usuário" required value={newStaff.username} onChange={e => setNewStaff({ ...newStaff, username: e.target.value })} />
                               <input className="input-field" placeholder="Senha" type="password" required value={newStaff.password} onChange={e => setNewStaff({ ...newStaff, password: e.target.value })} />
+                            </div>
+                            <div className="flex items-center gap-2.5 p-3 mb-5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                              <Lock size={15} className="text-amber-400 shrink-0" />
+                              <span>Por padrão LGPD, novos colaboradores iniciam sem acesso aos telefones das clientes até que a Proprietária autorize em <strong>Configurações &gt; Privacidade</strong>.</span>
                             </div>
                             <button type="submit" className="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-2 rounded-lg transition-colors shadow-lg shadow-green-500/20">Salvar e Conceder Acesso</button>
                           </form>
@@ -2484,7 +2529,7 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <h3 className="text-xl font-serif text-foreground">Privacidade e Permissões</h3>
-                            <p className="text-xs text-muted">Controle de proteção de dados sensíveis e privacidade das clientes</p>
+                            <p className="text-xs text-muted">Controle de proteção de dados sensíveis e privacidade das clientes (LGPD)</p>
                           </div>
                         </div>
 
@@ -2501,7 +2546,7 @@ export default function AdminDashboard() {
                                 </span>
                               </div>
                               <p className="text-xs text-muted mt-1 leading-relaxed">
-                                Quando ativado, somente o proprietário e usuários explicitamente autorizados poderão visualizar o telefone completo das clientes.
+                                Quando ativado, telefones de clientes são privados por padrão e apenas usuários autorizados poderão visualizar o número completo.
                               </p>
                             </div>
                             <button
@@ -2518,14 +2563,121 @@ export default function AdminDashboard() {
                             </button>
                           </div>
 
+                          {/* Seção Individual de Colaboradores */}
+                          {hideClientPhone && (
+                            <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-background/60 shadow-inner space-y-4">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border/40">
+                                <div>
+                                  <h4 className="text-base font-bold text-foreground flex items-center gap-2">
+                                    <Lock size={16} className="text-amber-400" />
+                                    Visualização de Telefones das Clientes
+                                  </h4>
+                                  <p className="text-xs text-muted mt-0.5">
+                                    Escolha individualmente quais colaboradores podem visualizar o telefone completo das clientes.
+                                  </p>
+                                </div>
+                                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 self-start sm:self-auto">
+                                  Privado por padrão
+                                </span>
+                              </div>
+
+                              <div className="space-y-2.5 pt-1">
+                                {professionals.map((prof) => {
+                                  const isProfOwner = checkIsOwner(prof);
+                                  const isAuthorized = isProfOwner || 
+                                    authorizedPhoneViewerIds.map(String).includes(String(prof.id)) || 
+                                    authorizedPhoneViewerIds.map(v => String(v).toLowerCase()).includes(String(prof.username || '').toLowerCase()) ||
+                                    (allowAdminsViewPhone && prof.role === 'admin');
+
+                                  return (
+                                    <div
+                                      key={prof.id}
+                                      className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${
+                                        isAuthorized
+                                          ? 'bg-emerald-500/5 border-emerald-500/30'
+                                          : 'bg-card/40 border-border/60'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                                          isProfOwner
+                                            ? 'bg-gradient-to-tr from-amber-500 to-amber-300 text-black shadow-md shadow-amber-500/20'
+                                            : isAuthorized
+                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                            : 'bg-muted/30 text-muted border border-border'
+                                        }`}>
+                                          {prof.avatar || prof.name?.slice(0, 2).toUpperCase() || 'P'}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="text-sm font-bold text-foreground truncate">{prof.name}</p>
+                                            {isProfOwner ? (
+                                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
+                                                Proprietária
+                                              </span>
+                                            ) : (
+                                              <span className="text-[10px] text-muted font-mono">
+                                                @{prof.username || `prof_${prof.id}`}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-xs text-muted truncate">{prof.specialty || (prof.role === 'admin' ? 'Administração' : 'Profissional')}</p>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-3 shrink-0">
+                                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors hidden sm:inline-flex items-center gap-1 ${
+                                          isAuthorized
+                                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                            : 'bg-muted/20 text-muted border border-border/40'
+                                        }`}>
+                                          {isAuthorized ? 'Visível 🔓' : 'Protegido 🔒'}
+                                        </span>
+
+                                        {isProfOwner ? (
+                                          <button
+                                            type="button"
+                                            disabled
+                                            className="relative w-12 h-7 rounded-full bg-amber-500/80 cursor-not-allowed opacity-90 transition-all"
+                                            title="A Proprietária possui autorização integral e permanente."
+                                            aria-label="Permissão fixa da Proprietária"
+                                          >
+                                            <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white shadow" />
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleToggleAuthorizedPhoneViewer(prof.id)}
+                                            className={`relative w-12 h-7 rounded-full transition-colors duration-300 ${
+                                              isAuthorized ? 'bg-emerald-500' : 'bg-border'
+                                            }`}
+                                            aria-label={`Alternar permissão de telefone para ${prof.name}`}
+                                          >
+                                            <span className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ${
+                                              isAuthorized ? 'translate-x-5' : 'translate-x-0'
+                                            }`} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <p className="text-[11px] text-muted italic pt-1">
+                                💡 Alterações individuais são salvas imediatamente no sistema e registradas na auditoria.
+                              </p>
+                            </div>
+                          )}
+
                           {/* Sub-opção: Administradores */}
                           {hideClientPhone && (
                             <div className="ml-2 sm:ml-4 pl-4 border-l-2 border-amber-500/30 space-y-3">
                               <div className="flex items-start justify-between p-3.5 rounded-xl border border-border/70 bg-card/40 gap-4">
                                 <div className="flex-1">
-                                  <p className="text-foreground font-semibold text-xs sm:text-sm">Permitir que administradores visualizem telefones completos</p>
+                                  <p className="text-foreground font-semibold text-xs sm:text-sm">Permitir que todos os administradores visualizem telefones</p>
                                   <p className="text-[11px] text-muted mt-0.5">
-                                    Se desmarcado, administradores não-proprietários também receberão os telefones protegidos como <em>Telefone protegido 🔒</em>.
+                                    Se desmarcado, administradores não-proprietários também seguem o controle individual acima.
                                   </p>
                                 </div>
                                 <button
@@ -2545,7 +2697,7 @@ export default function AdminDashboard() {
                               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5 leading-relaxed">
                                 <Lock size={16} className="text-amber-400 shrink-0 mt-0.5" />
                                 <span>
-                                  <strong>Segurança Ativa no Backend:</strong> O telefone real das clientes é filtrado no servidor antes de qualquer envio. Colaboradores e profissionais não autorizados não recebem o número em nenhuma API ou tela, e links de WhatsApp direto são ocultados automaticamente.
+                                  <strong>Segurança Ativa no Backend (LGPD):</strong> O telefone real das clientes é filtrado no servidor antes de qualquer envio. Colaboradores não autorizados recebem apenas a representação mascarada e botões de WhatsApp direto são ocultados automaticamente.
                                 </span>
                               </div>
                             </div>
@@ -2584,8 +2736,20 @@ export default function AdminDashboard() {
                                       let keyLabel = log.setting_key;
                                       if (log.setting_key === 'hide_client_phone_from_collaborators') keyLabel = 'Ocultar telefone';
                                       else if (log.setting_key === 'allow_admins_view_client_phone') keyLabel = 'Acesso Admins';
+                                      else if (log.setting_key === 'authorized_phone_viewer_ids') keyLabel = 'Permissões Individuais';
 
-                                      const formatVal = (v) => v === 'true' ? 'Ativado' : v === 'false' ? 'Desativado' : String(v || '-');
+                                      const formatVal = (v) => {
+                                        if (v === 'true') return 'Ativado';
+                                        if (v === 'false') return 'Desativado';
+                                        if (typeof v === 'string' && (v.startsWith('[') || v.startsWith('{'))) {
+                                          try {
+                                            const arr = JSON.parse(v);
+                                            if (Array.isArray(arr)) return arr.length === 0 ? 'Nenhum' : `${arr.length} autorizado(s)`;
+                                          } catch {}
+                                        }
+                                        return String(v || '-');
+                                      };
+
                                       return (
                                         <tr key={log.id} className="hover:bg-card/40 transition-colors">
                                           <td className="py-2.5 px-3 whitespace-nowrap text-muted font-mono text-[11px]">

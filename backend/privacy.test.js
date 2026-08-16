@@ -321,3 +321,69 @@ test('PUT /api/settings records audit log and prevents unauthorized changes', as
     assert.equal(lastLog.new_value, 'true');
     assert.equal(lastLog.changed_by_username, 'mari');
 });
+
+test('Protection ON: Collaborator added to authorized_phone_viewer_ids receives full phone, removed receives masked', async () => {
+    const hideSetting = store.settings.find(s => s.key === 'hide_client_phone_from_collaborators');
+    hideSetting.value = 'true';
+    const adminAllowSetting = store.settings.find(s => s.key === 'allow_admins_view_client_phone');
+    adminAllowSetting.value = 'false';
+
+    let authIdsSetting = store.settings.find(s => s.key === 'authorized_phone_viewer_ids');
+    if (!authIdsSetting) {
+        authIdsSetting = { key: 'authorized_phone_viewer_ids', value: '[]' };
+        store.settings.push(authIdsSetting);
+    }
+
+    const colabCookie = getSessionCookie(store.professionals[2]); // Jecia (id 3)
+    const ownerCookie = getSessionCookie(store.professionals[0]); // Mariana
+
+    // 1. Initial state: not in list -> masked
+    authIdsSetting.value = '[]';
+    let res = await fetch(`${baseUrl}/api/appointments`, { headers: { cookie: colabCookie } });
+    assert.equal(res.status, 200);
+    let body = await res.json();
+    assert.equal(body.data[0].client_phone, PROTECTED_PHONE_PLACEHOLDER);
+
+    // 2. Owner grants permission to Jecia (id 3)
+    const grantRes = await fetch(`${baseUrl}/api/settings`, {
+        method: 'PUT',
+        headers: {
+            'content-type': 'application/json',
+            cookie: ownerCookie,
+            origin: baseUrl
+        },
+        body: JSON.stringify({
+            key: 'authorized_phone_viewer_ids',
+            value: JSON.stringify([3])
+        })
+    });
+    assert.equal(grantRes.status, 200);
+
+    // 3. Now Jecia receives full phone number
+    res = await fetch(`${baseUrl}/api/appointments`, { headers: { cookie: colabCookie } });
+    assert.equal(res.status, 200);
+    body = await res.json();
+    assert.equal(body.data[0].client_phone, '11988887777');
+
+    // 4. Owner revokes permission (empty list)
+    const revokeRes = await fetch(`${baseUrl}/api/settings`, {
+        method: 'PUT',
+        headers: {
+            'content-type': 'application/json',
+            cookie: ownerCookie,
+            origin: baseUrl
+        },
+        body: JSON.stringify({
+            key: 'authorized_phone_viewer_ids',
+            value: JSON.stringify([])
+        })
+    });
+    assert.equal(revokeRes.status, 200);
+
+    // 5. Jecia is back to receiving masked phone
+    res = await fetch(`${baseUrl}/api/appointments`, { headers: { cookie: colabCookie } });
+    assert.equal(res.status, 200);
+    body = await res.json();
+    assert.equal(body.data[0].client_phone, PROTECTED_PHONE_PLACEHOLDER);
+});
+

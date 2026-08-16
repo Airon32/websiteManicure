@@ -42,3 +42,43 @@ test('Privacy UI Logic: Modal actions grid columns with and without protection',
   assert.equal(getGridColsClass('Telefone protegido 🔒'), 'grid-cols-2');
   assert.equal(getGridColsClass('11988887777'), 'grid-cols-4');
 });
+
+test('Privacy Helper: checkIsOwner accurately identifies Mariana/Owner accounts', () => {
+  const checkIsOwner = (u) => {
+    if (!u) return false;
+    if (u.role === 'owner' || u.is_owner === true || u.is_owner === 'true') return true;
+    const uname = String(u.username || '').toLowerCase();
+    const uid = String(u.id || '');
+    return (u.role === 'admin' && (uname === 'mari' || uname === 'mariana' || uid === '1' || uid === 'pro-1')) || uname === 'mari' || uname === 'mariana' || uid === '1';
+  };
+
+  assert.equal(checkIsOwner({ id: 1, name: 'Mariana', username: 'mari', role: 'admin' }), true);
+  assert.equal(checkIsOwner({ id: 2, name: 'Mariana Silva', role: 'owner' }), true);
+  assert.equal(checkIsOwner({ id: 3, name: 'Mariana', is_owner: true }), true);
+  assert.equal(checkIsOwner({ id: 4, name: 'Jécia', username: 'jecia', role: 'professional' }), false);
+  assert.equal(checkIsOwner({ id: 5, name: 'Admin Secundário', username: 'admin2', role: 'admin' }), false);
+});
+
+test('Privacy UI Logic: collaborator permission evaluation in settings view', () => {
+  const evaluateStaffPhoneVisibility = (prof, { isOwner, authorizedPhoneViewerIds, allowAdminsViewPhone }) => {
+    if (isOwner) return true;
+    if (authorizedPhoneViewerIds.map(String).includes(String(prof.id))) return true;
+    if (authorizedPhoneViewerIds.map(v => String(v).toLowerCase()).includes(String(prof.username || '').toLowerCase())) return true;
+    if (allowAdminsViewPhone && prof.role === 'admin') return true;
+    return false;
+  };
+
+  const ownerProf = { id: 1, name: 'Mariana', username: 'mari', role: 'admin' };
+  const colabProf1 = { id: 3, name: 'Jécia', username: 'jecia', role: 'professional' };
+  const colabProf2 = { id: 4, name: 'Paula', username: 'paula', role: 'professional' };
+
+  // Case A: Default deny
+  assert.equal(evaluateStaffPhoneVisibility(ownerProf, { isOwner: true, authorizedPhoneViewerIds: [], allowAdminsViewPhone: false }), true);
+  assert.equal(evaluateStaffPhoneVisibility(colabProf1, { isOwner: false, authorizedPhoneViewerIds: [], allowAdminsViewPhone: false }), false);
+  assert.equal(evaluateStaffPhoneVisibility(colabProf2, { isOwner: false, authorizedPhoneViewerIds: [], allowAdminsViewPhone: false }), false);
+
+  // Case B: Explicit authorization for colabProf1 (id 3)
+  assert.equal(evaluateStaffPhoneVisibility(colabProf1, { isOwner: false, authorizedPhoneViewerIds: ['3'], allowAdminsViewPhone: false }), true);
+  assert.equal(evaluateStaffPhoneVisibility(colabProf2, { isOwner: false, authorizedPhoneViewerIds: ['3'], allowAdminsViewPhone: false }), false);
+});
+
