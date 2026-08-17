@@ -57,6 +57,34 @@ const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY;
 if (!supabaseUrl || !supabaseKey) {
     throw new Error('Configure SUPABASE_URL e SUPABASE_SECRET_KEY antes de iniciar o servidor.');
 }
+// Placeholder values satisfy the presence check above but leave the server
+// running against a host that does not resolve, which surfaces much later as an
+// opaque 500 on every request. Refuse to boot instead.
+const PLACEHOLDER_TOKENS = ['your-project', 'your_project', 'replace_me', 'replace-me', 'replace_with', 'changeme', 'change_me', 'todo', 'xxxx'];
+
+function looksLikePlaceholder(value) {
+    const normalized = String(value).toLowerCase();
+    return PLACEHOLDER_TOKENS.some(token => normalized.includes(token));
+}
+
+let supabaseHost;
+try {
+    const parsedSupabaseUrl = new URL(supabaseUrl);
+    if (parsedSupabaseUrl.protocol !== 'https:' && parsedSupabaseUrl.hostname !== 'localhost' && parsedSupabaseUrl.hostname !== '127.0.0.1') {
+        throw new Error('protocol');
+    }
+    supabaseHost = parsedSupabaseUrl.host;
+} catch {
+    throw new Error(`SUPABASE_URL inválida ("${supabaseUrl}"). Use a URL https do projeto, por exemplo https://abcdefgh.supabase.co`);
+}
+
+if (process.env.NODE_ENV !== 'test' && (looksLikePlaceholder(supabaseUrl) || looksLikePlaceholder(supabaseKey))) {
+    throw new Error(
+        'SUPABASE_URL/SUPABASE_SECRET_KEY ainda contêm valores de exemplo do .env.example. '
+        + 'Preencha as credenciais reais do projeto antes de iniciar o servidor.'
+    );
+}
+
 const sessionKeySource = process.env.SESSION_SECRET || supabaseKey;
 if (sessionKeySource.length < 32) {
     throw new Error('Configure SESSION_SECRET com pelo menos 32 caracteres antes de iniciar o servidor.');
@@ -65,7 +93,17 @@ if (!process.env.SESSION_SECRET && process.env.NODE_ENV !== 'test') {
     console.warn('[Security] SESSION_SECRET ausente; usando chave derivada durante a migração.');
 }
 
+const SUPABASE_TIMEOUT_MS = Number(process.env.SUPABASE_TIMEOUT_MS) || 8000;
+
 const supabase = createClient(supabaseUrl, supabaseKey, {
+    global: {
+        // Without a deadline a hung connection keeps the request (and its rate
+        // limit slot) alive indefinitely.
+        fetch: (input, init = {}) => fetch(input, {
+            ...init,
+            signal: init.signal ?? AbortSignal.timeout(SUPABASE_TIMEOUT_MS)
+        })
+    },
     auth: {
         persistSession: false,
         autoRefreshToken: false,
@@ -169,8 +207,35 @@ const DEFAULT_WORK_START = '09:00';
 const DEFAULT_WORK_END = '20:00';
 const DEFAULT_SLOT_INTERVAL = '30';
 
+// Supabase reports transport failures with an empty `code` and buries the real
+// cause (a stack trace) in `details`, so `error.code || error.message` alone
+// yields an unactionable "TypeError: fetch failed".
+const CONNECTIVITY_ERROR_PATTERN = /fetch failed|failed to fetch|getaddrinfo|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EHOSTUNREACH|socket hang up|aborted|timeout/i;
+
+function isDbConnectivityError(error) {
+    if (!error) return false;
+    const haystack = [error.message, error.details, error.hint, error.cause?.code, error.name]
+        .filter(Boolean)
+        .join(' ');
+    return CONNECTIVITY_ERROR_PATTERN.test(haystack);
+}
+
+function logDbConnectivityFailure(context, error) {
+    if (process.env.NODE_ENV === 'test') return;
+    // Never log the service key; the host is enough to diagnose DNS/firewall.
+    const reason = String(error?.details || error?.message || '').split('\n')[0];
+    console.error(
+        `[${context}] Banco de dados inacessível (host=${supabaseHost}). `
+        + `Verifique SUPABASE_URL, a rede e se o projeto Supabase está ativo. Causa: ${reason}`
+    );
+}
+
 function safeDbErrorMessage(error, defaultMessage = 'Não foi possível processar a solicitação.') {
     if (!error) return defaultMessage;
+    if (isDbConnectivityError(error)) {
+        logDbConnectivityFailure('Database', error);
+        return 'Serviço temporariamente indisponível. Tente novamente em instantes.';
+    }
     if (process.env.NODE_ENV !== 'test') {
         console.error('[Database Error]:', error.code || 'UNKNOWN', error.message);
     }
@@ -488,8 +553,12 @@ app.post('/api/login', rateLimitGeneralLogin, rateLimitCredentialFailure, async 
         .maybeSingle();
 
     if (error) {
+        if (isDbConnectivityError(error)) {
+            logDbConnectivityFailure('Login', error);
+            return res.status(503).json({ error: 'Serviço temporariamente indisponível. Tente novamente em instantes.' });
+        }
         console.error('[Login] Falha ao consultar usuário:', error.code || error.message);
-        return res.status(500).json({"error": "Não foi possível entrar agora. Tente novamente."});
+        return res.status(500).json({ error: 'Não foi possível entrar agora. Tente novamente.' });
     }
     
     if (!data) {
@@ -517,11 +586,18 @@ app.post('/api/login', rateLimitGeneralLogin, rateLimitCredentialFailure, async 
     }
 
     const { password, ...userWithoutPassword } = data;
-    const accessToken = signSession({ type: 'staff', id: String(data.id), role: data.role }, ACCESS_TTL);
-    const refreshToken = await createRefreshToken(supabase, String(data.id), 'staff', REFRESH_TTL);
-    setSessionCookie(res, accessToken, ACCESS_TTL);
-    setRefreshCookie(res, refreshToken.token, REFRESH_TTL);
-    setStaffSessionFlagCookie(res, REFRESH_TTL);
+    try {
+        const accessToken = signSession({ type: 'staff', id: String(data.id), role: data.role }, ACCESS_TTL);
+        const refreshToken = await createRefreshToken(supabase, String(data.id), 'staff', REFRESH_TTL);
+        setSessionCookie(res, accessToken, ACCESS_TTL);
+        setRefreshCookie(res, refreshToken.token, REFRESH_TTL);
+        setStaffSessionFlagCookie(res, REFRESH_TTL);
+    } catch (persistError) {
+        if (process.env.NODE_ENV !== 'test') {
+            console.error('[Login] Falha ao persistir sessão:', persistError.code || persistError.message);
+        }
+        return res.status(503).json({ error: 'Não foi possível entrar agora. Tente novamente.' });
+    }
     res.json({"message": "success", "data": userWithoutPassword });
 });
 
@@ -581,14 +657,21 @@ app.post('/api/client/login', rateLimit({
             client.name = name;
         }
 
-        const maxAge = 30 * 24 * 60 * 60;
         const accessToken = signSession({
             type: 'client',
             id: String(client.id),
             name: safeText(client.name || name, 100),
             phone
         }, ACCESS_TTL);
-        const refreshToken = await createRefreshToken(supabase, String(client.id), 'client', REFRESH_TTL);
+        let refreshToken;
+        try {
+            refreshToken = await createRefreshToken(supabase, String(client.id), 'client', REFRESH_TTL);
+        } catch (persistError) {
+            if (process.env.NODE_ENV !== 'test') {
+                console.error('[Client Login] Falha ao persistir sessão:', persistError.code || persistError.message);
+            }
+            return res.status(503).json({ error: 'Não foi possível acessar a conta agora. Tente novamente.' });
+        }
         setSessionCookie(res, accessToken, ACCESS_TTL);
         setRefreshCookie(res, refreshToken.token, REFRESH_TTL);
 
@@ -734,7 +817,15 @@ app.post('/api/client-auth/verify-code', rateLimit({
         name: safeText(client.name, 100),
         phone: normalizedClientPhone
     }, ACCESS_TTL);
-    const refreshToken = await createRefreshToken(supabase, String(client.id), 'client', REFRESH_TTL);
+    let refreshToken;
+    try {
+        refreshToken = await createRefreshToken(supabase, String(client.id), 'client', REFRESH_TTL);
+    } catch (persistError) {
+        if (process.env.NODE_ENV !== 'test') {
+            console.error('[Client OTP] Falha ao persistir sessão:', persistError.code || persistError.message);
+        }
+        return res.status(503).json({ error: 'Não foi possível validar agora.', code: 'OTP_UNAVAILABLE' });
+    }
     setSessionCookie(res, accessToken, ACCESS_TTL);
     setRefreshCookie(res, refreshToken.token, REFRESH_TTL);
 
