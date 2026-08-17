@@ -58,6 +58,7 @@ const {
     DEFAULT_TEMPLATES,
     SETTING_KEYS,
     createReminderService,
+    isMissingWhatsappPhoneColumn,
     isReminderOwner,
     isReminderPrivileged,
     isValidE164,
@@ -66,6 +67,7 @@ const {
     presentStaffWhatsApp,
     reminderSettingSpec,
     requireCronSecret,
+    staffWhatsAppWriteError,
     validateReminderTemplate
 } = require('./reminders');
 
@@ -354,6 +356,25 @@ function minutesToTime(totalMinutes) {
     return `${hours}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }
 
+function normalizeClock(value) {
+    const match = String(value ?? '').trim().match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+    if (!match) return null;
+    return `${String(match[1]).padStart(2, '0')}:${match[2]}`;
+}
+
+function isDayOffEntry(entry) {
+    if (entry === undefined || entry === null || entry === false || entry === '') return true;
+    if (typeof entry === 'string') {
+        const lowered = entry.trim().toLowerCase();
+        return lowered === 'folga' || lowered === 'off' || lowered === 'null';
+    }
+    if (typeof entry !== 'object' || Array.isArray(entry)) return false;
+    if (entry.off === true || entry.folga === true) return true;
+    const start = String(entry.start ?? '').trim();
+    const end = String(entry.end ?? '').trim();
+    return !start && !end;
+}
+
 /**
  * Validates the per-day expedient and expands it to all seven days, where null
  * means a day off. A missing day is stored as a day off so a partial payload
@@ -364,7 +385,9 @@ function normalizeDaySchedule(rawValue) {
 
     if (typeof source === 'string') {
         const trimmed = source.trim();
-        if (!trimmed) return { valid: false, error: 'Informe o expediente de cada dia.' };
+        if (!trimmed || trimmed === '{}' || trimmed === 'null') {
+            return { valid: true, value: null, cleared: true };
+        }
         try {
             source = JSON.parse(trimmed);
         } catch {
@@ -372,8 +395,16 @@ function normalizeDaySchedule(rawValue) {
         }
     }
 
-    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+    if (source == null) {
+        return { valid: true, value: null, cleared: true };
+    }
+
+    if (typeof source !== 'object' || Array.isArray(source)) {
         return { valid: false, error: 'O expediente deve ser um objeto com os dias da semana.' };
+    }
+
+    if (Object.keys(source).length === 0) {
+        return { valid: true, value: null, cleared: true };
     }
 
     const unknownDay = Object.keys(source).find(day => !DAY_KEYS.includes(day));
@@ -386,17 +417,17 @@ function normalizeDaySchedule(rawValue) {
 
     for (const day of DAY_KEYS) {
         const entry = source[day];
-        if (entry === undefined || entry === null || entry === false) {
+        if (isDayOffEntry(entry)) {
             schedule[day] = null;
             continue;
         }
         if (typeof entry !== 'object' || Array.isArray(entry)) {
-            return { valid: false, error: `Informe início e fim do expediente de ${day} ou deixe o dia vazio.` };
+            return { valid: false, error: `Informe início e fim do expediente de ${day} ou marque o dia como folga.` };
         }
 
-        const start = String(entry.start ?? '').trim();
-        const end = String(entry.end ?? '').trim();
-        if (!TIME_PATTERN.test(start) || !TIME_PATTERN.test(end)) {
+        const start = normalizeClock(entry.start);
+        const end = normalizeClock(entry.end);
+        if (!start || !end) {
             return { valid: false, error: `Horário inválido no expediente de ${day}. Use o formato HH:MM.` };
         }
         if (timeToMinutes(end) <= timeToMinutes(start)) {
@@ -1212,14 +1243,24 @@ app.put('/api/services/:id', requireStaff('admin'), async (req, res) => {
 // --- ROTAS DE PROFISSIONAIS ---
 app.get('/api/professionals', async (req, res) => {
     try {
-        const canViewPrivate = req.auth?.type === 'staff' && req.auth.role === 'admin';
-        const { data, error } = await supabase
+        const canViewPrivate = req.auth?.type === 'staff' && (
+            req.auth.role === 'admin' || isReminderPrivileged(req.auth)
+        );
+        const publicColumns = 'id, name, avatar, specialty, status';
+        const staffColumns = 'id, name, role, avatar, specialty, username, status, whatsapp_phone';
+        let { data, error } = await supabase
             .from('professionals')
-            .select(canViewPrivate
-                ? 'id, name, role, avatar, specialty, username, status'
-                : 'id, name, avatar, specialty, status')
+            .select(canViewPrivate ? staffColumns : publicColumns)
             .eq('status', 'ativo')
             .order('name');
+
+        if (error && canViewPrivate && isMissingWhatsappPhoneColumn(error)) {
+            ({ data, error } = await supabase
+                .from('professionals')
+                .select('id, name, role, avatar, specialty, username, status')
+                .eq('status', 'ativo')
+                .order('name'));
+        }
         
         let professionalsList = data;
         if (error || !data || data.length === 0) {
@@ -1227,10 +1268,15 @@ app.get('/api/professionals', async (req, res) => {
         }
 
         const settingsMap = await loadSettingsMap().catch(() => ({}));
-        const withSchedule = await Promise.all((professionalsList || []).map(async (professional) => ({
-            ...omitStaffWhatsApp(professional),
-            ...await buildProfessionalScheduleWithExceptions(supabase, settingsMap, professional.id)
-        })));
+        const withSchedule = await Promise.all((professionalsList || []).map(async (professional) => {
+            const visible = canViewPrivate
+                ? presentStaffWhatsApp(professional)
+                : omitStaffWhatsApp(professional);
+            return {
+                ...visible,
+                ...await buildProfessionalScheduleWithExceptions(supabase, settingsMap, professional.id)
+            };
+        }));
 
         res.json({ message: "success", data: withSchedule });
     } catch {
@@ -1243,16 +1289,25 @@ app.get('/api/professionals/:id', async (req, res) => {
     const canViewPrivate = req.auth?.type === 'staff' && (
         req.auth.role === 'admin' || isReminderOwner(req.auth) || sameSubject(req.auth.id, id)
     );
-    const { data, error } = await supabase
+    const publicColumns = 'id, name, avatar, specialty, status';
+    const staffColumns = 'id, name, role, avatar, specialty, username, status, whatsapp_phone';
+    let { data, error } = await supabase
         .from('professionals')
-        .select(canViewPrivate
-            ? 'id, name, role, avatar, specialty, username, status, whatsapp_phone'
-            : 'id, name, avatar, specialty, status')
+        .select(canViewPrivate ? staffColumns : publicColumns)
         .eq('id', id)
         .eq('status', 'ativo')
-        .single();
+        .maybeSingle();
 
-    if (error) return res.status(404).json({ "error": "Profissional não encontrado." });
+    if (error && canViewPrivate && isMissingWhatsappPhoneColumn(error)) {
+        ({ data, error } = await supabase
+            .from('professionals')
+            .select('id, name, role, avatar, specialty, username, status')
+            .eq('id', id)
+            .eq('status', 'ativo')
+            .maybeSingle());
+    }
+
+    if (error || !data) return res.status(404).json({ "error": "Profissional não encontrado." });
 
     try {
         const settingsMap = await loadSettingsMap();
@@ -1276,17 +1331,20 @@ app.put('/api/professionals/:id/whatsapp_phone', requireStaff(), async (req, res
         return res.status(403).json({ error: 'Você só pode editar o próprio WhatsApp profissional.' });
     }
 
-    const normalized = normalizeE164(req.body?.whatsapp_phone);
-    if (!isValidE164(normalized)) {
-        return res.status(400).json({ error: 'Informe um WhatsApp em E.164, por exemplo +5511999999999.' });
+    const rawPhone = req.body?.whatsapp_phone;
+    const wantsClear = rawPhone == null || String(rawPhone).trim() === '';
+    const normalized = wantsClear ? null : normalizeE164(rawPhone);
+    if (!wantsClear && !isValidE164(normalized)) {
+        return res.status(400).json({ error: 'Informe um WhatsApp válido, por exemplo +5511999999999.' });
     }
 
+    const professionalId = /^\d+$/.test(String(id)) ? Number(id) : id;
     const { data, error } = await supabase
         .from('professionals')
         .update({ whatsapp_phone: normalized })
-        .eq('id', id)
+        .eq('id', professionalId)
         .select('id, name, role, status, whatsapp_phone')
-        .single();
+        .maybeSingle();
 
     if (error) {
         console.error('[PUT /api/professionals/:id/whatsapp_phone] Supabase error:', {
@@ -1295,7 +1353,11 @@ app.put('/api/professionals/:id/whatsapp_phone', requireStaff(), async (req, res
             details: error.details || null,
             hint: error.hint || null
         });
-        return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível salvar o WhatsApp profissional.') });
+        const mapped = staffWhatsAppWriteError(error);
+        return res.status(mapped.status).json({ error: mapped.error });
+    }
+    if (!data) {
+        return res.status(404).json({ error: 'Profissional não encontrado.' });
     }
     res.json({ message: 'success', data: presentStaffWhatsApp(data) });
 });
@@ -2837,9 +2899,8 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
         if (!parsedSchedule.valid) {
             return res.status(400).json({ error: parsedSchedule.error });
         }
-        // Stored already expanded to the seven days so every reader sees the
-        // same shape regardless of what the client omitted.
-        value = JSON.stringify(parsedSchedule.value);
+        // Empty / {} clears the per-day expedient so the flat hours remain the source.
+        value = parsedSchedule.cleared ? '' : JSON.stringify(parsedSchedule.value);
     }
     if (suffix === 'public_profile') {
         try {

@@ -21,8 +21,8 @@ import {
   getVisibleLeadHourOptions,
   insertPlaceholder,
   isCanonicalOwner,
-  isE164Phone,
   isReminderToggleActive,
+  normalizeStaffWhatsAppInput,
   renderTemplatePreview,
   validateTemplate
 } from '../../utils/reminders';
@@ -95,21 +95,26 @@ function DestinationRow({ person, destination, onSavePhone }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const save = async () => {
     const next = draft.trim();
-    if (next && !isE164Phone(next)) {
-      setError('Use o formato E.164, por exemplo +5511999999999.');
+    const normalized = next ? normalizeStaffWhatsAppInput(next) : null;
+    if (next && !normalized) {
+      setSuccess('');
+      setError('Informe um WhatsApp válido, por exemplo (11) 99999-9999 ou +5511999999999.');
       return;
     }
     setError('');
-    const result = await onSavePhone(person.id, next || null);
+    setSuccess('');
+    const result = await onSavePhone(person.id, normalized);
     if (!result?.ok) {
       setError(result?.error || 'Não foi possível salvar o contato.');
       return;
     }
     setDraft('');
     setEditing(false);
+    setSuccess(normalized ? 'WhatsApp salvo com sucesso.' : 'WhatsApp profissional removido.');
   };
 
   return (
@@ -138,12 +143,17 @@ function DestinationRow({ person, destination, onSavePhone }) {
         <button
           type="button"
           className="btn-outline min-h-[44px] px-4 text-[11px]"
-          onClick={() => setEditing(true)}
+          onClick={() => {
+            setEditing(true);
+            setSuccess('');
+            setError('');
+          }}
         >
           Configurar contato
         </button>
       )}
       {error && <p className="text-xs text-red-400 w-full">{error}</p>}
+      {success && !error && <p className="text-xs text-emerald-400 w-full">{success}</p>}
     </div>
   );
 }

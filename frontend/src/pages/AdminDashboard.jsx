@@ -4,7 +4,7 @@ import { useNavigate } from '../router';
 import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, Clock, MessageCircle, Tag, Copy, FileText, Send, Printer, Shield, ShieldCheck } from 'lucide-react';
 import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, isSameMonth, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey } from '../utils/schedule';
+import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey, toApiWeekSchedule, toEditorWeekSchedule } from '../utils/schedule';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import AgendaTimeline from '../components/agenda/AgendaTimeline';
 import ReminderIndicator from '../components/reminders/ReminderIndicator';
@@ -358,9 +358,9 @@ export default function AdminDashboard() {
         if (profPerDaySetting?.value) {
           try {
             const parsed = JSON.parse(profPerDaySetting.value);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
               setUsePerDaySchedule(true);
-              setPerDaySchedule(prev => ({ ...prev, ...parsed }));
+              setPerDaySchedule(toEditorWeekSchedule(parsed));
             }
           } catch {}
         }
@@ -411,9 +411,9 @@ export default function AdminDashboard() {
       if (perDaySetting?.value) {
         try {
           const parsed = JSON.parse(perDaySetting.value);
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
             setUsePerDaySchedule(true);
-            setPerDaySchedule(prev => ({ ...prev, ...parsed }));
+            setPerDaySchedule(toEditorWeekSchedule(parsed));
           }
         } catch {}
       }
@@ -983,7 +983,7 @@ export default function AdminDashboard() {
         api.put('/api/settings', { key: 'hide_client_phone_from_collaborators', value: String(hideClientPhone) }),
         api.put('/api/settings', { key: 'allow_admins_view_client_phone', value: String(allowAdminsViewPhone) }),
         api.put('/api/settings', { key: 'authorized_phone_viewer_ids', value: JSON.stringify(authorizedPhoneViewerIds) }),
-        api.put('/api/settings', { key: 'schedule', value: usePerDaySchedule ? JSON.stringify(perDaySchedule) : '{}' }),
+        api.put('/api/settings', { key: 'schedule', value: usePerDaySchedule ? JSON.stringify(toApiWeekSchedule(perDaySchedule)) : '' }),
       ]);
 
       if (isAdmin || user?.is_owner) {
@@ -994,7 +994,12 @@ export default function AdminDashboard() {
 
       openModal({ title: 'Sucesso!', message: 'Todas as configurações foram salvas com sucesso!', type: 'success', confirmText: 'Ótimo' });
     } catch (err) { 
-      openModal({ title: 'Erro crítico', message: 'Erro ao salvar configuração no banco de dados.', type: 'error', confirmText: 'Fechar' });
+      openModal({
+        title: 'Não foi possível salvar',
+        message: err.response?.data?.error || 'Erro ao salvar configuração no banco de dados.',
+        type: 'error',
+        confirmText: 'Fechar'
+      });
     }
   };
 
@@ -1129,7 +1134,7 @@ const scheduleUpdates = [
         { key: getProfessionalSettingKey(user.id, 'slot_interval'), value: String(slotInterval) },
         { key: getProfessionalSettingKey(user.id, 'work_days'), value: JSON.stringify(workDays) },
         { key: getProfessionalSettingKey(user.id, 'is_public_agenda'), value: String(isPublicAgenda) },
-        { key: getProfessionalSettingKey(user.id, 'schedule'), value: usePerDaySchedule ? JSON.stringify(perDaySchedule) : '{}' }
+        { key: getProfessionalSettingKey(user.id, 'schedule'), value: usePerDaySchedule ? JSON.stringify(toApiWeekSchedule(perDaySchedule)) : '' }
       ];
 
       const [res] = await Promise.all([

@@ -16,6 +16,7 @@ import {
   isE164Phone,
   isReminderToggleActive,
   maskWhatsappPhone,
+  normalizeStaffWhatsAppInput,
   resolveClientIndicator,
   stripRawWhatsappPhone,
   validateTemplate
@@ -70,6 +71,10 @@ test('antecedência aceita catálogo futuro mas só exibe opções habilitadas',
 
 test('máscara E.164 e destino não configurado', () => {
   assert.equal(isE164Phone('+5511987654321'), true);
+  assert.equal(normalizeStaffWhatsAppInput('(11) 98765-4321'), '+5511987654321');
+  assert.equal(normalizeStaffWhatsAppInput('+55 11 98765-4321'), '+5511987654321');
+  assert.equal(normalizeStaffWhatsAppInput('5511987654321'), '+5511987654321');
+  assert.equal(normalizeStaffWhatsAppInput('1199999'), null);
   assert.equal(maskWhatsappPhone('+5511987654321'), '+55 11 *****-4321');
   assert.equal(getDestinationState(null).label, 'Destino não configurado');
   assert.equal(getDestinationState('1199999').configured, false);

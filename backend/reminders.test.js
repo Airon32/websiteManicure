@@ -10,6 +10,7 @@ const {
     findReminderOwners,
     formatDateBR,
     isDummyPhone,
+    isMissingWhatsappPhoneColumn,
     isReminderOwner,
     isWithinLeadWindow,
     maskE164,
@@ -18,6 +19,7 @@ const {
     parametersFor,
     presentStaffWhatsApp,
     renderTemplate,
+    staffWhatsAppWriteError,
     validateReminderTemplate,
     zonedLocalToUtcMs
 } = require('./reminders');
@@ -144,6 +146,13 @@ test('dummy phones, E.164 mask and public professional payload never leak the nu
     assert.equal(isDummyPhone('00000000000'), true);
     assert.equal(isDummyPhone('11987654321'), false);
     assert.equal(normalizeE164('11987654321'), '+5511987654321');
+    assert.equal(normalizeE164('(11) 98765-4321'), '+5511987654321');
+    assert.equal(normalizeE164('+55 11 98765-4321'), '+5511987654321');
+    assert.equal(normalizeE164('5511987654321'), '+5511987654321');
+    assert.equal(normalizeE164('+5511987654321'), '+5511987654321');
+    assert.equal(normalizeE164('1199999'), null);
+    assert.equal(isMissingWhatsappPhoneColumn({ code: 'PGRST204', message: "Could not find the 'whatsapp_phone' column of 'professionals' in the schema cache" }), true);
+    assert.equal(staffWhatsAppWriteError({ code: 'PGRST204', message: "Could not find the 'whatsapp_phone' column of 'professionals' in the schema cache" }).status, 503);
     assert.equal(maskE164('+5511987654321'), '+5511****4321');
     const presented = presentStaffWhatsApp({ id: 2, name: 'Jécia', whatsapp_phone: '+5511999999999' });
     assert.equal(presented.whatsapp_phone, undefined);

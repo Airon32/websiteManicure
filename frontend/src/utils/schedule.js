@@ -2,6 +2,7 @@ export const DEFAULT_WORK_START = '09:00';
 export const DEFAULT_WORK_END = '18:00';
 export const DEFAULT_SLOT_INTERVAL = '30';
 export const DEFAULT_WORK_DAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+export const DAY_KEYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
 
 export function getProfessionalSettingKey(professionalId, suffix) {
   return `professional_${professionalId}_${suffix}`;
@@ -20,6 +21,46 @@ export function parseWorkDays(value) {
   } catch {
     return [...DEFAULT_WORK_DAYS];
   }
+}
+
+export function normalizeClock(value) {
+  const match = String(value ?? '').trim().match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (!match) return '';
+  return `${String(match[1]).padStart(2, '0')}:${match[2]}`;
+}
+
+function isEditorDayOff(entry) {
+  if (entry == null || entry === false || entry === '') return true;
+  if (typeof entry !== 'object' || Array.isArray(entry)) return true;
+  if (entry.off === true || entry.folga === true) return true;
+  return !normalizeClock(entry.start) && !normalizeClock(entry.end);
+}
+
+export function toEditorDaySchedule(entry) {
+  if (isEditorDayOff(entry)) {
+    return { start: '', end: '', off: true };
+  }
+  return {
+    start: normalizeClock(entry.start),
+    end: normalizeClock(entry.end),
+    off: false
+  };
+}
+
+export function toEditorWeekSchedule(parsed = {}) {
+  return Object.fromEntries(DAY_KEYS.map(day => [day, toEditorDaySchedule(parsed[day])]));
+}
+
+export function toApiWeekSchedule(editor = {}) {
+  return Object.fromEntries(DAY_KEYS.map(day => {
+    const entry = editor[day];
+    if (isEditorDayOff(entry)) return [day, null];
+    return [day, { start: normalizeClock(entry.start), end: normalizeClock(entry.end) }];
+  }));
+}
+
+export function hasOpenScheduleDay(schedule = {}) {
+  return DAY_KEYS.some(day => schedule[day]);
 }
 
 export function buildEffectiveSchedule(settings, professionalId = null) {
