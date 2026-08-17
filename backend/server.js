@@ -1288,7 +1288,15 @@ app.put('/api/professionals/:id/whatsapp_phone', requireStaff(), async (req, res
         .select('id, name, role, status, whatsapp_phone')
         .single();
 
-    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível salvar o WhatsApp profissional.') });
+    if (error) {
+        console.error('[PUT /api/professionals/:id/whatsapp_phone] Supabase error:', {
+            code: error.code || null,
+            message: error.message || null,
+            details: error.details || null,
+            hint: error.hint || null
+        });
+        return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível salvar o WhatsApp profissional.') });
+    }
     res.json({ message: 'success', data: presentStaffWhatsApp(data) });
 });
 
