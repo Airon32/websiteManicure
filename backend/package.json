@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "seed:dev-staff": "node scripts/seed-dev-staff.js"
   },
   "keywords": [],
   "author": "",
