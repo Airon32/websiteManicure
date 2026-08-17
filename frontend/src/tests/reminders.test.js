@@ -7,13 +7,17 @@ import {
   canEnableTeamToggle,
   extractPlaceholders,
   getDestinationState,
+  getStaffDestination,
   getVisibleLeadHourOptions,
   insertPlaceholder,
+  interpretManualSendFailure,
   isCanonicalOwner,
   isClientReminderEligible,
   isE164Phone,
+  isReminderToggleActive,
   maskWhatsappPhone,
   resolveClientIndicator,
+  stripRawWhatsappPhone,
   validateTemplate
 } from '../utils/reminders.js';
 import { buildDemoEvents, createReminderStore } from '../utils/reminderMock.js';
@@ -130,4 +134,40 @@ test('demo events cobrem os 5 estados visuais', () => {
   assert.equal(resolveClientIndicator(base, buildDemoEvents({ ...base, id: 2 }, 2)).key, 'manual');
   assert.equal(resolveClientIndicator(base, buildDemoEvents({ ...base, id: 3 }, 3)).key, 'failed');
   assert.equal(resolveClientIndicator(base, buildDemoEvents({ ...base, id: 4 }, 4)).key, 'manual');
+});
+
+test('toggle ligado não é Ativo sem canal Meta', () => {
+  assert.equal(isReminderToggleActive(true, false), false);
+  assert.equal(isReminderToggleActive(true, true), true);
+  assert.equal(isReminderToggleActive(false, true), false);
+});
+
+test('destino da equipe usa máscara e nunca o número cru', () => {
+  const presented = {
+    whatsapp_phone_set: true,
+    whatsapp_phone_masked: '+5511****4321',
+    whatsapp_phone: '+5511987654321'
+  };
+  const destination = getStaffDestination(presented);
+  assert.equal(destination.configured, true);
+  assert.equal(destination.label, '+5511****4321');
+  assert.equal(stripRawWhatsappPhone(presented).whatsapp_phone, undefined);
+  assert.equal(getStaffDestination({ whatsapp_phone: '+5511987654321' }).configured, false);
+});
+
+test('503 de canal não é tratado como envio', () => {
+  const failure = interpretManualSendFailure({
+    response: { status: 503, data: { error: 'Canal de WhatsApp indisponível. O envio não foi fingido.' } }
+  });
+  assert.equal(failure.ok, false);
+  assert.equal(failure.status, 503);
+  assert.equal(failure.needs_confirm, undefined);
+});
+
+test('409 needs_confirm pede segundo POST com confirm', () => {
+  const failure = interpretManualSendFailure({
+    response: { status: 409, data: { needs_confirm: true, error: 'Já foi enviado um lembrete automático nas últimas 6 horas.' } }
+  });
+  assert.equal(failure.needs_confirm, true);
+  assert.equal(failure.status, 409);
 });

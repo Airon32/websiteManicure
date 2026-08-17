@@ -6,92 +6,132 @@ import {
   SETTING_KEYS,
   buildClientDetail,
   hoursAgoLabel,
+  interpretManualSendFailure,
   isCanonicalOwner,
-  resolveClientIndicator
+  resolveClientIndicator,
+  settingsFromList,
+  stripRawWhatsappPhone
 } from '../../utils/reminders';
 import {
   buildDemoEvents,
-  loadBrowserStore,
-  seedDemoEvents
+  loadBrowserStore
 } from '../../utils/reminderMock';
 
 const ReminderContext = createContext(null);
 
-function settingValueFromApi(list, key) {
-  const found = (list || []).find(item => item.key === key);
-  return found ? found.value : undefined;
+function staffDestinationFromPayload(payload = {}) {
+  const safe = stripRawWhatsappPhone(payload);
+  return {
+    set: Boolean(safe.whatsapp_phone_set),
+    masked: safe.whatsapp_phone_masked || '',
+    role: safe.role,
+    is_owner: safe.is_owner
+  };
 }
 
 export function ReminderProvider({
   appointments = [],
   professionals = [],
   settingsData = [],
+  channelReady = false,
   user,
+  allowDemoEvents = false,
   children
 }) {
   const store = useMemo(() => loadBrowserStore(), []);
-  const [settings, setSettings] = useState(() => store.getSettings(settingsData));
+  const [settings, setSettings] = useState(() => settingsFromList(settingsData));
   const [eventsById, setEventsById] = useState({});
-  const [phonesById, setPhonesById] = useState({});
-  const [source, setSource] = useState('mock');
+  const [destinations, setDestinations] = useState({});
+  const [source, setSource] = useState('api');
 
   useEffect(() => {
-    setSettings(store.getSettings(settingsData));
-  }, [settingsData, store]);
+    setSettings(settingsFromList(settingsData));
+  }, [settingsData]);
 
   useEffect(() => {
-    seedDemoEvents(store, appointments);
+    if (!allowDemoEvents) return;
     const nextEvents = {};
     appointments.forEach((appointment, index) => {
       if (!appointment?.id) return;
-      const id = String(appointment.id);
-      const existing = store.getEvents(id);
-      if (existing.length) {
-        nextEvents[id] = existing;
-        return;
-      }
-      const demo = buildDemoEvents(appointment, index);
-      store.setEvents(id, demo);
-      nextEvents[id] = demo;
+      nextEvents[String(appointment.id)] = buildDemoEvents(appointment, index);
     });
     setEventsById(nextEvents);
-  }, [appointments, store]);
+  }, [allowDemoEvents, appointments]);
 
   useEffect(() => {
-    const next = {};
-    for (const person of professionals) {
-      if (!person) continue;
-      const id = String(person.id);
-      next[id] = store.getPhone(id, person.whatsapp_phone);
-    }
-    setPhonesById(next);
-  }, [professionals, store]);
+    let cancelled = false;
+    const hydrate = async () => {
+      const entries = await Promise.all((professionals || []).map(async person => {
+        const id = String(person.id);
+        const local = staffDestinationFromPayload(person);
+        if (local.set || person.whatsapp_phone_masked) {
+          return [id, local];
+        }
+        try {
+          const response = await api.get(`/api/professionals/${id}`);
+          return [id, staffDestinationFromPayload(response.data?.data || {})];
+        } catch {
+          return [id, local];
+        }
+      }));
+      if (cancelled) return;
+      const next = {};
+      for (const [id, value] of entries) next[id] = value;
+      setDestinations(next);
+    };
+    hydrate();
+    return () => { cancelled = true; };
+  }, [professionals]);
+
+  useEffect(() => {
+    if (allowDemoEvents) return;
+    let cancelled = false;
+    const eligible = (appointments || [])
+      .filter(item => item?.id && !String(item.notes || '').includes('BLOCK:'))
+      .slice(0, 40);
+
+    Promise.allSettled(eligible.map(async appointment => {
+      const id = String(appointment.id);
+      const response = await api.get(`/api/appointments/${id}/message-events`);
+      const data = response.data?.data || [];
+      return [id, Array.isArray(data) ? data : []];
+    })).then(results => {
+      if (cancelled) return;
+      const next = {};
+      for (const result of results) {
+        if (result.status !== 'fulfilled') continue;
+        const [id, events] = result.value;
+        next[id] = events;
+      }
+      setEventsById(prev => ({ ...prev, ...next }));
+      setSource('api');
+    });
+
+    return () => { cancelled = true; };
+  }, [allowDemoEvents, appointments]);
 
   const getEvents = useCallback(appointmentId => {
-    const id = String(appointmentId);
-    return eventsById[id] || store.getEvents(id) || [];
-  }, [eventsById, store]);
+    return eventsById[String(appointmentId)] || [];
+  }, [eventsById]);
 
   const refreshEvents = useCallback(async appointment => {
     if (!appointment?.id) return [];
     const id = String(appointment.id);
     try {
       const response = await api.get(`/api/appointments/${id}/message-events`);
-      const data = response.data?.data || response.data || [];
-      if (Array.isArray(data)) {
-        store.setEvents(id, data);
-        setEventsById(prev => ({ ...prev, [id]: data }));
-        setSource('api');
-        return data;
+      const data = Array.isArray(response.data?.data) ? response.data.data : [];
+      setEventsById(prev => ({ ...prev, [id]: data }));
+      setSource('api');
+      return data;
+    } catch (error) {
+      const status = error.response?.status;
+      if (allowDemoEvents && (!status || status === 404)) {
+        return eventsById[id] || [];
       }
-    } catch {
-      const fallback = store.getEvents(id);
-      setEventsById(prev => ({ ...prev, [id]: fallback }));
-      setSource('mock');
-      return fallback;
+      setEventsById(prev => ({ ...prev, [id]: prev[id] || [] }));
+      return [];
     }
-    return store.getEvents(id);
-  }, [store]);
+  }, [allowDemoEvents, eventsById]);
 
   const getClientSummary = useCallback(appointment => {
     return resolveClientIndicator(appointment, getEvents(appointment?.id));
@@ -102,98 +142,92 @@ export function ReminderProvider({
   }, [getEvents, settings]);
 
   const saveSetting = useCallback(async (key, value) => {
+    const previous = settings[key];
     setSettings(prev => ({ ...prev, [key]: value }));
-    store.putSetting(key, value);
     try {
       await api.put('/api/settings', { key, value: String(value) });
       setSource('api');
       return { ok: true, source: 'api' };
-    } catch {
-      setSource('mock');
-      return { ok: true, source: 'mock' };
+    } catch (error) {
+      setSettings(prev => ({ ...prev, [key]: previous }));
+      const status = error.response?.status;
+      if (allowDemoEvents && (!status || status === 404)) {
+        store.putSetting(key, value);
+        setSettings(prev => ({ ...prev, [key]: value }));
+        return { ok: true, source: 'mock' };
+      }
+      return { ok: false, error: error.response?.data?.error || 'Não foi possível salvar a configuração.' };
     }
-  }, [store]);
+  }, [allowDemoEvents, settings, store]);
 
   const savePhone = useCallback(async (professionalId, phone) => {
     const id = String(professionalId);
-    store.putPhone(id, phone);
-    setPhonesById(prev => ({ ...prev, [id]: phone }));
     try {
-      await api.put(`/api/professionals/${id}`, { whatsapp_phone: phone || null });
+      const response = await api.put(`/api/professionals/${id}/whatsapp_phone`, {
+        whatsapp_phone: phone ? phone : null
+      });
+      const presented = staffDestinationFromPayload(response.data?.data || {});
+      setDestinations(prev => ({ ...prev, [id]: presented }));
       setSource('api');
-      return { ok: true, source: 'api' };
-    } catch {
-      setSource('mock');
-      return { ok: true, source: 'mock' };
+      return { ok: true, source: 'api', destination: presented };
+    } catch (error) {
+      const status = error.response?.status;
+      if (allowDemoEvents && (!status || status === 404)) {
+        const presented = {
+          set: Boolean(phone),
+          masked: phone ? `+${String(phone).replace(/\D/g, '').slice(0, 4)}****${String(phone).slice(-4)}` : ''
+        };
+        setDestinations(prev => ({ ...prev, [id]: presented }));
+        return { ok: true, source: 'mock', destination: presented };
+      }
+      return { ok: false, error: error.response?.data?.error || 'Não foi possível salvar o WhatsApp privado.' };
     }
-  }, [store]);
+  }, [allowDemoEvents]);
 
   const sendManualReminder = useCallback(async (appointment, { confirm = false, retry = false } = {}) => {
     try {
       const response = await api.post(`/api/appointments/${appointment.id}/reminders`, { confirm, retry });
       const payload = response.data || {};
-      if (payload.needs_confirm) {
+      await refreshEvents(appointment);
+      setSource('api');
+      return { ok: true, source: 'api', data: payload.data, suppressed: payload.suppressed };
+    } catch (error) {
+      const interpreted = interpretManualSendFailure(error);
+      if (interpreted.needs_confirm) {
         return {
-          ok: false,
-          needs_confirm: true,
-          sent_at: payload.sent_at,
-          hoursLabel: hoursAgoLabel(payload.sent_at)
+          ...interpreted,
+          hoursLabel: hoursAgoLabel(interpreted.sent_at)
         };
       }
-      if (payload.data) {
-        store.upsertEvent(appointment.id, payload.data);
+      if (interpreted.status === 503) {
+        return interpreted;
+      }
+      if (allowDemoEvents && (!interpreted.status || interpreted.status === 404)) {
+        const mockResult = store.sendManual({ appointment, user, confirm, retry });
         setEventsById(prev => ({
           ...prev,
           [String(appointment.id)]: store.getEvents(appointment.id)
         }));
-      } else {
-        await refreshEvents(appointment);
+        if (mockResult.needs_confirm) {
+          return { ...mockResult, hoursLabel: hoursAgoLabel(mockResult.sent_at) };
+        }
+        return mockResult;
       }
-      setSource('api');
-      return { ok: true, source: 'api', data: payload.data };
-    } catch (error) {
-      const status = error.response?.status;
-      const payload = error.response?.data || {};
-      if (payload.needs_confirm || status === 409 && payload.needs_confirm !== false && /automatico|automático/i.test(String(payload.error || ''))) {
-        return {
-          ok: false,
-          needs_confirm: true,
-          sent_at: payload.sent_at,
-          hoursLabel: hoursAgoLabel(payload.sent_at)
-        };
-      }
-      if (status === 503) {
-        return { ok: false, status: 503, error: payload.error || 'Canal de envio indisponível.' };
-      }
-      if (status && status !== 404) {
-        return { ok: false, status, error: payload.error || 'Não foi possível enviar o lembrete.' };
-      }
-      const mockResult = store.sendManual({ appointment, user, confirm, retry });
-      setEventsById(prev => ({
-        ...prev,
-        [String(appointment.id)]: store.getEvents(appointment.id)
-      }));
-      setSource('mock');
-      if (mockResult.needs_confirm) {
-        return {
-          ...mockResult,
-          hoursLabel: hoursAgoLabel(mockResult.sent_at)
-        };
-      }
-      return mockResult;
+      return interpreted;
     }
-  }, [refreshEvents, store, user]);
+  }, [allowDemoEvents, refreshEvents, store, user]);
 
   const owners = useMemo(
-    () => (professionals || []).filter(isCanonicalOwner),
+    () => (professionals || []).map(stripRawWhatsappPhone).filter(isCanonicalOwner),
     [professionals]
   );
 
   const value = useMemo(() => ({
     settings,
     source,
+    channelReady: Boolean(channelReady),
     eventsById,
-    phonesById,
+    destinations,
     owners,
     getEvents,
     getClientSummary,
@@ -202,13 +236,13 @@ export function ReminderProvider({
     savePhone,
     sendManualReminder,
     refreshEvents,
-    settingValueFromApi: key => settingValueFromApi(settingsData, key),
     keys: SETTING_KEYS
   }), [
     settings,
     source,
+    channelReady,
     eventsById,
-    phonesById,
+    destinations,
     owners,
     getEvents,
     getClientSummary,
@@ -216,8 +250,7 @@ export function ReminderProvider({
     saveSetting,
     savePhone,
     sendManualReminder,
-    refreshEvents,
-    settingsData
+    refreshEvents
   ]);
 
   return (

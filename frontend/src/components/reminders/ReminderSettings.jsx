@@ -17,11 +17,12 @@ import {
   TEMPLATE_CHAR_LIMIT,
   TEMPLATE_SETTING_KEY,
   canEnableTeamToggle,
-  getDestinationState,
+  getStaffDestination,
   getVisibleLeadHourOptions,
   insertPlaceholder,
   isCanonicalOwner,
   isE164Phone,
+  isReminderToggleActive,
   renderTemplatePreview,
   validateTemplate
 } from '../../utils/reminders';
@@ -90,10 +91,9 @@ function LeadHoursSelect({ value, onChange, catalog = LEAD_HOUR_CATALOG }) {
   );
 }
 
-function DestinationRow({ person, phone, onSavePhone }) {
+function DestinationRow({ person, destination, onSavePhone }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(phone || '');
-  const destination = getDestinationState(phone);
+  const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
 
   const save = async () => {
@@ -103,7 +103,12 @@ function DestinationRow({ person, phone, onSavePhone }) {
       return;
     }
     setError('');
-    await onSavePhone(person.id, next);
+    const result = await onSavePhone(person.id, next || null);
+    if (!result?.ok) {
+      setError(result?.error || 'Não foi possível salvar o contato.');
+      return;
+    }
+    setDraft('');
     setEditing(false);
   };
 
@@ -214,12 +219,12 @@ function TemplateEditor({ type, title, settings, onSave }) {
       )}
 
       <div className="rounded-2xl border border-primary/20 bg-background/50 p-4">
-        <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-2">Preview (dados fictícios)</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-2">Preview interno (dados fictícios)</p>
         <pre className="text-sm text-foreground whitespace-pre-wrap break-words font-sans">{preview}</pre>
       </div>
 
       <p className="text-[11px] text-muted">
-        Botões de Confirmar e Preciso remarcar são do sistema e não entram neste texto.
+        Este texto é copy/preview do painel. A produção envia o template Meta. Botões de Confirmar e Preciso remarcar são do sistema e não entram aqui.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-2">
@@ -256,28 +261,41 @@ export default function ReminderSettings({ professionals = [] }) {
   const [feedback, setFeedback] = useState('');
 
   const settings = reminders?.settings || {};
-  const phonesById = useMemo(() => reminders?.phonesById || {}, [reminders]);
+  const destinations = useMemo(() => reminders?.destinations || {}, [reminders]);
+  const channelReady = Boolean(reminders?.channelReady);
   const owners = (professionals || []).filter(isCanonicalOwner);
   const activeTeam = (professionals || []).filter(person => String(person.status || 'ativo') === 'ativo');
 
   const ownerDestination = useMemo(() => {
     const owner = owners[0];
     if (!owner) return { configured: false, label: 'Destino não configurado', person: null };
-    const phone = phonesById[String(owner.id)] || owner.whatsapp_phone;
-    return { ...getDestinationState(phone), person: owner };
-  }, [owners, phonesById]);
+    const presented = destinations[String(owner.id)] || owner;
+    return { ...getStaffDestination({
+      whatsapp_phone_set: presented.set ?? presented.whatsapp_phone_set,
+      whatsapp_phone_masked: presented.masked ?? presented.whatsapp_phone_masked
+    }), person: owner };
+  }, [owners, destinations]);
 
   const professionalDestinations = useMemo(() => {
     return activeTeam.map(person => {
-      const phone = phonesById[String(person.id)] || person.whatsapp_phone;
-      return { person, ...getDestinationState(phone), phone };
+      const presented = destinations[String(person.id)] || person;
+      return {
+        person,
+        ...getStaffDestination({
+          whatsapp_phone_set: presented.set ?? presented.whatsapp_phone_set,
+          whatsapp_phone_masked: presented.masked ?? presented.whatsapp_phone_masked
+        })
+      };
     });
-  }, [activeTeam, phonesById]);
+  }, [activeTeam, destinations]);
 
   const hasProfessionalDestination = professionalDestinations.some(item => item.configured);
   const clientAuto = Boolean(settings[SETTING_KEYS.clientAuto]);
   const notifyOwner = Boolean(settings[SETTING_KEYS.notifyOwner]);
   const notifyProfessional = Boolean(settings[SETTING_KEYS.notifyProfessional]);
+  const clientActive = isReminderToggleActive(clientAuto, channelReady);
+  const ownerActive = isReminderToggleActive(notifyOwner, channelReady);
+  const professionalActive = isReminderToggleActive(notifyProfessional, channelReady);
 
   if (!reminders) return null;
 
@@ -287,7 +305,8 @@ export default function ReminderSettings({ professionals = [] }) {
       return;
     }
     setFeedback('');
-    await reminders.saveSetting(key, next);
+    const result = await reminders.saveSetting(key, next);
+    if (!result?.ok) setFeedback(result?.error || 'Não foi possível salvar.');
   };
 
   return (
@@ -300,13 +319,13 @@ export default function ReminderSettings({ professionals = [] }) {
           <div>
             <h3 className="text-xl font-serif text-foreground">Lembretes e notificações</h3>
             <p className="text-xs text-muted mt-1 leading-relaxed">
-              Configure quem recebe avisos de agendamento e o lembrete automático da cliente. O envio real acontece no servidor; esta tela não agenda disparos no navegador.
+              Configure quem recebe avisos de agendamento e o lembrete automático da cliente. O envio real acontece no servidor; esta tela não dispara o cron.
             </p>
           </div>
         </div>
-        {reminders.source === 'mock' && (
+        {!channelReady && (
           <p className="mt-4 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-            Canal em modo demonstração (mock). Preferências ficam locais até a API de lembretes responder.
+            Canal WhatsApp (Meta) indisponível. Um toggle ligado não fica Ativo e nenhum envio é fingido até o canal estar pronto.
           </p>
         )}
       </header>
@@ -332,10 +351,11 @@ export default function ReminderSettings({ professionals = [] }) {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="text-foreground font-medium">Lembrete automático para cliente</p>
-              <StatusBadge active={clientAuto} />
+              <StatusBadge active={clientActive} />
             </div>
             <p className="text-xs text-muted mt-1">
               Desligar o automático não esconde o envio manual no card ou no detalhe da agenda.
+              {!channelReady && clientAuto ? ' Toggle ligado, mas o canal Meta ainda não está pronto — status Inativo.' : ''}
             </p>
           </div>
           <PinkToggle
@@ -378,7 +398,7 @@ export default function ReminderSettings({ professionals = [] }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-foreground font-medium">Avisar proprietária</p>
-                <StatusBadge active={notifyOwner} />
+                <StatusBadge active={ownerActive} />
               </div>
               <p className={`text-xs mt-1 ${ownerDestination.configured ? 'text-muted font-mono' : 'text-amber-400'}`}>
                 {ownerDestination.label}
@@ -401,7 +421,7 @@ export default function ReminderSettings({ professionals = [] }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-foreground font-medium">Avisar profissional</p>
-                <StatusBadge active={notifyProfessional} />
+                <StatusBadge active={professionalActive} />
               </div>
               <p className={`text-xs mt-1 ${hasProfessionalDestination ? 'text-muted' : 'text-amber-400'}`}>
                 {hasProfessionalDestination
@@ -428,14 +448,21 @@ export default function ReminderSettings({ professionals = [] }) {
           {activeTeam.length === 0 && (
             <p className="text-xs text-muted">Nenhum profissional ativo para configurar destino.</p>
           )}
-          {activeTeam.map(person => (
-            <DestinationRow
-              key={person.id}
-              person={person}
-              phone={phonesById[String(person.id)] || person.whatsapp_phone || ''}
-              onSavePhone={reminders.savePhone}
-            />
-          ))}
+          {activeTeam.map(person => {
+            const presented = destinations[String(person.id)] || {};
+            const destination = getStaffDestination({
+              whatsapp_phone_set: presented.set ?? presented.whatsapp_phone_set,
+              whatsapp_phone_masked: presented.masked ?? presented.whatsapp_phone_masked
+            });
+            return (
+              <DestinationRow
+                key={person.id}
+                person={person}
+                destination={destination}
+                onSavePhone={reminders.savePhone}
+              />
+            );
+          })}
         </div>
       </section>
 
@@ -446,7 +473,7 @@ export default function ReminderSettings({ professionals = [] }) {
           </div>
           <div>
             <h3 className="text-lg font-serif text-foreground">Templates</h3>
-            <p className="text-xs text-muted">Três mensagens distintas. A validação é inline e não apaga o rascunho.</p>
+            <p className="text-xs text-muted">Três textos de referência no painel. Em produção o WhatsApp usa o template aprovado na Meta; este copy não é o payload final.</p>
           </div>
         </div>
 

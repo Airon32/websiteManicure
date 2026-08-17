@@ -280,6 +280,21 @@ export function settingsFromList(list = []) {
   return map;
 }
 
+export function getStaffDestination(person = {}) {
+  if (person.whatsapp_phone_set && person.whatsapp_phone_masked) {
+    return {
+      configured: true,
+      masked: String(person.whatsapp_phone_masked),
+      label: String(person.whatsapp_phone_masked)
+    };
+  }
+  return {
+    configured: false,
+    masked: '',
+    label: 'Destino não configurado'
+  };
+}
+
 export function getDestinationState(phone) {
   if (!isE164Phone(phone)) {
     return {
@@ -292,6 +307,43 @@ export function getDestinationState(phone) {
     configured: true,
     masked: maskWhatsappPhone(phone),
     label: maskWhatsappPhone(phone)
+  };
+}
+
+export function isReminderToggleActive(enabled, channelReady) {
+  return Boolean(enabled) && Boolean(channelReady);
+}
+
+export function stripRawWhatsappPhone(person) {
+  if (!person || typeof person !== 'object') return person;
+  const rest = { ...person };
+  delete rest.whatsapp_phone;
+  return rest;
+}
+
+export function interpretManualSendFailure(error) {
+  const status = error?.response?.status;
+  const payload = error?.response?.data || {};
+  if (payload.needs_confirm === true || (status === 409 && payload.needs_confirm !== false && /6 horas|automatico|automático/i.test(String(payload.error || '')))) {
+    return {
+      ok: false,
+      needs_confirm: true,
+      status: 409,
+      error: payload.error || 'Um lembrete automatico foi enviado recentemente.',
+      sent_at: payload.sent_at || null
+    };
+  }
+  if (status === 503) {
+    return {
+      ok: false,
+      status: 503,
+      error: payload.error || 'Canal de WhatsApp indisponível. O envio não foi fingido.'
+    };
+  }
+  return {
+    ok: false,
+    status: status || 0,
+    error: payload.error || error?.message || 'Não foi possível enviar o lembrete.'
   };
 }
 

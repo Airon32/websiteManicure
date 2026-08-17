@@ -85,6 +85,7 @@ export default function AdminDashboard() {
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
   const [settingsData, setSettingsData] = useState([]);
+  const [reminderChannelReady, setReminderChannelReady] = useState(false);
   const [financialStats, setFinancialStats] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
@@ -313,6 +314,7 @@ export default function AdminDashboard() {
       const incomingSettings = setRes.data.data;
 
       setSettingsData(incomingSettings);
+      setReminderChannelReady(Boolean(setRes.data.reminder_channel_ready));
 
       setAppointments(appRes.data.data);
       setClients(cliRes.data.data);
@@ -1270,6 +1272,7 @@ const scheduleUpdates = [
       appointments={appointments}
       professionals={professionals}
       settingsData={settingsData}
+      channelReady={reminderChannelReady}
       user={user}
     >
     <div className="flex h-screen bg-background overflow-hidden font-sans transition-colors duration-300">

@@ -51,6 +51,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const ConfirmAppointment = lazy(() => import('./pages/ConfirmAppointment'));
 const Login = lazy(() => import('./pages/Login'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
+const ReminderPreview = lazy(() => import('./pages/ReminderPreview'));
 
 function PageLoader({ label = 'Carregando...' }) {
   return (
@@ -129,6 +130,7 @@ function AppRoutes() {
   else if (location.pathname === '/meu-perfil') page = <ClientDashboard />;
   else if (['/privacidade', '/termos', '/politicas'].includes(location.pathname)) page = <LegalRoute />;
   else if (isConfirmationRoute) page = <ConfirmAppointment />;
+  else if (import.meta.env.DEV && location.pathname === '/dev/reminders') page = <ReminderPreview />;
   else if (location.pathname === '/admin') page = <PrivateRoute><AdminDashboard /></PrivateRoute>;
   else page = <NotFound />;
 
