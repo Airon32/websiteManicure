@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { format, isSameDay, startOfToday } from 'date-fns';
 import ptBR from 'date-fns/locale/pt-BR/index.js';
 import { CheckCircle, Clock, Lock, MessageCircle, Plus, Unlock, Users } from 'lucide-react';
+import ReminderIndicator from '../reminders/ReminderIndicator';
 import {
   appointmentDate,
   calculateDayMetrics,
@@ -93,6 +94,7 @@ function WeekAppointmentCard({ item, startMinute, onCancel, onConfirm, onComplet
               {appointment.time}–{endTime}
             </span>
 
+            {!isBlock && <ReminderIndicator appointment={appointment} />}
             {!isBlock && appointment.status === 'confirmado' && (
               <span className="inline-flex items-center gap-0.5 text-[7.5px] font-black text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-1 py-0.2 rounded">
                 <CheckCircle size={8} className="shrink-0" />
