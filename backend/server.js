@@ -14,6 +14,7 @@ const {
     createAppointmentToken,
     createRefreshToken,
     findRefreshToken,
+    getRequestIp,
     hashPassword,
     isBenignRefreshReuse,
     isOwner,
@@ -24,6 +25,9 @@ const {
     normalizePhone,
     optionalSession,
     rateLimit,
+    rateLimitCredentialFailure,
+    rateLimitGeneralLogin,
+    resetCredentialFailureBucket,
     readRefreshToken,
     readSession,
     requireClient,
@@ -467,12 +471,7 @@ function validateClientRescheduleAgainstSchedule({ date, time, duration, schedul
 }
 
 // --- ROTA DE LOGIN ---
-app.post('/api/login', rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 6,
-    keyPrefix: 'staff-login',
-    message: 'Muitas tentativas de acesso. Aguarde 15 minutos e tente novamente.'
-}), async (req, res) => {
+app.post('/api/login', rateLimitGeneralLogin, rateLimitCredentialFailure, async (req, res) => {
     const rawUsername = String(req.body.username || '').trim();
     const rawPassword = String(req.body.password || '').trim();
 
@@ -502,6 +501,11 @@ app.post('/api/login', rateLimit({
     if (!passwordResult.valid) {
         return res.status(401).json({"error": "Usuário ou senha incorretos."});
     }
+
+    // A correct password clears the consecutive-failure bucket. The key must be
+    // derived from the request exactly as the limiter derived it, otherwise the
+    // reset lands on a different bucket and never releases the user.
+    resetCredentialFailureBucket(req, rawUsername);
 
     if (passwordResult.needsUpgrade) {
         const upgradedPassword = await hashPassword(rawPassword);
@@ -840,6 +844,8 @@ function endRefreshedSession(res) {
     return res.status(401).json(REFRESH_INVALID);
 }
 
+// Its own bucket on purpose: renewing a session must never consume, or be
+// blocked by, the login buckets.
 app.post('/api/auth/refresh', rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 30,

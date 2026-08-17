@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 import { useNavigate } from '../router';
 import { ArrowLeft, Eye, EyeOff, Loader2, Lock, ShieldCheck, User } from 'lucide-react';
@@ -12,14 +12,18 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const navigate = useNavigate();
+  const restoreAttempted = useRef(false);
 
   useEffect(() => {
     const hasFlag = localStorage.getItem(STORAGE_FLAG) === 'true';
-    if (!hasFlag) return;
+    if (!hasFlag || restoreAttempted.current) return;
 
+    restoreAttempted.current = true;
     setRestoring(true);
     let active = true;
+    
     api.get('/api/session')
       .then(response => {
         if (!active) return;
@@ -31,8 +35,28 @@ export default function Login() {
           setRestoring(false);
         }
       })
-      .catch(() => {
-        if (active) {
+      .catch((err) => {
+        if (!active) return;
+        // If session restore fails with 401 and needsRefresh, try refresh once
+        if (err.response?.status === 401 && err.response?.data?.needsRefresh) {
+          api.post('/api/auth/refresh')
+            .then(refreshResponse => {
+              if (!active) return;
+              if (refreshResponse.data.data?.type === 'staff') {
+                localStorage.setItem(STORAGE_FLAG, 'true');
+                navigate('/admin', { replace: true });
+              } else {
+                localStorage.removeItem(STORAGE_FLAG);
+                setRestoring(false);
+              }
+            })
+            .catch(() => {
+              if (active) {
+                localStorage.removeItem(STORAGE_FLAG);
+                setRestoring(false);
+              }
+            });
+        } else {
           localStorage.removeItem(STORAGE_FLAG);
           setRestoring(false);
         }
@@ -40,9 +64,29 @@ export default function Login() {
     return () => { active = false; };
   }, [navigate]);
 
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  useEffect(() => {
+    if (countdown === 0) {
+      setError('');
+    }
+  }, [countdown]);
+
+  const formatCountdown = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
   const handleLogin = async (event) => {
     event.preventDefault();
-    if (loading) return;
+    if (loading || countdown > 0) return;
     setError('');
     setLoading(true);
 
@@ -54,7 +98,17 @@ export default function Login() {
       if (!err.response) {
         setError('Não foi possível conectar. Confira sua internet e tente novamente.');
       } else if (err.response.status === 429) {
-        setError(err.response.data?.error || 'Muitas tentativas. Aguarde alguns minutos.');
+        let retrySeconds = err.response.data?.retryAfterSeconds;
+        if (!retrySeconds) {
+          const retryHeader = err.response.headers?.['retry-after'];
+          if (retryHeader) {
+            retrySeconds = parseInt(retryHeader, 10);
+          }
+        }
+        if (!retrySeconds || isNaN(retrySeconds)) {
+          retrySeconds = 900;
+        }
+        setCountdown(retrySeconds);
       } else {
         setError(err.response.data?.error || 'Usuário ou senha incorretos.');
       }
@@ -132,11 +186,15 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5" noValidate>
-            {error && (
+            {countdown > 0 ? (
+              <div className="bg-red-500/10 text-red-600 dark:text-red-400 p-4 rounded-2xl border border-red-500/20 text-sm font-medium" role="alert" aria-live="assertive">
+                Aguarde {formatCountdown(countdown)} para tentar novamente.
+              </div>
+            ) : error ? (
               <div className="bg-red-500/10 text-red-600 dark:text-red-400 p-4 rounded-2xl border border-red-500/20 text-sm" role="alert" aria-live="assertive">
                 {error}
               </div>
-            )}
+            ) : null}
 
             <div>
               <label htmlFor="staff-username" className="block text-sm font-semibold text-foreground mb-2">Usuário</label>
@@ -152,7 +210,7 @@ export default function Login() {
                   spellCheck="false"
                   value={username}
                   onChange={event => setUsername(event.target.value)}
-                  disabled={loading}
+                  disabled={loading || countdown > 0}
                   required
                   autoFocus
                 />
@@ -171,7 +229,7 @@ export default function Login() {
                   autoComplete="current-password"
                   value={password}
                   onChange={event => setPassword(event.target.value)}
-                  disabled={loading}
+                  disabled={loading || countdown > 0}
                   required
                 />
                 <button
@@ -185,7 +243,7 @@ export default function Login() {
               </div>
             </div>
 
-            <button type="submit" className="btn-primary w-full min-h-12" disabled={loading || !username.trim() || !password}>
+            <button type="submit" className="btn-primary w-full min-h-12" disabled={loading || countdown > 0 || !username.trim() || !password}>
               {loading ? <><Loader2 size={18} className="animate-spin" /> Entrando com segurança...</> : 'Entrar no painel'}
             </button>
           </form>

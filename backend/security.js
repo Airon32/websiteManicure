@@ -12,7 +12,130 @@ const REFRESH_TTL = 30 * 24 * 60 * 60;
 // A rotated token may still arrive from a request that raced the rotation.
 // Inside this window it is treated as a retry instead of a stolen token.
 const REFRESH_REUSE_GRACE_MS = 10 * 1000;
+
+// Bucket A: consecutive credential failures per IP + username, cleared on a
+// successful login. Bucket B: raw login volume per IP. rateLimitBuckets backs
+// the generic per-route limiter used everywhere else.
 const rateLimitBuckets = new Map();
+const credentialFailureBuckets = new Map();
+const generalLoginVolumeBuckets = new Map();
+
+const CREDENTIAL_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const CREDENTIAL_FAILURE_MAX = 5;
+const GENERAL_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const GENERAL_LOGIN_MAX = 30;
+
+function getRequestIp(req) {
+    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function createBucketKey(ip, identifier) {
+    return `${ip}:${identifier}`;
+}
+
+function checkAndIncrementBucket(buckets, key, windowMs, max, now) {
+    const current = buckets.get(key);
+    const bucket = !current || current.resetAt <= now
+        ? { count: 0, resetAt: now + windowMs }
+        : current;
+
+    bucket.count += 1;
+    buckets.set(key, bucket);
+
+    return {
+        allowed: bucket.count <= max,
+        limit: max,
+        remaining: Math.max(0, max - bucket.count),
+        resetAt: bucket.resetAt,
+        retryAfter: bucket.count > max ? Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) : 0
+    };
+}
+
+function credentialFailureKey(req, username) {
+    const identifier = String(username ?? req.body?.username ?? '').trim().toLowerCase();
+    return createBucketKey(getRequestIp(req), identifier || 'unknown');
+}
+
+function resetCredentialFailureBucket(req, username) {
+    credentialFailureBuckets.delete(credentialFailureKey(req, username));
+}
+
+function rateLimitCredentialFailure(req, res, next) {
+    const now = Date.now();
+    const key = credentialFailureKey(req);
+
+    const result = checkAndIncrementBucket(credentialFailureBuckets, key, CREDENTIAL_FAILURE_WINDOW_MS, CREDENTIAL_FAILURE_MAX, now);
+
+    res.setHeader('X-RateLimit-Limit', String(result.limit));
+    res.setHeader('X-RateLimit-Remaining', String(result.remaining));
+    res.setHeader('X-RateLimit-Bucket', 'credential-failure');
+
+    if (!result.allowed) {
+        res.setHeader('Retry-After', String(result.retryAfter));
+        return res.status(429).json({ error: 'Muitas tentativas de credencial incorreta. Aguarde 15 minutos.' });
+    }
+
+    if (credentialFailureBuckets.size > 5000) {
+        for (const [bucketKey, value] of credentialFailureBuckets) {
+            if (value.resetAt <= now) credentialFailureBuckets.delete(bucketKey);
+        }
+    }
+    next();
+}
+
+function rateLimitGeneralLogin(req, res, next) {
+    const now = Date.now();
+    const ip = getRequestIp(req);
+    const key = `general-login:${ip}`;
+
+    const result = checkAndIncrementBucket(generalLoginVolumeBuckets, key, GENERAL_LOGIN_WINDOW_MS, GENERAL_LOGIN_MAX, now);
+
+    res.setHeader('X-RateLimit-Limit', String(result.limit));
+    res.setHeader('X-RateLimit-Remaining', String(result.remaining));
+    res.setHeader('X-RateLimit-Bucket', 'general-login');
+
+    if (!result.allowed) {
+        res.setHeader('Retry-After', String(result.retryAfter));
+        return res.status(429).json({ error: 'Volume excessivo de tentativas de login. Aguarde alguns minutos.' });
+    }
+
+    if (generalLoginVolumeBuckets.size > 5000) {
+        for (const [bucketKey, value] of generalLoginVolumeBuckets) {
+            if (value.resetAt <= now) generalLoginVolumeBuckets.delete(bucketKey);
+        }
+    }
+    next();
+}
+
+function rateLimit({ windowMs, max, keyPrefix, message }) {
+    return (req, res, next) => {
+        const now = Date.now();
+        const key = `${keyPrefix}:${getRequestIp(req)}`;
+        const current = rateLimitBuckets.get(key);
+        const bucket = !current || current.resetAt <= now
+            ? { count: 0, resetAt: now + windowMs }
+            : current;
+
+        bucket.count += 1;
+        rateLimitBuckets.set(key, bucket);
+
+        res.setHeader('X-RateLimit-Limit', String(max));
+        res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - bucket.count)));
+        if (bucket.count > max) {
+            const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+            res.setHeader('Retry-After', String(retryAfter));
+            return res.status(429).json({ error: message || 'Muitas tentativas. Aguarde alguns minutos.' });
+        }
+
+        if (rateLimitBuckets.size > 5000) {
+            for (const [bucketKey, value] of rateLimitBuckets) {
+                if (value.resetAt <= now) rateLimitBuckets.delete(bucketKey);
+            }
+        }
+        next();
+    };
+}
 
 function base64url(value) {
     return Buffer.from(value).toString('base64url');
@@ -374,40 +497,6 @@ function requireClient(req, res, next) {
     next();
 }
 
-function getRequestIp(req) {
-    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
-}
-
-function rateLimit({ windowMs, max, keyPrefix, message }) {
-    return (req, res, next) => {
-        const now = Date.now();
-        const key = `${keyPrefix}:${getRequestIp(req)}`;
-        const current = rateLimitBuckets.get(key);
-        const bucket = !current || current.resetAt <= now
-            ? { count: 0, resetAt: now + windowMs }
-            : current;
-
-        bucket.count += 1;
-        rateLimitBuckets.set(key, bucket);
-
-        res.setHeader('X-RateLimit-Limit', String(max));
-        res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - bucket.count)));
-        if (bucket.count > max) {
-            const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
-            res.setHeader('Retry-After', String(retryAfter));
-            return res.status(429).json({ error: message || 'Muitas tentativas. Aguarde alguns minutos.' });
-        }
-
-        if (rateLimitBuckets.size > 5000) {
-            for (const [bucketKey, value] of rateLimitBuckets) {
-                if (value.resetAt <= now) rateLimitBuckets.delete(bucketKey);
-            }
-        }
-        next();
-    };
-}
-
 function normalizePhone(value) {
     const digits = String(value || '').replace(/\D/g, '');
     return digits.startsWith('55') && digits.length === 13 ? digits.slice(2) : digits;
@@ -541,6 +630,7 @@ module.exports = {
     createAppointmentToken,
     createRefreshToken,
     findRefreshToken,
+    getRequestIp,
     hashPassword,
     isBenignRefreshReuse,
     isOwner,
@@ -551,6 +641,9 @@ module.exports = {
     normalizePhone,
     optionalSession,
     rateLimit,
+    rateLimitCredentialFailure,
+    rateLimitGeneralLogin,
+    resetCredentialFailureBucket,
     readRefreshToken,
     readSession,
     requireClient,
