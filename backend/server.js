@@ -4,11 +4,18 @@ const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const {
+    ACCESS_TTL,
     PROTECTED_PHONE_PLACEHOLDER,
+    REFRESH_TTL,
     canViewClientPhone,
+    clearRefreshCookie,
     clearSessionCookie,
+    clearStaffSessionFlagCookie,
     createAppointmentToken,
+    createRefreshToken,
+    findRefreshToken,
     hashPassword,
+    isBenignRefreshReuse,
     isOwner,
     isProtectedPhone,
     isValidPhone,
@@ -17,16 +24,22 @@ const {
     normalizePhone,
     optionalSession,
     rateLimit,
+    readRefreshToken,
     readSession,
     requireClient,
     requireSameOrigin,
     requireStaff,
+    revokeRefreshToken,
+    revokeRefreshTokenFamily,
+    rotateRefreshToken,
     safeText,
     sameSubject,
+    setRefreshCookie,
     setSessionCookie,
+    setStaffSessionFlagCookie,
     signSession,
-    verifyPassword,
-    verifyAppointmentToken
+    verifyAppointmentToken,
+    verifyPassword
 } = require('./security');
 const {
     createMetaWhatsAppSenderFromEnv,
@@ -152,6 +165,16 @@ const DEFAULT_WORK_START = '09:00';
 const DEFAULT_WORK_END = '20:00';
 const DEFAULT_SLOT_INTERVAL = '30';
 
+function safeDbErrorMessage(error, defaultMessage = 'Não foi possível processar a solicitação.') {
+    if (!error) return defaultMessage;
+    if (process.env.NODE_ENV !== 'test') {
+        console.error('[Database Error]:', error.code || 'UNKNOWN', error.message);
+    }
+    if (error.code === '23505') return 'Este registro já existe ou entra em conflito com outro item.';
+    if (error.code === '23503') return 'O item referenciado não existe ou não está mais disponível.';
+    return defaultMessage;
+}
+
 // Rota para buscar notificações (DEDICADA - Busca da tabela 'notifications')
 app.get('/api/notifications', requireStaff(), async (req, res) => {
     try {
@@ -162,13 +185,12 @@ app.get('/api/notifications', requireStaff(), async (req, res) => {
             .limit(50);
             
         if (error) {
-            console.error('[NOTIF] Erro ao buscar:', error.message);
-            return res.status(500).json({ error: error.message });
+            return res.status(500).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar as notificações.') });
         }
         
         res.json(data);
-    } catch (err) {
-        res.status(500).json({ error: 'Erro interno' });
+    } catch {
+        res.status(500).json({ error: 'Erro interno ao carregar notificações.' });
     }
 });
 
@@ -180,14 +202,18 @@ app.post('/api/notifications/clear', requireStaff('admin'), async (req, res) => 
             .delete()
             .not('id', 'is', null);
             
-        if (error) throw error;
+        if (error) {
+            return res.status(500).json({ error: safeDbErrorMessage(error, 'Não foi possível limpar as notificações.') });
+        }
         res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    } catch {
+        res.status(500).json({ error: 'Erro interno ao limpar notificações.' });
     }
 });
 const DEFAULT_WORK_DAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
 const DAY_NAME_MAP = { 0: 'dom', 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sab' };
+const DAY_KEYS = Object.freeze(['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function getDateStringInTimeZone(date = new Date(), timeZone = process.env.BUSINESS_TIMEZONE || 'America/Sao_Paulo') {
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -229,15 +255,142 @@ function parseWorkDays(value) {
     }
 }
 
+function minutesToTime(totalMinutes) {
+    const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    return `${hours}:${String(totalMinutes % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Validates the per-day expedient and expands it to all seven days, where null
+ * means a day off. A missing day is stored as a day off so a partial payload
+ * can never silently inherit the previous opening hours.
+ */
+function normalizeDaySchedule(rawValue) {
+    let source = rawValue;
+
+    if (typeof source === 'string') {
+        const trimmed = source.trim();
+        if (!trimmed) return { valid: false, error: 'Informe o expediente de cada dia.' };
+        try {
+            source = JSON.parse(trimmed);
+        } catch {
+            return { valid: false, error: 'O expediente enviado não é um JSON válido.' };
+        }
+    }
+
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+        return { valid: false, error: 'O expediente deve ser um objeto com os dias da semana.' };
+    }
+
+    const unknownDay = Object.keys(source).find(day => !DAY_KEYS.includes(day));
+    if (unknownDay) {
+        return { valid: false, error: `Dia inválido no expediente: "${safeText(unknownDay, 20)}".` };
+    }
+
+    const schedule = {};
+    let openDays = 0;
+
+    for (const day of DAY_KEYS) {
+        const entry = source[day];
+        if (entry === undefined || entry === null || entry === false) {
+            schedule[day] = null;
+            continue;
+        }
+        if (typeof entry !== 'object' || Array.isArray(entry)) {
+            return { valid: false, error: `Informe início e fim do expediente de ${day} ou deixe o dia vazio.` };
+        }
+
+        const start = String(entry.start ?? '').trim();
+        const end = String(entry.end ?? '').trim();
+        if (!TIME_PATTERN.test(start) || !TIME_PATTERN.test(end)) {
+            return { valid: false, error: `Horário inválido no expediente de ${day}. Use o formato HH:MM.` };
+        }
+        if (timeToMinutes(end) <= timeToMinutes(start)) {
+            return { valid: false, error: `O fim do expediente de ${day} precisa ser depois do início.` };
+        }
+
+        schedule[day] = { start, end };
+        openDays += 1;
+    }
+
+    if (openDays === 0) {
+        return { valid: false, error: 'Selecione ao menos um dia de atendimento.' };
+    }
+
+    return { valid: true, value: schedule };
+}
+
+function scheduleFromFlatHours(workStart, workEnd, workDays) {
+    const openDays = new Set(workDays);
+    return Object.fromEntries(
+        DAY_KEYS.map(day => [day, openDays.has(day) ? { start: workStart, end: workEnd } : null])
+    );
+}
+
 function buildProfessionalSchedule(settingsMap, professionalId) {
     const rawInterval = Number(settingsMap[getProfessionalSettingKey(professionalId, 'slot_interval')] || settingsMap.slot_interval || DEFAULT_SLOT_INTERVAL);
+    const flatStart = settingsMap[getProfessionalSettingKey(professionalId, 'work_start')] || settingsMap.work_start || DEFAULT_WORK_START;
+    const flatEnd = settingsMap[getProfessionalSettingKey(professionalId, 'work_end')] || settingsMap.work_end || DEFAULT_WORK_END;
+    const flatDays = parseWorkDays(settingsMap[getProfessionalSettingKey(professionalId, 'work_days')] || settingsMap.work_days);
+
+    const rawPerDay = settingsMap[getProfessionalSettingKey(professionalId, 'schedule')] || settingsMap.schedule;
+    const parsedPerDay = rawPerDay ? normalizeDaySchedule(rawPerDay) : null;
+    const schedule = parsedPerDay?.valid
+        ? parsedPerDay.value
+        : scheduleFromFlatHours(flatStart, flatEnd, flatDays);
+    const openDays = DAY_KEYS.filter(day => schedule[day]);
+    const hasPerDay = Boolean(parsedPerDay?.valid) && openDays.length > 0;
+
+    // The flat fields stay in the payload for clients written before the per-day
+    // format. When a per-day expedient exists they describe its widest window,
+    // so an older client never rejects an hour the server accepts.
     return {
-        work_start: settingsMap[getProfessionalSettingKey(professionalId, 'work_start')] || settingsMap.work_start || DEFAULT_WORK_START,
-        work_end: settingsMap[getProfessionalSettingKey(professionalId, 'work_end')] || settingsMap.work_end || DEFAULT_WORK_END,
+        work_start: hasPerDay ? minutesToTime(Math.min(...openDays.map(day => timeToMinutes(schedule[day].start)))) : flatStart,
+        work_end: hasPerDay ? minutesToTime(Math.max(...openDays.map(day => timeToMinutes(schedule[day].end)))) : flatEnd,
         slot_interval: Number.isInteger(rawInterval) && rawInterval >= 5 && rawInterval <= 240 ? rawInterval : Number(DEFAULT_SLOT_INTERVAL),
-        work_days: parseWorkDays(settingsMap[getProfessionalSettingKey(professionalId, 'work_days')] || settingsMap.work_days),
-        is_public_agenda: settingsMap[getProfessionalSettingKey(professionalId, 'is_public_agenda')] === 'true'
+        work_days: hasPerDay ? openDays : flatDays,
+        is_public_agenda: settingsMap[getProfessionalSettingKey(professionalId, 'is_public_agenda')] === 'true',
+        schedule
     };
+}
+
+async function buildProfessionalScheduleWithExceptions(supabase, settingsMap, professionalId) {
+    const baseSchedule = buildProfessionalSchedule(settingsMap, professionalId);
+    
+    // Load exceptions from database
+    const { data: exceptions } = await supabase
+        .from('schedule_exceptions')
+        .select('exception_date, start_time, end_time, is_day_off')
+        .eq('professional_id', professionalId);
+    
+    const exceptionsMap = {};
+    if (exceptions) {
+        for (const exc of exceptions) {
+            exceptionsMap[exc.exception_date] = exc.is_day_off ? null : {
+                start: exc.start_time,
+                end: exc.end_time
+            };
+        }
+    }
+    
+    return {
+        ...baseSchedule,
+        exceptions: exceptionsMap
+    };
+}
+
+/**
+ * Resolves the opening window of one date. Returns null when the professional
+ * does not work that day, so every caller enforces the same per-day rule.
+ */
+function getScheduleWindowForDay(schedule, dayKey) {
+    const perDay = schedule?.schedule;
+    if (perDay) {
+        const day = perDay[dayKey];
+        return day ? { start: timeToMinutes(day.start), end: timeToMinutes(day.end) } : null;
+    }
+    if (!schedule?.work_days?.includes(dayKey)) return null;
+    return { start: timeToMinutes(schedule.work_start), end: timeToMinutes(schedule.work_end) };
 }
 
 async function recordAuditLog({ action = 'update_setting', setting_key = null, old_value = null, new_value = null, user = null }) {
@@ -272,16 +425,15 @@ function validateAppointmentAgainstSchedule({ date, time, duration, schedule, ig
     const appointmentDate = new Date(`${date}T00:00:00`);
     const dayKey = DAY_NAME_MAP[appointmentDate.getDay()];
 
-    if (!schedule.work_days.includes(dayKey)) {
+    const window = getScheduleWindowForDay(schedule, dayKey);
+    if (!window) {
         return { valid: false, error: 'Este profissional não atende no dia selecionado.' };
     }
 
-    const startMinutes = timeToMinutes(schedule.work_start);
-    const endMinutes = timeToMinutes(schedule.work_end);
     const appointmentStart = timeToMinutes(time);
     const appointmentEnd = appointmentStart + duration;
 
-    if (appointmentStart < startMinutes || appointmentEnd > endMinutes) {
+    if (appointmentStart < window.start || appointmentEnd > window.end) {
         return { valid: false, error: 'O horário escolhido está fora do expediente configurado para este profissional.' };
     }
 
@@ -292,12 +444,13 @@ function validateClientRescheduleAgainstSchedule({ date, time, duration, schedul
     const appointmentDate = new Date(`${date}T00:00:00`);
     const dayKey = DAY_NAME_MAP[appointmentDate.getDay()];
 
-    if (!schedule.work_days.includes(dayKey)) {
+    const window = getScheduleWindowForDay(schedule, dayKey);
+    if (!window) {
         return { valid: false, error: 'A profissional não atende nesse dia. Fale com a equipe para solicitar uma exceção.' };
     }
 
-    const scheduleStart = timeToMinutes(schedule.work_start);
-    const scheduleEnd = timeToMinutes(schedule.work_end);
+    const scheduleStart = window.start;
+    const scheduleEnd = window.end;
     const appointmentStart = timeToMinutes(time);
     const appointmentEnd = appointmentStart + duration;
     const earliestStart = Math.max(0, scheduleStart - toleranceMinutes);
@@ -360,9 +513,11 @@ app.post('/api/login', rateLimit({
     }
 
     const { password, ...userWithoutPassword } = data;
-    const maxAge = 8 * 60 * 60;
-    const token = signSession({ type: 'staff', id: String(data.id), role: data.role }, maxAge);
-    setSessionCookie(res, token, maxAge);
+    const accessToken = signSession({ type: 'staff', id: String(data.id), role: data.role }, ACCESS_TTL);
+    const refreshToken = await createRefreshToken(supabase, String(data.id), 'staff', REFRESH_TTL);
+    setSessionCookie(res, accessToken, ACCESS_TTL);
+    setRefreshCookie(res, refreshToken.token, REFRESH_TTL);
+    setStaffSessionFlagCookie(res, REFRESH_TTL);
     res.json({"message": "success", "data": userWithoutPassword });
 });
 
@@ -423,13 +578,15 @@ app.post('/api/client/login', rateLimit({
         }
 
         const maxAge = 30 * 24 * 60 * 60;
-        const token = signSession({
+        const accessToken = signSession({
             type: 'client',
             id: String(client.id),
             name: safeText(client.name || name, 100),
             phone
-        }, maxAge);
-        setSessionCookie(res, token, maxAge);
+        }, ACCESS_TTL);
+        const refreshToken = await createRefreshToken(supabase, String(client.id), 'client', REFRESH_TTL);
+        setSessionCookie(res, accessToken, ACCESS_TTL);
+        setRefreshCookie(res, refreshToken.token, REFRESH_TTL);
 
         return res.json({
             message: 'success',
@@ -567,14 +724,15 @@ app.post('/api/client-auth/verify-code', rateLimit({
     }
 
     const normalizedClientPhone = normalizePhone(client.phone);
-    const maxAge = 30 * 24 * 60 * 60;
-    const token = signSession({
+    const accessToken = signSession({
         type: 'client',
         id: String(client.id),
         name: safeText(client.name, 100),
         phone: normalizedClientPhone
-    }, maxAge);
-    setSessionCookie(res, token, maxAge);
+    }, ACCESS_TTL);
+    const refreshToken = await createRefreshToken(supabase, String(client.id), 'client', REFRESH_TTL);
+    setSessionCookie(res, accessToken, ACCESS_TTL);
+    setRefreshCookie(res, refreshToken.token, REFRESH_TTL);
 
     return res.json({
         message: 'success',
@@ -585,10 +743,23 @@ app.post('/api/client-auth/verify-code', rateLimit({
 
 app.get('/api/session', async (req, res) => {
     const session = req.auth || readSession(req);
-    if (!session || session.action) return res.status(401).json({ error: 'Sessão não encontrada.' });
+
+    if (!session || session.action) {
+        // An expired access cookie backed by a live refresh token is a renewable
+        // session, not a visitor who has to log in again.
+        let needsRefresh = false;
+        try {
+            const record = await findRefreshToken(supabase, readRefreshToken(req));
+            needsRefresh = Boolean(record && !record.revoked && !record.expired);
+        } catch (error) {
+            console.error('[Session] Falha ao consultar refresh token:', error.code || error.message);
+            return res.status(503).json({ error: 'Não foi possível validar sua sessão agora.' });
+        }
+        return res.status(401).json({ error: 'Sessão não encontrada.', needsRefresh });
+    }
 
     if (session.type === 'client') {
-        return res.json({ message: 'success', data: { type: 'client', name: session.name, phone: session.phone } });
+        return res.json({ message: 'success', data: { type: 'client', name: session.name, phone: session.phone }, needsRefresh: false });
     }
 
     const settingsMap = await loadSettingsMap().catch(() => ({}));
@@ -602,7 +773,8 @@ app.get('/api/session', async (req, res) => {
                 ...session.profile,
                 is_owner: isOwner(staffObj),
                 can_view_client_phones: canViewClientPhone(staffObj, settingsMap)
-            }
+            },
+            needsRefresh: false
         });
     }
 
@@ -612,9 +784,16 @@ app.get('/api/session', async (req, res) => {
         .eq('id', session.id)
         .eq('status', 'ativo')
         .maybeSingle();
-    if (error || !data) {
+    if (error) {
+        console.error('[Session] Falha ao recarregar o perfil:', error.code || error.message);
+        return res.status(503).json({ error: 'Não foi possível validar sua sessão agora.' });
+    }
+    if (!data) {
         clearSessionCookie(res);
-        return res.status(401).json({ error: 'Sessão expirada.' });
+        clearRefreshCookie(res);
+        clearStaffSessionFlagCookie(res);
+        await revokeRefreshTokenFamily(supabase, session.id, 'staff').catch(() => {});
+        return res.status(401).json({ error: 'Sessão expirada.', needsRefresh: false });
     }
     const staffObj = { type: 'staff', ...data };
     res.json({
@@ -624,13 +803,149 @@ app.get('/api/session', async (req, res) => {
             ...data,
             is_owner: isOwner(staffObj),
             can_view_client_phones: canViewClientPhone(staffObj, settingsMap)
-        }
+        },
+        needsRefresh: false
     });
 });
 
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', async (req, res) => {
+    const presentedToken = readRefreshToken(req);
+    if (presentedToken) {
+        try {
+            const record = await findRefreshToken(supabase, presentedToken);
+            if (record && !record.revoked) {
+                await revokeRefreshToken(supabase, record.id);
+            } else if (record) {
+                // A already rotated token arriving at logout means the cookie is
+                // stale or leaked, so nothing in that lineage stays usable.
+                await revokeRefreshTokenFamily(supabase, record.userId, record.userType);
+            }
+        } catch (error) {
+            console.error('[Logout] Não foi possível revogar o refresh token:', error.code || error.message);
+        }
+    }
     clearSessionCookie(res);
+    clearRefreshCookie(res);
+    clearStaffSessionFlagCookie(res);
     res.json({ message: 'success' });
+});
+
+const REFRESH_INVALID = Object.freeze({ error: 'Sua sessão expirou. Entre novamente.', code: 'REFRESH_INVALID' });
+const REFRESH_UNAVAILABLE = Object.freeze({ error: 'Não foi possível renovar sua sessão agora.', code: 'REFRESH_UNAVAILABLE' });
+
+function endRefreshedSession(res) {
+    clearSessionCookie(res);
+    clearRefreshCookie(res);
+    clearStaffSessionFlagCookie(res);
+    return res.status(401).json(REFRESH_INVALID);
+}
+
+app.post('/api/auth/refresh', rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    keyPrefix: 'token-refresh',
+    message: 'Muitas tentativas de renovação. Aguarde alguns minutos.'
+}), async (req, res) => {
+    const presentedToken = readRefreshToken(req);
+    if (!presentedToken) return endRefreshedSession(res);
+
+    let record;
+    try {
+        record = await findRefreshToken(supabase, presentedToken);
+    } catch (error) {
+        console.error('[Refresh] Falha ao consultar refresh token:', error.code || error.message);
+        // A database hiccup is not a credential problem: keep the cookies.
+        return res.status(503).json(REFRESH_UNAVAILABLE);
+    }
+
+    if (!record) return endRefreshedSession(res);
+
+    if (record.revoked) {
+        if (isBenignRefreshReuse(record)) {
+            // Two requests raced the same rotation. The cookie jar already holds
+            // the replacement, so the caller only has to retry once.
+            return res.status(401).json({ error: 'Renovação concorrente. Tente novamente.', code: 'REFRESH_RETRY' });
+        }
+        // Replaying a rotated token means it leaked. Drop the whole lineage.
+        try {
+            await revokeRefreshTokenFamily(supabase, record.userId, record.userType);
+        } catch (error) {
+            console.error('[Refresh] Falha ao revogar família de tokens:', error.code || error.message);
+        }
+        return endRefreshedSession(res);
+    }
+
+    if (record.expired) {
+        await revokeRefreshToken(supabase, record.id).catch(() => {});
+        return endRefreshedSession(res);
+    }
+
+    const isStaff = record.userType === 'staff';
+    const { data: account, error: accountError } = isStaff
+        ? await supabase
+            .from('professionals')
+            .select('id, name, role, avatar, username, specialty, status')
+            .eq('id', record.userId)
+            .eq('status', 'ativo')
+            .maybeSingle()
+        : await supabase
+            .from('clients')
+            .select('id, name, phone')
+            .eq('id', record.userId)
+            .maybeSingle();
+
+    if (accountError) {
+        console.error('[Refresh] Falha ao recarregar a identidade:', accountError.code || accountError.message);
+        return res.status(503).json(REFRESH_UNAVAILABLE);
+    }
+    if (!account) {
+        // Account deactivated or removed while the refresh token was still alive.
+        await revokeRefreshTokenFamily(supabase, record.userId, record.userType).catch(() => {});
+        return endRefreshedSession(res);
+    }
+
+    let rotated;
+    try {
+        rotated = await rotateRefreshToken(supabase, record.id, record.userId, record.userType, REFRESH_TTL);
+    } catch (error) {
+        console.error('[Refresh] Falha ao rotacionar refresh token:', error.code || error.message);
+        return res.status(503).json(REFRESH_UNAVAILABLE);
+    }
+    setRefreshCookie(res, rotated.token, REFRESH_TTL);
+
+    if (!isStaff) {
+        const clientName = safeText(account.name, 100);
+        const clientPhone = normalizePhone(account.phone);
+        setSessionCookie(res, signSession({
+            type: 'client',
+            id: String(account.id),
+            name: clientName,
+            phone: clientPhone
+        }, ACCESS_TTL), ACCESS_TTL);
+        return res.json({
+            message: 'success',
+            data: { type: 'client', name: clientName, phone: clientPhone }
+        });
+    }
+
+    setSessionCookie(res, signSession({
+        type: 'staff',
+        id: String(account.id),
+        role: account.role
+    }, ACCESS_TTL), ACCESS_TTL);
+    setStaffSessionFlagCookie(res, REFRESH_TTL);
+
+    const settingsMap = await loadSettingsMap().catch(() => ({}));
+    const staffObj = { type: 'staff', ...account };
+    res.json({
+        message: 'success',
+        data: {
+            type: 'staff',
+            ...account,
+            is_owner: isOwner(staffObj),
+            can_view_client_phones: canViewClientPhone(staffObj, settingsMap)
+        }
+    });
 });
 
 const defaultServicesMock = [
@@ -687,7 +1002,7 @@ app.post('/api/services', requireStaff('admin'), async (req, res) => {
         }])
         .select();
     
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível cadastrar o serviço.') });
     res.json({ "message": "success", "data": data[0] });
 });
 
@@ -697,7 +1012,7 @@ app.delete('/api/services/:id', requireStaff('admin'), async (req, res) => {
         .update({ status: 'inativo' })
         .eq('id', req.params.id);
         
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível desativar o serviço.') });
     res.json({ "message": "success" });
 });
 
@@ -720,7 +1035,7 @@ app.put('/api/services/:id', requireStaff('admin'), async (req, res) => {
         .eq('id', id)
         .select();
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível atualizar o serviço.') });
 
     const updatedService = updatedServices && updatedServices[0] ? updatedServices[0] : { id, name, duration, price, category, description };
 
@@ -790,10 +1105,10 @@ app.get('/api/professionals', async (req, res) => {
         }
 
         const settingsMap = await loadSettingsMap().catch(() => ({}));
-        const withSchedule = (professionalsList || []).map(professional => ({
+        const withSchedule = await Promise.all((professionalsList || []).map(async (professional) => ({
             ...professional,
-            ...buildProfessionalSchedule(settingsMap, professional.id)
-        }));
+            ...await buildProfessionalScheduleWithExceptions(supabase, settingsMap, professional.id)
+        })));
 
         res.json({ message: "success", data: withSchedule });
     } catch {
@@ -819,15 +1134,16 @@ app.get('/api/professionals/:id', async (req, res) => {
 
     try {
         const settingsMap = await loadSettingsMap();
+        const scheduleWithExceptions = await buildProfessionalScheduleWithExceptions(supabase, settingsMap, data.id);
         res.json({
             "message": "success",
             "data": {
                 ...data,
-                ...buildProfessionalSchedule(settingsMap, data.id)
+                ...scheduleWithExceptions
             }
         });
     } catch (settingsError) {
-        res.status(400).json({ "error": settingsError.message });
+        res.status(400).json({ error: safeDbErrorMessage(settingsError, 'Não foi possível carregar as configurações do profissional.') });
     }
 });
 
@@ -854,7 +1170,7 @@ app.post('/api/professionals', requireStaff('admin'), async (req, res) => {
         .insert([{ id: nextId, name, avatar, specialty, status: "ativo", username, password: passwordHash, role: "professional" }])
         .select('id, name, role, avatar, specialty, username, status');
     
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível cadastrar o profissional.') });
     res.json({ "message": "success", "data": data[0] });
 });
 
@@ -884,7 +1200,7 @@ app.put('/api/professionals/:id', requireStaff(), async (req, res) => {
         .limit(1);
 
     if (usernameError) {
-        return res.status(400).json({ "error": usernameError.message });
+        return res.status(400).json({ error: safeDbErrorMessage(usernameError, 'Não foi possível validar o nome de usuário.') });
     }
 
     if (existingUsername && existingUsername.length > 0) {
@@ -901,7 +1217,7 @@ app.put('/api/professionals/:id', requireStaff(), async (req, res) => {
         .select('id, name, role, avatar, specialty, username, status')
         .single();
 
-    if (error) return res.status(400).json({ "error": error.message });
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível atualizar o perfil.') });
     res.json({ "message": "success", "data": data });
 });
 
@@ -912,7 +1228,7 @@ app.delete('/api/professionals/:id', requireStaff('admin'), async (req, res) => 
         .update({ status: 'inativo' })
         .eq('id', req.params.id);
         
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível desativar o profissional.') });
     res.json({ "message": "success" });
 });
 
@@ -932,7 +1248,7 @@ app.get('/api/clients/check/:phone', requireStaff(), async (req, res) => {
         .or(`phone.eq.${phone},phone.eq.${cleanPhone}`)
         .maybeSingle();
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível consultar o cliente.') });
     
     if (!client) {
         return res.json({ "message": "new", "exists": false });
@@ -952,7 +1268,7 @@ app.get('/api/clients', requireStaff(), async (req, res) => {
     const settingsMap = await loadSettingsMap().catch(() => ({}));
     const canViewPhones = canViewClientPhone(req.auth, settingsMap);
     const { data, error } = await supabase.from('clients').select('id, name, phone').order('name');
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível listar os clientes.') });
     const formatted = (data || []).map(c => ({
         ...c,
         phone: maskPhone(c.phone, canViewPhones)
@@ -983,7 +1299,7 @@ app.put('/api/clients/:id', requireStaff(), async (req, res) => {
         .eq('id', id)
         .select();
     
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível atualizar o cliente.') });
     if (!data || data.length === 0) return res.status(404).json({ error: 'Cliente não encontrado.' });
     res.json({
         "message": "success",
@@ -997,7 +1313,7 @@ app.put('/api/clients/:id', requireStaff(), async (req, res) => {
 app.delete('/api/clients/:id', requireStaff('admin'), async (req, res) => {
     const { id } = req.params;
     const { error } = await supabase.from('clients').delete().eq('id', id);
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível remover o cliente.') });
     res.json({ "message": "success" });
 });
 
@@ -1029,7 +1345,7 @@ app.post('/api/clients', requireStaff(), async (req, res) => {
             result = await supabase.from('clients').insert([{ name: name || 'Cliente Novo', phone: cleanPhone }]).select();
         }
 
-        if (result.error) return res.status(400).json({ "error": result.error.message });
+        if (result.error) return res.status(400).json({ error: safeDbErrorMessage(result.error, 'Não foi possível salvar o cliente.') });
         const clientData = result.data[0];
         res.json({
             "message": "success",
@@ -1038,8 +1354,7 @@ app.post('/api/clients', requireStaff(), async (req, res) => {
                 phone: maskPhone(clientData.phone, canViewPhones)
             }
         });
-    } catch (err) {
-        console.error('Erro na rota POST /api/clients:', err);
+    } catch {
         res.status(500).json({ "error": "Erro interno ao processar cliente." });
     }
 });
@@ -1047,6 +1362,8 @@ app.post('/api/clients', requireStaff(), async (req, res) => {
 app.get('/api/clients/appointments', requireClient, async (req, res) => {
     const phone = req.auth.phone;
     const name = req.auth.name;
+    const cleanPhone = (phone || "").replace(/\D/g, "");
+    const suffix = cleanPhone.slice(-8);
     
     let query = supabase
         .from('appointments')
@@ -1055,16 +1372,15 @@ app.get('/api/clients/appointments', requireClient, async (req, res) => {
             service:services(id, name, price, duration),
             professional:professionals(id, name, avatar, specialty)
         `)
+        .or(`client_phone.eq.${phone},client_phone.eq.${cleanPhone},client_phone.ilike.%${suffix}`)
         .order('date', { ascending: false })
         .order('time', { ascending: false });
 
-    query = query.eq('client_name', name);
-
     const { data, error } = await query;
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar os agendamentos.') });
     
     // Formatar para manter compatibilidade com o frontend
-    const ownedAppointments = (data || []).filter(app => normalizePhone(app.client_phone) === normalizePhone(phone));
+    const ownedAppointments = (data || []).filter(app => normalizePhone(app.client_phone) === cleanPhone);
     const formatted = ownedAppointments.map(app => ({
         ...app,
         service_name: app.service?.name,
@@ -1085,10 +1401,10 @@ app.get('/api/clients/appointments', requireClient, async (req, res) => {
 app.get('/api/clients/my-history', requireClient, async (req, res) => {
     const { type } = req.query; // type can be 'future' or 'all'
     const phone = req.auth.phone;
-    const name = req.auth.name;
     
     // LIMPEZA DE TELEFONE: Remove tudo que não é número
     const cleanPhone = (phone || "").replace(/\D/g, "");
+    const suffix = cleanPhone.slice(-8);
     const today = new Date().toISOString().split('T')[0];
 
     let query = supabase
@@ -1097,9 +1413,8 @@ app.get('/api/clients/my-history', requireClient, async (req, res) => {
             *,
             service:services(id, name, price, duration),
             professional:professionals(id, name, avatar, specialty)
-        `);
-
-    query = query.eq('client_name', name);
+        `)
+        .or(`client_phone.eq.${phone},client_phone.eq.${cleanPhone},client_phone.ilike.%${suffix}`);
 
     // Filtro de tipo (futuros ou todos)
     if (type === 'future') {
@@ -1111,8 +1426,7 @@ app.get('/api/clients/my-history', requireClient, async (req, res) => {
     const { data, error } = await query;
 
     if (error) {
-        console.error('[Erro Supabase Histórico]:', error.message);
-        return res.status(400).json({"error": error.message});
+        return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar o histórico.') });
     }
     
     const ownedAppointments = (data || []).filter(app => normalizePhone(app.client_phone) === cleanPhone);
@@ -1130,9 +1444,9 @@ app.get('/api/clients/my-history', requireClient, async (req, res) => {
 // Busca apenas agendamentos futuros (Legado/Compatibilidade)
 app.get('/api/clients/future-appointments', requireClient, async (req, res) => {
     const phone = req.auth.phone;
-    const name = req.auth.name;
     
-    const cleanPhone = phone.replace(/\D/g, "");
+    const cleanPhone = (phone || "").replace(/\D/g, "");
+    const suffix = cleanPhone.slice(-8);
     const today = new Date().toISOString().split('T')[0];
 
     const { data, error } = await supabase
@@ -1142,13 +1456,13 @@ app.get('/api/clients/future-appointments', requireClient, async (req, res) => {
             service:services(id, name, price, duration),
             professional:professionals(id, name, avatar, specialty)
         `)
-        .eq('client_name', name)
+        .or(`client_phone.eq.${phone},client_phone.eq.${cleanPhone},client_phone.ilike.%${suffix}`)
         .gte('date', today)
         .neq('status', 'cancelado')
         .order('date', { ascending: true })
         .order('time', { ascending: true });
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar os agendamentos futuros.') });
     
     const ownedAppointments = (data || []).filter(app => normalizePhone(app.client_phone) === cleanPhone);
     const formatted = ownedAppointments.map(app => ({
@@ -1194,6 +1508,29 @@ app.get('/api/availability/next', rateLimit({
         const searchable = `${professional.name || ''} ${professional.specialty || ''}`.toLocaleLowerCase('pt-BR');
         return !searchable.includes('sócio') && !searchable.includes('socio');
     });
+    
+    // Load all exceptions for these professionals
+    const professionalIds = professionals.map(p => p.id);
+    const { data: allExceptions } = await supabase
+        .from('schedule_exceptions')
+        .select('professional_id, exception_date, start_time, end_time, is_day_off')
+        .in('professional_id', professionalIds)
+        .gte('exception_date', today)
+        .lte('exception_date', lastDate);
+    
+    const exceptionsByProfessional = {};
+    if (allExceptions) {
+        for (const exc of allExceptions) {
+            if (!exceptionsByProfessional[exc.professional_id]) {
+                exceptionsByProfessional[exc.professional_id] = {};
+            }
+            exceptionsByProfessional[exc.professional_id][exc.exception_date] = exc.is_day_off ? null : {
+                start: exc.start_time,
+                end: exc.end_time
+            };
+        }
+    }
+    
     const busyByProfessionalAndDate = new Map();
     for (const appointment of appointmentRows || []) {
         const key = `${appointment.professional_id}:${appointment.date}`;
@@ -1230,9 +1567,10 @@ app.get('/api/availability/next', rateLimit({
 
         for (const professional of professionals) {
             const schedule = buildProfessionalSchedule(settingsMap, professional.id);
-            if (!schedule.work_days.includes(dayKey)) continue;
-            const workStart = timeToMinutes(schedule.work_start);
-            const workEnd = timeToMinutes(schedule.work_end);
+            const window = getScheduleWindowForDay(schedule, dayKey);
+            if (!window) continue;
+            const workStart = window.start;
+            const workEnd = window.end;
             const busy = busyByProfessionalAndDate.get(`${professional.id}:${date}`) || [];
 
             for (let start = workStart; start + 30 <= workEnd; start += schedule.slot_interval) {
@@ -1318,7 +1656,7 @@ app.get('/api/appointments', requireStaff(), async (req, res) => {
     query = query.order('date', { ascending: false }).order('time', { ascending: false });
 
     const { data, error } = await query;
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar os agendamentos.') });
 
     const settingsMap = await loadSettingsMap().catch(() => ({}));
     const canViewPhones = canViewClientPhone(req.auth, settingsMap);
@@ -1519,7 +1857,7 @@ app.post('/api/appointments', rateLimit({
         } catch {}
 
         const canStartClientSession = !isStaff && clientRecord && (
-            isClient || normalizeName(clientRecord.name) === normalizeName(clientName)
+            isClient || (!clientOtpManager && normalizeName(clientRecord.name) === normalizeName(clientName))
         );
         if (canStartClientSession) {
             const maxAge = 30 * 24 * 60 * 60;
@@ -1617,7 +1955,7 @@ app.post('/api/appointments/block', requireStaff(), async (req, res) => {
             notes: description ? `BLOCK:${duration}|${description}` : `BLOCK:${duration}`
         }]).select();
         
-        if (insertError) return res.status(400).json({"error": insertError.message});
+        if (insertError) return res.status(400).json({ error: safeDbErrorMessage(insertError, 'Não foi possível registrar o bloqueio.') });
         
         // Enrich with same fields as GET /api/appointments
         const raw = insertData[0];
@@ -1632,8 +1970,8 @@ app.post('/api/appointments/block', requireStaff(), async (req, res) => {
         };
         
         res.json({ "message": "success", "data": formatted });
-    } catch (e) {
-         res.status(400).json({"error": e.message});
+    } catch {
+        res.status(400).json({ error: 'Não foi possível registrar o bloqueio de horário.' });
     }
 });
 
@@ -1832,7 +2170,7 @@ app.delete('/api/appointments/:id', requireStaff(), async (req, res) => {
     if (ownership.error || !ownership.data) return res.status(404).json({ error: 'Agendamento não encontrado.' });
     if (!canAccessAppointment(req.auth, ownership.data)) return res.status(403).json({ error: 'Você não pode excluir este agendamento.' });
     const { error } = await supabase.from('appointments').delete().eq('id', req.params.id);
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível excluir o agendamento.') });
     res.json({ "message": "success" });
 });
 
@@ -1872,7 +2210,7 @@ app.put('/api/appointments/:id', requireStaff(), async (req, res) => {
         .eq('id', id)
         .select();
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível atualizar o agendamento.') });
     const settingsMap = await loadSettingsMap().catch(() => ({}));
     const canViewPhones = canViewClientPhone(req.auth, settingsMap);
     const updatedApp = { ...(data?.[0] || { ...ownership.data, ...updatePayload }) };
@@ -1973,18 +2311,23 @@ app.post('/api/appointments/:id/confirm', rateLimit({
         .update({ status: 'confirmado' })
         .eq('id', id);
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível confirmar o agendamento.') });
     res.json({ "message": "success", "status": "confirmado" });
 });
 
 app.post('/api/appointments/:id/cancel', async (req, res) => {
     const { id } = req.params;
+    const token = String(req.body?.token || req.query?.token || '');
+    const validActionToken = token ? verifyAppointmentToken(token, id) : false;
     const ownership = await loadAppointmentForAuthorization(id);
     if (ownership.error || !ownership.data) {
         // Se for id sintético do mock (ex: block-123 ou appt-123), considera sucesso
-        return res.json({ message: "success" });
+        if (String(id).startsWith('block-') || String(id).startsWith('mock-') || String(id).startsWith('appt-')) {
+            return res.json({ message: "success" });
+        }
+        return res.status(404).json({ error: 'Agendamento não encontrado.' });
     }
-    if (!canAccessAppointment(req.auth, ownership.data, { allowClient: true })) {
+    if (!validActionToken && !canAccessAppointment(req.auth, ownership.data, { allowClient: true })) {
         return res.status(403).json({ error: 'Você não pode desmarcar este compromisso.' });
     }
 
@@ -2003,7 +2346,7 @@ app.post('/api/appointments/:id/cancel', async (req, res) => {
         return res.status(409).json({ error: 'Um atendimento já concluído não pode ser cancelado.' });
     }
 
-    if (req.auth?.type === 'client') {
+    if (req.auth?.type === 'client' || validActionToken) {
         const appointmentDateTime = new Date(`${ownership.data.date}T${ownership.data.time}:00-03:00`);
         if (Number.isNaN(appointmentDateTime.getTime()) || appointmentDateTime <= new Date()) {
             return res.status(409).json({ error: 'Este horário já passou e não pode mais ser cancelado online.' });
@@ -2015,7 +2358,7 @@ app.post('/api/appointments/:id/cancel', async (req, res) => {
         .update({ status: 'cancelado' })
         .eq('id', id);
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível cancelar o agendamento.') });
     res.json({ message: "success" });
 });
 
@@ -2029,7 +2372,7 @@ app.post('/api/appointments/:id/complete', requireStaff(), async (req, res) => {
         .update({ status: 'concluído' })
         .eq('id', id);
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível concluir o agendamento.') });
     res.json({ "message": "success" });
 });
 
@@ -2043,7 +2386,7 @@ app.get('/api/financial/stats', requireStaff('admin'), async (req, res) => {
         `)
         .neq('status', 'cancelado');
 
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar as estatísticas financeiras.') });
 
     const todayStr = getDateStringInTimeZone();
     const localNow = new Date(`${todayStr}T12:00:00Z`);
@@ -2134,11 +2477,11 @@ app.get('/api/financial/stats', requireStaff('admin'), async (req, res) => {
 // --- ROTAS DE CONFIGURAÇÃO ---
 app.get('/api/settings', async (req, res) => {
     const { data, error } = await supabase.from('settings').select('*');
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar as configurações.') });
     const publicKeys = new Set([
         'business_name', 'whatsapp_message', 'work_start', 'work_end', 'slot_interval',
         'work_days', 'whatsapp_number', 'allow_online_booking', 'max_advance_days', 'public_profile',
-        'hide_client_phone_from_collaborators'
+        'hide_client_phone_from_collaborators', 'schedule'
     ]);
     let visibleSettings = data || [];
     if (req.auth?.type !== 'staff') {
@@ -2166,13 +2509,21 @@ app.get('/api/settings/audit-logs', requireStaff('admin'), async (req, res) => {
 
 app.put('/api/settings', requireStaff(), async (req, res) => {
     const key = String(req.body.key || '');
-    let value = String(req.body.value ?? '').replace(/\u0000/g, '').trim().slice(0, key === 'public_profile' ? 5000 : 2000);
+    const rawValue = req.body.value;
+    // The per-day expedient is the one setting the clients may send as an object
+    // instead of a JSON string, so it is serialized before the generic cleanup.
+    const isDayScheduleKey = key === 'schedule' || /^professional_\d+_schedule$/.test(key);
+    let value = (isDayScheduleKey && rawValue && typeof rawValue === 'object')
+        ? JSON.stringify(rawValue)
+        : String(rawValue ?? '');
+    value = value.replace(/\u0000/g, '').trim().slice(0, key === 'public_profile' ? 5000 : 2000);
     const globalKeys = new Set([
         'business_name', 'whatsapp_message', 'work_start', 'work_end', 'slot_interval',
         'work_days', 'whatsapp_number', 'allow_online_booking', 'max_advance_days', 'public_profile',
-        'hide_client_phone_from_collaborators', 'allow_admins_view_client_phone', 'authorized_phone_viewer_ids'
+        'hide_client_phone_from_collaborators', 'allow_admins_view_client_phone', 'authorized_phone_viewer_ids',
+        'schedule'
     ]);
-    const professionalMatch = key.match(/^professional_(\d+)_(work_start|work_end|slot_interval|work_days|is_public_agenda)$/);
+    const professionalMatch = key.match(/^professional_(\d+)_(work_start|work_end|slot_interval|work_days|is_public_agenda|schedule)$/);
     const isGlobalAdmin = req.auth.role === 'admin' || isOwner(req.auth);
     const allowed = isGlobalAdmin
         ? globalKeys.has(key) || Boolean(professionalMatch)
@@ -2208,6 +2559,15 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
         } catch {
             return res.status(400).json({ error: 'Selecione ao menos um dia de atendimento válido.' });
         }
+    }
+    if (suffix === 'schedule') {
+        const parsedSchedule = normalizeDaySchedule(value);
+        if (!parsedSchedule.valid) {
+            return res.status(400).json({ error: parsedSchedule.error });
+        }
+        // Stored already expanded to the seven days so every reader sees the
+        // same shape regardless of what the client omitted.
+        value = JSON.stringify(parsedSchedule.value);
     }
     if (suffix === 'public_profile') {
         try {
@@ -2272,8 +2632,61 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
         .from('settings')
         .upsert([{ key, value }]);
     
-    if (error) return res.status(400).json({"error": error.message});
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível salvar a configuração.') });
     res.json({ "message": "success" });
+});
+
+// --- ROTAS DE EXCEÇÕES DE EXPEDIENTE ---
+app.get('/api/schedule/exceptions', requireStaff(), async (req, res) => {
+    const professionalId = req.auth.role === 'admin' ? req.query.professional_id : req.auth.id;
+    if (!professionalId) return res.status(400).json({ error: 'Profissional não identificado.' });
+
+    const { data, error } = await supabase
+        .from('schedule_exceptions')
+        .select('*')
+        .eq('professional_id', professionalId)
+        .order('exception_date', { ascending: true });
+    
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível carregar as exceções.') });
+    res.json({ message: 'success', data: data || [] });
+});
+
+app.post('/api/schedule/exceptions', requireStaff(), async (req, res) => {
+    const professionalId = req.auth.role === 'admin' ? req.body.professional_id : req.auth.id;
+    if (!professionalId) return res.status(400).json({ error: 'Profissional não identificado.' });
+
+    const { exception_date, start_time, end_time, is_day_off, reason } = req.body;
+    if (!exception_date) return res.status(400).json({ error: 'Data da exceção é obrigatória.' });
+    if (!is_day_off && (!start_time || !end_time)) return res.status(400).json({ error: 'Horário de início e fim são obrigatórios para dias de trabalho.' });
+    if (start_time && end_time && start_time >= end_time) return res.status(400).json({ error: 'Horário de início deve ser anterior ao fim.' });
+
+    const { data, error } = await supabase
+        .from('schedule_exceptions')
+        .upsert([{
+            professional_id: professionalId,
+            exception_date,
+            start_time: is_day_off ? null : start_time,
+            end_time: is_day_off ? null : end_time,
+            is_day_off: Boolean(is_day_off),
+            reason: reason || null
+        }], { onConflict: 'professional_id,exception_date' })
+        .select()
+        .single();
+
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível salvar a exceção.') });
+    res.json({ message: 'success', data });
+});
+
+app.delete('/api/schedule/exceptions/:id', requireStaff(), async (req, res) => {
+    const professionalId = req.auth.role === 'admin' ? null : req.auth.id;
+    
+    let query = supabase.from('schedule_exceptions').delete().eq('id', req.params.id);
+    if (professionalId) query = query.eq('professional_id', professionalId);
+    
+    const { error } = await query;
+    
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível remover a exceção.') });
+    res.json({ message: 'success' });
 });
 
 app.use('/api', (req, res) => {
@@ -2283,6 +2696,9 @@ app.use('/api', (req, res) => {
 app.use((error, req, res, _next) => {
     if (process.env.NODE_ENV !== 'test') console.error('[API] Erro não tratado:', error.message);
     if (res.headersSent) return;
+    if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+        return res.status(400).json({ error: 'Formato de dados (JSON) inválido.' });
+    }
     const status = error.type === 'entity.too.large' ? 413 : 500;
     res.status(status).json({
         error: status === 413 ? 'Os dados enviados são muito grandes.' : 'Erro interno. Tente novamente.'

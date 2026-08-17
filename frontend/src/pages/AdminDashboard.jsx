@@ -205,6 +205,19 @@ export default function AdminDashboard() {
 
   const [maxAdvanceDays, setMaxAdvanceDays] = useState('60');
 
+  // Expediente Personalizado por Dia
+  const [usePerDaySchedule, setUsePerDaySchedule] = useState(false);
+  const [perDaySchedule, setPerDaySchedule] = useState({
+    seg: { start: '09:00', end: '18:00', off: false },
+    ter: { start: '09:00', end: '18:00', off: false },
+    qua: { start: '09:00', end: '18:00', off: false },
+    qui: { start: '09:00', end: '18:00', off: false },
+    sex: { start: '09:00', end: '18:00', off: false },
+    sab: { start: '09:00', end: '14:00', off: false },
+    dom: { start: '', end: '', off: true }
+  });
+  const [copySourceDay, setCopySourceDay] = useState(null);
+
   // Privacidade e Permissões
   const [hideClientPhone, setHideClientPhone] = useState(false);
   const [allowAdminsViewPhone, setAllowAdminsViewPhone] = useState(false);
@@ -332,6 +345,19 @@ export default function AdminDashboard() {
         setWorkDays(professionalSchedule.workDays);
         setIsPublicAgenda(professionalSchedule.is_public_agenda || false);
 
+        // Load per-day schedule for this professional
+        const profScheduleKey = getProfessionalSettingKey(loggedUser.id, 'schedule');
+        const profPerDaySetting = incomingSettings.find(s => s.key === profScheduleKey);
+        if (profPerDaySetting?.value) {
+          try {
+            const parsed = JSON.parse(profPerDaySetting.value);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              setUsePerDaySchedule(true);
+              setPerDaySchedule(prev => ({ ...prev, ...parsed }));
+            }
+          } catch {}
+        }
+
       }
 
       const bName = incomingSettings.find(s => s.key === 'business_name');
@@ -373,6 +399,18 @@ export default function AdminDashboard() {
         }
       }
 
+      // Expediente personalizado por dia
+      const perDaySetting = incomingSettings.find(s => s.key === 'schedule');
+      if (perDaySetting?.value) {
+        try {
+          const parsed = JSON.parse(perDaySetting.value);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            setUsePerDaySchedule(true);
+            setPerDaySchedule(prev => ({ ...prev, ...parsed }));
+          }
+        } catch {}
+      }
+
       if (loggedUser.role === 'admin' || loggedUser.is_owner) {
         api.get('/api/settings/audit-logs')
           .then(res => setAuditLogs(res.data?.data || []))
@@ -403,6 +441,7 @@ export default function AdminDashboard() {
     try {
       await api.post('/api/logout');
     } finally {
+      localStorage.removeItem('has_active_staff_session');
       navigate('/login', { replace: true });
     }
   };
@@ -937,6 +976,7 @@ export default function AdminDashboard() {
         api.put('/api/settings', { key: 'hide_client_phone_from_collaborators', value: String(hideClientPhone) }),
         api.put('/api/settings', { key: 'allow_admins_view_client_phone', value: String(allowAdminsViewPhone) }),
         api.put('/api/settings', { key: 'authorized_phone_viewer_ids', value: JSON.stringify(authorizedPhoneViewerIds) }),
+        api.put('/api/settings', { key: 'schedule', value: usePerDaySchedule ? JSON.stringify(perDaySchedule) : '{}' }),
       ]);
 
       if (isAdmin || user?.is_owner) {
@@ -948,6 +988,57 @@ export default function AdminDashboard() {
       openModal({ title: 'Sucesso!', message: 'Todas as configurações foram salvas com sucesso!', type: 'success', confirmText: 'Ótimo' });
     } catch (err) { 
       openModal({ title: 'Erro crítico', message: 'Erro ao salvar configuração no banco de dados.', type: 'error', confirmText: 'Fechar' });
+    }
+  };
+
+  const updateDaySchedule = (dayKey, dayConfig) => {
+    setPerDaySchedule(prev => ({ ...prev, [dayKey]: dayConfig }));
+  };
+
+  const applyPreset = (preset) => {
+    const presets = {
+      comercial: {
+        seg: { start: '09:00', end: '18:00', off: false },
+        ter: { start: '09:00', end: '18:00', off: false },
+        qua: { start: '09:00', end: '18:00', off: false },
+        qui: { start: '09:00', end: '18:00', off: false },
+        sex: { start: '09:00', end: '18:00', off: false },
+        sab: { start: '09:00', end: '14:00', off: false },
+        dom: { start: '', end: '', off: true }
+      },
+      estendido: {
+        seg: { start: '08:00', end: '20:00', off: false },
+        ter: { start: '08:00', end: '20:00', off: false },
+        qua: { start: '08:00', end: '20:00', off: false },
+        qui: { start: '08:00', end: '20:00', off: false },
+        sex: { start: '08:00', end: '20:00', off: false },
+        sab: { start: '08:00', end: '18:00', off: false },
+        dom: { start: '', end: '', off: true }
+      },
+      'meio-periodo': {
+        seg: { start: '09:00', end: '14:00', off: false },
+        ter: { start: '09:00', end: '14:00', off: false },
+        qua: { start: '09:00', end: '14:00', off: false },
+        qui: { start: '09:00', end: '14:00', off: false },
+        sex: { start: '09:00', end: '14:00', off: false },
+        sab: { start: '09:00', end: '13:00', off: false },
+        dom: { start: '', end: '', off: true }
+      }
+    };
+    if (presets[preset]) {
+      setPerDaySchedule(presets[preset]);
+    }
+  };
+
+  const copyDaySchedule = () => {
+    // This will be handled by a modal or dropdown in the future
+    // For now, we'll use a simple prompt
+    const source = prompt('Copiar de qual dia? (seg, ter, qua, qui, sex, sab, dom)');
+    if (source && perDaySchedule[source]) {
+      const target = prompt('Colar em qual dia? (seg, ter, qua, qui, sex, sab, dom)');
+      if (target && perDaySchedule[target]) {
+        setPerDaySchedule(prev => ({ ...prev, [target]: { ...prev[source] } }));
+      }
     }
   };
 
@@ -1025,13 +1116,13 @@ export default function AdminDashboard() {
 
       if (profileForm.password) payload.password = profileForm.password;
 
-      const scheduleUpdates = [
+const scheduleUpdates = [
         { key: getProfessionalSettingKey(user.id, 'work_start'), value: workStart },
         { key: getProfessionalSettingKey(user.id, 'work_end'), value: workEnd },
         { key: getProfessionalSettingKey(user.id, 'slot_interval'), value: String(slotInterval) },
         { key: getProfessionalSettingKey(user.id, 'work_days'), value: JSON.stringify(workDays) },
-        { key: getProfessionalSettingKey(user.id, 'is_public_agenda'), value: String(isPublicAgenda) }
-
+        { key: getProfessionalSettingKey(user.id, 'is_public_agenda'), value: String(isPublicAgenda) },
+        { key: getProfessionalSettingKey(user.id, 'schedule'), value: usePerDaySchedule ? JSON.stringify(perDaySchedule) : '{}' }
       ];
 
       const [res] = await Promise.all([
@@ -2414,54 +2505,122 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* Seção 2: Horário de Funcionamento */}
+                      {/* Seção 2: Expediente Semanal Personalizado por Dia */}
                       <div className="glass-card p-6">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/50">
                           <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center"><CalendarIcon size={20} className="text-green-500" /></div>
                           <div>
-                            <h3 className="text-xl font-serif text-foreground">Horário de Funcionamento</h3>
-                            <p className="text-xs text-muted">Defina o expediente e os dias de trabalho</p>
+                            <h3 className="text-xl font-serif text-foreground">Expediente Semanal Personalizado</h3>
+                            <p className="text-xs text-muted">Configure horários diferentes para cada dia da semana (ativa modo por-dia). O modo global (início/fim único) é usado como fallback.</p>
                           </div>
                         </div>
-                        <div className="space-y-6">
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/50">
                             <div>
-                              <label className="block text-sm font-medium text-muted mb-2">Início do Expediente</label>
-                              <input type="time" className="input-field" value={workStart} onChange={(e) => setWorkStart(e.target.value)} />
+                              <p className="text-foreground font-medium">Ativar Expediente Personalizado por Dia</p>
+                              <p className="text-xs text-muted">Quando ativado, cada dia pode ter horários diferentes. Se desativado, usa o horário global abaixo.</p>
                             </div>
-                            <div>
-                              <label className="block text-sm font-medium text-muted mb-2">Fim do Expediente</label>
-                              <input type="time" className="input-field" value={workEnd} onChange={(e) => setWorkEnd(e.target.value)} />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-muted mb-2">Intervalo (minutos)</label>
-                              <select className="input-field" value={slotInterval} onChange={(e) => setSlotInterval(e.target.value)}>
-                                <option value="15">15 min</option>
-                                <option value="30">30 min</option>
-                                <option value="45">45 min</option>
-                                <option value="60">60 min</option>
-                              </select>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setUsePerDaySchedule(!usePerDaySchedule)}
+                              className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${usePerDaySchedule ? 'bg-primary' : 'bg-border'}`}
+                              aria-label="Alternar expediente personalizado por dia"
+                            >
+                              <span className={`absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow transition-transform duration-300 ${usePerDaySchedule ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-muted mb-3">Dias de Funcionamento</label>
-                            <div className="flex flex-wrap gap-2">
-                              {dayOptions.map(d => (
-                                <button
-                                  key={d.k}
-                                  type="button"
-                                  onClick={() => toggleWorkDay(d.k)}
-                                  className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                                    workDays.includes(d.k)
-                                      ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105'
-                                      : 'bg-background border border-border text-muted hover:border-primary/50'
-                                  }`}
-                                >
-                                  {d.l}
-                                </button>
-                              ))}
+
+                          {usePerDaySchedule && (
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap gap-2 justify-end mb-2">
+                                <button type="button" onClick={() => applyPreset('comercial')} className="btn-ghost text-xs px-3 py-1.5">Padrão Comercial (9h-18h)</button>
+                                <button type="button" onClick={() => applyPreset('estendido')} className="btn-ghost text-xs px-3 py-1.5">Estendido (8h-20h)</button>
+                                <button type="button" onClick={() => applyPreset('meio-periodo')} className="btn-ghost text-xs px-3 py-1.5">Meio Período (9h-14h)</button>
+                                <button type="button" onClick={() => copyDaySchedule()} className="btn-ghost text-xs px-3 py-1.5">Copiar dia...</button>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {dayOptions.map(d => {
+                                  const daySched = perDaySchedule[d.k] || { start: '', end: '', off: false };
+                                  return (
+                                    <div key={d.k} className="p-3 rounded-xl border border-border bg-card/50 flex flex-col gap-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className={`font-bold text-sm ${daySched.off ? 'text-muted' : 'text-foreground'}`}>{d.l}</span>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={daySched.off}
+                                            onChange={(e) => updateDaySchedule(d.k, { ...daySched, off: e.target.checked, start: e.target.checked ? '' : daySched.start, end: e.target.checked ? '' : daySched.end })}
+                                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                                            aria-label={`Folga em ${d.l}`}
+                                          />
+                                          <span className="text-xs text-muted">Folga</span>
+                                        </label>
+                                      </div>
+                                      {!daySched.off && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="block text-[11px] text-muted mb-1">Início</label>
+                                            <input type="time" className="input-field text-sm" value={daySched.start} onChange={(e) => updateDaySchedule(d.k, { ...daySched, start: e.target.value })} />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[11px] text-muted mb-1">Fim</label>
+                                            <input type="time" className="input-field text-sm" value={daySched.end} onChange={(e) => updateDaySchedule(d.k, { ...daySched, end: e.target.value })} />
+                                          </div>
+                                        </div>
+                                      )}
+                                      {daySched.off && (
+                                        <p className="text-xs text-muted text-center py-1">Dia de folga</p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
+                          )}
+
+                          {!usePerDaySchedule && (
+                            <div className="space-y-6">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-muted mb-2">Início do Expediente (Global)</label>
+                                  <input type="time" className="input-field" value={workStart} onChange={(e) => setWorkStart(e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-muted mb-2">Fim do Expediente (Global)</label>
+                                  <input type="time" className="input-field" value={workEnd} onChange={(e) => setWorkEnd(e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-muted mb-2">Intervalo (minutos)</label>
+                                  <select className="input-field" value={slotInterval} onChange={(e) => setSlotInterval(e.target.value)}>
+                                    <option value="15">15 min</option>
+                                    <option value="30">30 min</option>
+                                    <option value="45">45 min</option>
+                                    <option value="60">60 min</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-muted mb-3">Dias de Funcionamento (Global)</label>
+                                <div className="flex flex-wrap gap-2">
+                                  {dayOptions.map(d => (
+                                    <button
+                                      key={d.k}
+                                      type="button"
+                                      onClick={() => toggleWorkDay(d.k)}
+                                      className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                                        workDays.includes(d.k)
+                                          ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105'
+                                          : 'bg-background border border-border text-muted hover:border-primary/50'
+                                      }`}
+                                    >
+                                      {d.l}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -2889,7 +3048,7 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <h3 className="text-xl font-serif text-foreground">Meu Expediente</h3>
-                            <p className="text-xs text-muted">Defina os horários e dias em que você atende.</p>
+                            <p className="text-xs text-muted">Defina os horários e dias em que você atende. Ative o modo personalizado para horários diferentes por dia.</p>
                           </div>
                         </div>
 
@@ -2911,62 +3070,119 @@ export default function AdminDashboard() {
                           </button>
                         </div>
 
-                        <div className="space-y-6">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/50">
                             <div>
-                              <label className="block text-sm font-medium text-muted mb-2">Início do Expediente</label>
-                              <input
-                                type="time"
-                                className="input-field"
-                                value={workStart}
-                                onChange={(e) => setWorkStart(e.target.value)}
-                              />
+                              <p className="text-foreground font-medium">Expediente Personalizado por Dia</p>
+                              <p className="text-xs text-muted">Quando ativado, cada dia pode ter horários diferentes.</p>
                             </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-muted mb-2">Fim do Expediente</label>
-                              <input
-                                type="time"
-                                className="input-field"
-                                value={workEnd}
-                                onChange={(e) => setWorkEnd(e.target.value)}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-muted mb-2">Intervalo entre horários</label>
-                              <select
-                                className="input-field"
-                                value={slotInterval}
-                                onChange={(e) => setSlotInterval(e.target.value)}
-                              >
-                                <option value="15">15 min</option>
-                                <option value="30">30 min</option>
-                                <option value="45">45 min</option>
-                                <option value="60">60 min</option>
-                              </select>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setUsePerDaySchedule(!usePerDaySchedule)}
+                              className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${usePerDaySchedule ? 'bg-primary' : 'bg-border'}`}
+                              aria-label="Alternar expediente personalizado por dia"
+                            >
+                              <span className={`absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow transition-transform duration-300 ${usePerDaySchedule ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </button>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-muted mb-3">Dias de atendimento</label>
-                            <div className="flex flex-wrap gap-2">
-                              {dayOptions.map(day => (
-                                <button
-                                  key={day.k}
-                                  type="button"
-                                  onClick={() => toggleWorkDay(day.k)}
-                                  className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                                    workDays.includes(day.k)
-                                      ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105'
-                                      : 'bg-background border border-border text-muted hover:border-primary/50'
-                                  }`}
-                                >
-                                  {day.l}
-                                </button>
-                              ))}
+                          {usePerDaySchedule && (
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap gap-2 justify-end mb-2">
+                                <button type="button" onClick={() => applyPreset('comercial')} className="btn-ghost text-xs px-3 py-1.5">Comercial (9h-18h)</button>
+                                <button type="button" onClick={() => applyPreset('estendido')} className="btn-ghost text-xs px-3 py-1.5">Estendido (8h-20h)</button>
+                                <button type="button" onClick={() => applyPreset('meio-periodo')} className="btn-ghost text-xs px-3 py-1.5">Meio Período (9h-14h)</button>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {dayOptions.map(d => {
+                                  const daySched = perDaySchedule[d.k] || { start: '', end: '', off: false };
+                                  return (
+                                    <div key={d.k} className="p-3 rounded-xl border border-border bg-card/50 flex flex-col gap-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className={`font-bold text-sm ${daySched.off ? 'text-muted' : 'text-foreground'}`}>{d.l}</span>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={daySched.off}
+                                            onChange={(e) => updateDaySchedule(d.k, { ...daySched, off: e.target.checked, start: e.target.checked ? '' : daySched.start, end: e.target.checked ? '' : daySched.end })}
+                                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                                            aria-label={`Folga em ${d.l}`}
+                                          />
+                                          <span className="text-xs text-muted">Folga</span>
+                                        </label>
+                                      </div>
+                                      {!daySched.off && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <label className="block text-[11px] text-muted mb-1">Início</label>
+                                            <input type="time" className="input-field text-sm" value={daySched.start} onChange={(e) => updateDaySchedule(d.k, { ...daySched, start: e.target.value })} />
+                                          </div>
+                                          <div>
+                                            <label className="block text-[11px] text-muted mb-1">Fim</label>
+                                            <input type="time" className="input-field text-sm" value={daySched.end} onChange={(e) => updateDaySchedule(d.k, { ...daySched, end: e.target.value })} />
+                                          </div>
+                                        </div>
+                                      )}
+                                      {daySched.off && (
+                                        <p className="text-xs text-muted text-center py-1">Dia de folga</p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
+                          )}
+
+                          {!usePerDaySchedule && (
+                            <div className="space-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="block text-sm font-medium text-muted mb-2">Início do Expediente</label>
+                                  <input type="time" className="input-field" value={workStart} onChange={(e) => setWorkStart(e.target.value)} />
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-muted mb-2">Fim do Expediente</label>
+                                  <input type="time" className="input-field" value={workEnd} onChange={(e) => setWorkEnd(e.target.value)} />
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-muted mb-2">Intervalo entre horários</label>
+                                  <select
+                                    className="input-field"
+                                    value={slotInterval}
+                                    onChange={(e) => setSlotInterval(e.target.value)}
+                                  >
+                                    <option value="15">15 min</option>
+                                    <option value="30">30 min</option>
+                                    <option value="45">45 min</option>
+                                    <option value="60">60 min</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-muted mb-3">Dias de atendimento</label>
+                                <div className="flex flex-wrap gap-2">
+                                  {dayOptions.map(day => (
+                                    <button
+                                      key={day.k}
+                                      type="button"
+                                      onClick={() => toggleWorkDay(day.k)}
+                                      className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                                        workDays.includes(day.k)
+                                          ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105'
+                                          : 'bg-background border border-border text-muted hover:border-primary/50'
+                                      }`}
+                                    >
+                                      {day.l}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 

@@ -3,21 +3,40 @@ import api from '../api';
 import { useNavigate } from '../router';
 import { ArrowLeft, Eye, EyeOff, Loader2, Lock, ShieldCheck, User } from 'lucide-react';
 
+const STORAGE_FLAG = 'has_active_staff_session';
+
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
+    const hasFlag = localStorage.getItem(STORAGE_FLAG) === 'true';
+    if (!hasFlag) return;
+
+    setRestoring(true);
     let active = true;
     api.get('/api/session')
       .then(response => {
-        if (active && response.data.data?.type === 'staff') navigate('/admin', { replace: true });
+        if (!active) return;
+        if (response.data.data?.type === 'staff') {
+          localStorage.setItem(STORAGE_FLAG, 'true');
+          navigate('/admin', { replace: true });
+        } else {
+          localStorage.removeItem(STORAGE_FLAG);
+          setRestoring(false);
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) {
+          localStorage.removeItem(STORAGE_FLAG);
+          setRestoring(false);
+        }
+      });
     return () => { active = false; };
   }, [navigate]);
 
@@ -29,6 +48,7 @@ export default function Login() {
 
     try {
       await api.post('/api/login', { username: username.trim(), password });
+      localStorage.setItem(STORAGE_FLAG, 'true');
       navigate('/admin', { replace: true });
     } catch (err) {
       if (!err.response) {
@@ -42,6 +62,36 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  if (restoring) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
+        <div className="absolute top-[-20%] left-[-10%] w-[520px] h-[520px] bg-primary-light/45 dark:bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-[-25%] right-[-10%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[140px] pointer-events-none" />
+
+        <section className="w-full max-w-md bg-card border border-border rounded-[2rem] md:rounded-[2.75rem] shadow-2xl overflow-hidden relative z-10 p-12 text-center">
+          <div className="relative">
+            <img 
+              src="/assets/images/logo.png" 
+              alt="Mary Esmalteria" 
+              className="w-24 h-24 rounded-3xl object-contain bg-white/90 shadow-xl mx-auto mb-8 animate-pulse" 
+              style={{ animation: 'pulse 2s ease-in-out infinite' }}
+            />
+            <style jsx>{`
+              @keyframes pulse {
+                0%, 100% { transform: scale(1); opacity: 1; }
+                50% { transform: scale(1.05); opacity: 0.8; }
+              }
+            `}</style>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-primary mb-4">Restaurando sessão</p>
+            <h2 className="text-2xl font-serif text-foreground mb-2">Aguarde um instante...</h2>
+            <p className="text-muted">Estamos validando sua sessão automaticamente.</p>
+            <Loader2 size={24} className="mx-auto mt-6 animate-spin text-primary" />
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
@@ -140,7 +190,7 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-xs text-muted leading-relaxed mt-7 text-center">Por segurança, não compartilhe sua senha. Ao terminar, use “Encerrar sessão” no painel.</p>
+          <p className="text-xs text-muted leading-relaxed mt-7 text-center">Por segurança, não compartilhe sua senha. Ao terminar, use "Encerrar sessão" no painel.</p>
         </div>
       </section>
     </main>

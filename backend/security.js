@@ -3,8 +3,15 @@ const { promisify } = require('util');
 
 const scrypt = promisify(crypto.scrypt);
 const SESSION_COOKIE = 'mary_session';
+const REFRESH_COOKIE = 'mary_refresh';
+const STAFF_FLAG_COOKIE = 'has_active_staff_session';
 const HASH_SCHEME = 'scrypt';
 const PASSWORD_COST = Object.freeze({ N: 16384, r: 8, p: 1, keyLength: 64 });
+const ACCESS_TTL = 15 * 60;
+const REFRESH_TTL = 30 * 24 * 60 * 60;
+// A rotated token may still arrive from a request that raced the rotation.
+// Inside this window it is treated as a retry instead of a stolen token.
+const REFRESH_REUSE_GRACE_MS = 10 * 1000;
 const rateLimitBuckets = new Map();
 
 function base64url(value) {
@@ -85,17 +92,150 @@ function readSession(req) {
     }
 }
 
-function setSessionCookie(res, token, maxAgeSeconds) {
+function cookieAttributes({ httpOnly = true } = {}) {
     const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-    res.setHeader(
-        'Set-Cookie',
-        `${SESSION_COOKIE}=${encodeURIComponent(token)}; Max-Age=${maxAgeSeconds}; Path=/; HttpOnly; SameSite=Lax${secure}`
-    );
+    return `Path=/; ${httpOnly ? 'HttpOnly; ' : ''}SameSite=Lax${secure}`;
+}
+
+/**
+ * A response often carries the access cookie, the refresh cookie and the UX
+ * flag at once. setHeader would keep only the last one, silently logging the
+ * user out, so every cookie has to accumulate.
+ */
+function appendCookie(res, cookie) {
+    if (typeof res.append === 'function') {
+        res.append('Set-Cookie', cookie);
+        return;
+    }
+    const current = res.getHeader('Set-Cookie');
+    const cookies = current ? [].concat(current, cookie) : [cookie];
+    res.setHeader('Set-Cookie', cookies);
+}
+
+function setSessionCookie(res, token, maxAgeSeconds = ACCESS_TTL) {
+    appendCookie(res, `${SESSION_COOKIE}=${encodeURIComponent(token)}; Max-Age=${maxAgeSeconds}; ${cookieAttributes()}`);
 }
 
 function clearSessionCookie(res) {
-    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${secure}`);
+    appendCookie(res, `${SESSION_COOKIE}=; Max-Age=0; ${cookieAttributes()}`);
+}
+
+function setRefreshCookie(res, token, maxAgeSeconds = REFRESH_TTL) {
+    appendCookie(res, `${REFRESH_COOKIE}=${encodeURIComponent(token)}; Max-Age=${maxAgeSeconds}; ${cookieAttributes()}`);
+}
+
+function clearRefreshCookie(res) {
+    appendCookie(res, `${REFRESH_COOKIE}=; Max-Age=0; ${cookieAttributes()}`);
+}
+
+/**
+ * Readable by scripts on purpose: the SPA uses it to skip the logged-out flash
+ * while it revalidates. It carries no identity, only a boolean hint.
+ */
+function setStaffSessionFlagCookie(res, maxAgeSeconds = REFRESH_TTL) {
+    appendCookie(res, `${STAFF_FLAG_COOKIE}=true; Max-Age=${maxAgeSeconds}; ${cookieAttributes({ httpOnly: false })}`);
+}
+
+function clearStaffSessionFlagCookie(res) {
+    appendCookie(res, `${STAFF_FLAG_COOKIE}=; Max-Age=0; ${cookieAttributes({ httpOnly: false })}`);
+}
+
+function readRefreshToken(req) {
+    try {
+        return parseCookies(req.headers.cookie)[REFRESH_COOKIE];
+    } catch {
+        return null;
+    }
+}
+
+function hashRefreshToken(token) {
+    return crypto.createHash('sha256').update(String(token)).digest('base64url');
+}
+
+async function createRefreshToken(supabase, userId, userType, ttlSeconds = REFRESH_TTL) {
+    const token = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+
+    const { data, error } = await supabase
+        .from('refresh_tokens')
+        .insert([{
+            user_id: String(userId),
+            user_type: userType,
+            token_hash: hashRefreshToken(token),
+            expires_at: expiresAt
+        }])
+        .select('id')
+        .single();
+
+    if (error) throw error;
+    return { token, id: data?.id ?? null, expiresAt };
+}
+
+/**
+ * Returns the stored token even when it is revoked or expired, because the
+ * caller has to tell a plain expiry apart from a replayed token.
+ */
+async function findRefreshToken(supabase, token) {
+    if (!token) return null;
+
+    const { data, error } = await supabase
+        .from('refresh_tokens')
+        .select('id, user_id, user_type, expires_at, revoked_at, replaced_by_token_id')
+        .eq('token_hash', hashRefreshToken(token))
+        .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    const revokedAt = data.revoked_at ? new Date(data.revoked_at) : null;
+    return {
+        id: data.id,
+        userId: data.user_id,
+        userType: data.user_type,
+        replacedByTokenId: data.replaced_by_token_id ?? null,
+        revoked: Boolean(revokedAt),
+        revokedAt,
+        expired: new Date(data.expires_at) <= new Date()
+    };
+}
+
+async function revokeRefreshToken(supabase, tokenId, replacedByTokenId = null) {
+    const patch = { revoked_at: new Date().toISOString() };
+    if (replacedByTokenId) patch.replaced_by_token_id = replacedByTokenId;
+    const { error } = await supabase
+        .from('refresh_tokens')
+        .update(patch)
+        .eq('id', tokenId);
+    if (error) throw error;
+}
+
+/**
+ * Drops every live token of a user. Used when a rotated token is replayed:
+ * the cookie has leaked, so the whole lineage stops being trusted.
+ */
+async function revokeRefreshTokenFamily(supabase, userId, userType) {
+    const { error } = await supabase
+        .from('refresh_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('user_id', String(userId))
+        .eq('user_type', userType)
+        .is('revoked_at', null);
+    if (error) throw error;
+}
+
+/**
+ * Issues the replacement before revoking the old token so a failure keeps the
+ * caller logged in instead of stranding them with no valid token at all.
+ */
+async function rotateRefreshToken(supabase, oldTokenId, userId, userType, ttlSeconds = REFRESH_TTL) {
+    const created = await createRefreshToken(supabase, userId, userType, ttlSeconds);
+    await revokeRefreshToken(supabase, oldTokenId, created.id);
+    return created;
+}
+
+function isBenignRefreshReuse(record) {
+    if (!record?.revoked || !record.revokedAt) return false;
+    return Date.now() - record.revokedAt.getTime() <= REFRESH_REUSE_GRACE_MS;
 }
 
 async function hashPassword(password) {
@@ -390,11 +530,19 @@ function isProtectedPhone(value) {
 }
 
 module.exports = {
+    ACCESS_TTL,
     PROTECTED_PHONE_PLACEHOLDER,
+    REFRESH_REUSE_GRACE_MS,
+    REFRESH_TTL,
     canViewClientPhone,
+    clearRefreshCookie,
     clearSessionCookie,
+    clearStaffSessionFlagCookie,
     createAppointmentToken,
+    createRefreshToken,
+    findRefreshToken,
     hashPassword,
+    isBenignRefreshReuse,
     isOwner,
     isProtectedPhone,
     isValidPhone,
@@ -403,13 +551,19 @@ module.exports = {
     normalizePhone,
     optionalSession,
     rateLimit,
+    readRefreshToken,
     readSession,
     requireClient,
     requireSameOrigin,
     requireStaff,
+    revokeRefreshToken,
+    revokeRefreshTokenFamily,
+    rotateRefreshToken,
     safeText,
     sameSubject,
+    setRefreshCookie,
     setSessionCookie,
+    setStaffSessionFlagCookie,
     signSession,
     verifyAppointmentToken,
     verifyPassword,

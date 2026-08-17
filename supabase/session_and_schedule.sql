@@ -1,0 +1,3 @@
+-- Canonical migration (apply this file in Supabase SQL Editor if not using CLI):
+--   supabase/migrations/20260817_refresh_tokens_and_per_day_schedule.sql
+-- This stub exists only to avoid a second, diverging copy.
