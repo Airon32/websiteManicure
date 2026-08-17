@@ -210,6 +210,27 @@ export function isE164Phone(value) {
   return /^\+[1-9][0-9]{7,14}$/.test(String(value || '').trim());
 }
 
+export function normalizeStaffWhatsAppInput(value) {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  if (isE164Phone(trimmed)) return trimmed;
+
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    return `+${digits}`;
+  }
+  if (digits.length === 10 || digits.length === 11) {
+    return `+55${digits}`;
+  }
+  if (digits.length >= 8 && digits.length <= 15) {
+    const candidate = `+${digits}`;
+    return isE164Phone(candidate) ? candidate : null;
+  }
+  return null;
+}
+
 export function maskWhatsappPhone(value) {
   const phone = String(value || '').trim();
   if (!isE164Phone(phone)) return '';

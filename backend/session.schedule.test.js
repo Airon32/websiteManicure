@@ -411,6 +411,38 @@ test('per-day expedient is stored expanded to the seven days', async () => {
     });
 });
 
+test('per-day expedient treats Folga, empty clocks and HH:MM:SS as a valid week', async () => {
+    const response = await put('/api/settings', {
+        key: 'schedule',
+        value: {
+            dom: { start: '', end: '', off: true },
+            seg: { start: '', end: '', off: true },
+            ter: { start: '', end: '', off: true },
+            qua: { start: '', end: '', off: true },
+            qui: { start: '', end: '', off: true },
+            sex: { start: '07:00:00', end: '20:00:00', off: false },
+            sab: { start: '', end: '', off: true }
+        }
+    }, staffCookie());
+    assert.equal(response.status, 200, await response.text());
+
+    const stored = JSON.parse(mock.tables.settings.find(row => row.key === 'schedule').value);
+    assert.equal(stored.dom, null);
+    assert.deepEqual(stored.sex, { start: '07:00', end: '20:00' });
+    assert.equal(stored.sab, null);
+});
+
+test('empty per-day expedient clears the setting so flat hours remain the source', async () => {
+    await put('/api/settings', {
+        key: 'schedule',
+        value: { sex: { start: '09:00', end: '18:00' } }
+    }, staffCookie());
+
+    const cleared = await put('/api/settings', { key: 'schedule', value: '' }, staffCookie());
+    assert.equal(cleared.status, 200, await cleared.text());
+    assert.equal(mock.tables.settings.find(row => row.key === 'schedule').value, '');
+});
+
 test('professional payload exposes the per-day schedule and a compatible flat envelope', async () => {
     mock.tables.settings = mock.tables.settings.filter(row => row.key !== 'schedule');
     await put('/api/settings', {

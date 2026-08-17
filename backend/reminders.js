@@ -243,16 +243,52 @@ function normalizeE164(value) {
     const trimmed = String(value).trim();
     if (!trimmed) return null;
     if (E164_PATTERN.test(trimmed)) return trimmed;
+
     const digits = trimmed.replace(/\D/g, '');
-    if (digits.length === 11 && digits.startsWith('11')) return `+55${digits}`;
-    if (digits.length === 10 || digits.length === 11) return `+55${digits}`;
-    if (digits.length === 13 && digits.startsWith('55')) return `+${digits}`;
-    if (digits.length === 12 && digits.startsWith('55')) return `+${digits}`;
-    return trimmed.startsWith('+') ? trimmed : `+${digits}`;
+    if (!digits) return null;
+
+    // Already includes country code 55. Do not prepend +55 again.
+    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+        return `+${digits}`;
+    }
+    // Brazilian landline (10) or mobile (11) without country code.
+    if (digits.length === 10 || digits.length === 11) {
+        return `+55${digits}`;
+    }
+    if (digits.length >= 8 && digits.length <= 15) {
+        const candidate = `+${digits}`;
+        return E164_PATTERN.test(candidate) ? candidate : null;
+    }
+    return null;
 }
 
 function isValidE164(value) {
-    return value == null || E164_PATTERN.test(value);
+    return E164_PATTERN.test(String(value || ''));
+}
+
+function isMissingWhatsappPhoneColumn(error) {
+    const code = String(error?.code || '');
+    const message = String(error?.message || '');
+    if (code === 'PGRST204' || code === '42703') {
+        return /whatsapp_phone/i.test(message) || /schema cache/i.test(message);
+    }
+    return /whatsapp_phone/i.test(message) && (/does not exist/i.test(message) || /schema cache/i.test(message) || /could not find/i.test(message));
+}
+
+function staffWhatsAppWriteError(error) {
+    if (isMissingWhatsappPhoneColumn(error)) {
+        return {
+            status: 503,
+            error: 'O banco ainda não tem a coluna whatsapp_phone. Aplique a migration e recarregue o schema da API.'
+        };
+    }
+    if (error?.code === '23514') {
+        return { status: 400, error: 'Informe um WhatsApp válido, por exemplo +5511999999999.' };
+    }
+    if (error?.code === '42501' || /permission denied/i.test(String(error?.message || ''))) {
+        return { status: 403, error: 'Sem permissão para alterar o WhatsApp profissional.' };
+    }
+    return { status: 400, error: 'Não foi possível salvar o WhatsApp profissional.' };
 }
 
 function maskE164(value) {
@@ -921,6 +957,7 @@ module.exports = {
     isEligibleAppointmentStatus,
     isReminderOwner,
     isReminderPrivileged,
+    isMissingWhatsappPhoneColumn,
     isValidE164,
     isWithinLeadWindow,
     maskE164,
@@ -937,6 +974,7 @@ module.exports = {
     renderTemplate,
     requireCronSecret,
     sanitizeTemplateValue,
+    staffWhatsAppWriteError,
     validateReminderTemplate,
     zonedLocalToUtcMs
 };

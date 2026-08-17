@@ -260,6 +260,31 @@ test('PUT whatsapp_phone is self or owner, E.164, and GET public never returns t
     assert.match(savedBody.data.whatsapp_phone_masked, /\*\*\*\*/);
     assert.equal(mock.tables.professionals.find(row => row.id === COLLABORATOR.id).whatsapp_phone, '+5511933334444');
 
+    const ownerSavesOther = await request(`/api/professionals/${COLLABORATOR.id}/whatsapp_phone`, {
+        method: 'PUT',
+        cookies: cookieFor(OWNER),
+        body: { whatsapp_phone: '(11) 93333-5555' }
+    });
+    assert.equal(ownerSavesOther.status, 200, await ownerSavesOther.clone().text());
+    assert.equal(mock.tables.professionals.find(row => row.id === COLLABORATOR.id).whatsapp_phone, '+5511933335555');
+    assert.equal(mock.tables.professionals.find(row => row.id === OWNER.id).whatsapp_phone, '+5511911111111');
+
+    const cleared = await request(`/api/professionals/${COLLABORATOR.id}/whatsapp_phone`, {
+        method: 'PUT',
+        cookies: cookieFor(OWNER),
+        body: { whatsapp_phone: '' }
+    });
+    assert.equal(cleared.status, 200, await cleared.clone().text());
+    assert.equal(mock.tables.professionals.find(row => row.id === COLLABORATOR.id).whatsapp_phone, null);
+    assert.equal((await cleared.json()).data.whatsapp_phone_set, false);
+
+    const restored = await request(`/api/professionals/${COLLABORATOR.id}/whatsapp_phone`, {
+        method: 'PUT',
+        cookies: cookieFor(OWNER),
+        body: { whatsapp_phone: COLLABORATOR.whatsapp_phone }
+    });
+    assert.equal(restored.status, 200, await restored.clone().text());
+
     const publicGet = await request(`/api/professionals/${COLLABORATOR.id}`);
     assert.equal(publicGet.status, 200);
     const publicBody = await publicGet.json();
