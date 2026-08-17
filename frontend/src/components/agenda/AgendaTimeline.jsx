@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { format, isSameDay, startOfToday } from 'date-fns';
 import ptBR from 'date-fns/locale/pt-BR/index.js';
 import { CheckCircle, ChevronLeft, ChevronRight, Clock, Lock, MessageCircle, Plus, Unlock } from 'lucide-react';
+import ReminderIndicator from '../reminders/ReminderIndicator';
 import {
   appointmentDate,
   formatViewTitle,
@@ -121,18 +122,21 @@ function AppointmentCard({ item, startMinute, onCancel, onConfirm, onComplete, o
               {appointment.time}–{endTime}
             </span>
 
-            {!isBlock && appointment.status === 'confirmado' && (
-              <span className="inline-flex items-center gap-0.5 text-[8px] font-black text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-1 py-0.2 rounded">
-                <CheckCircle size={9} className="shrink-0" />
-                <span className="hidden sm:inline">Confirmado</span>
-              </span>
-            )}
-            {!isBlock && appointment.status === 'concluído' && (
-              <span className="inline-flex items-center gap-0.5 text-[8px] font-black text-purple-300 bg-purple-500/20 border border-purple-500/30 px-1 py-0.2 rounded">
-                <span>✓</span>
-                <span className="hidden sm:inline">Pago</span>
-              </span>
-            )}
+            <span className="inline-flex items-center gap-0.5">
+              {!isBlock && <ReminderIndicator appointment={appointment} />}
+              {!isBlock && appointment.status === 'confirmado' && (
+                <span className="inline-flex items-center gap-0.5 text-[8px] font-black text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-1 py-0.2 rounded">
+                  <CheckCircle size={9} className="shrink-0" />
+                  <span className="hidden sm:inline">Confirmado</span>
+                </span>
+              )}
+              {!isBlock && appointment.status === 'concluído' && (
+                <span className="inline-flex items-center gap-0.5 text-[8px] font-black text-purple-300 bg-purple-500/20 border border-purple-500/30 px-1 py-0.2 rounded">
+                  <span>✓</span>
+                  <span className="hidden sm:inline">Pago</span>
+                </span>
+              )}
+            </span>
             {!isBlock && appointment.status !== 'confirmado' && appointment.status !== 'concluído' && (
               <span className="text-[8.5px] font-bold text-muted truncate">
                 R$ {Number(appointment.service_price || 0).toFixed(0)}

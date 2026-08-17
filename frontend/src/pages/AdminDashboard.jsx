@@ -7,6 +7,10 @@ import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey } from '../utils/schedule';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import AgendaTimeline from '../components/agenda/AgendaTimeline';
+import ReminderIndicator from '../components/reminders/ReminderIndicator';
+import ReminderSettings from '../components/reminders/ReminderSettings';
+import AppointmentReminderPanel from '../components/reminders/AppointmentReminderPanel';
+import { ReminderProvider } from '../components/reminders/ReminderContext';
 
 const isPhoneProtected = (phone) => {
   if (!phone) return false;
@@ -75,11 +79,13 @@ export default function AdminDashboard() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [settingsSection, setSettingsSection] = useState('geral');
   const [appointments, setAppointments] = useState([]);
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
   const [settingsData, setSettingsData] = useState([]);
+  const [reminderChannelReady, setReminderChannelReady] = useState(false);
   const [financialStats, setFinancialStats] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
@@ -308,6 +314,7 @@ export default function AdminDashboard() {
       const incomingSettings = setRes.data.data;
 
       setSettingsData(incomingSettings);
+      setReminderChannelReady(Boolean(setRes.data.reminder_channel_ready));
 
       setAppointments(appRes.data.data);
       setClients(cliRes.data.data);
@@ -1234,7 +1241,9 @@ const scheduleUpdates = [
       case 'clients': return 'Base de Clientes';
       case 'catalog': return 'Catálogo de Serviços';
       case 'staff': return 'Gestão de Staff & RH';
-      case 'settings': return isAdmin ? 'Configurações Globais' : 'Minhas Configurações';
+      case 'settings':
+        if (isAdmin && settingsSection === 'lembretes') return 'Lembretes e notificações';
+        return isAdmin ? 'Configurações Globais' : 'Minhas Configurações';
       default: return activeTab;
     }
   };
@@ -1259,6 +1268,13 @@ const scheduleUpdates = [
   };
 
   return (
+    <ReminderProvider
+      appointments={appointments}
+      professionals={professionals}
+      settingsData={settingsData}
+      channelReady={reminderChannelReady}
+      user={user}
+    >
     <div className="flex h-screen bg-background overflow-hidden font-sans transition-colors duration-300">
 
       {/* Premium Confirm/Alert Modal */}
@@ -1751,13 +1767,16 @@ const scheduleUpdates = [
                                       <td className="py-3.5 px-2 text-xs text-muted">{app.service_name || '-'}</td>
                                       <td className="py-3.5 px-2 text-xs">{app.professional_name || '-'}</td>
                                       <td className="py-3.5 px-2 text-right">
-                                        <button 
-                                          onClick={() => handleWhatsAppAction(app, true)}
-                                          className="text-emerald-500 hover:bg-emerald-500/10 p-2 rounded-lg transition-colors"
-                                          title="Lembrete WhatsApp"
-                                        >
-                                          <Send size={15} />
-                                        </button>
+                                        <div className="inline-flex items-center justify-end gap-1">
+                                          <ReminderIndicator appointment={app} />
+                                          <button 
+                                            onClick={() => handleWhatsAppAction(app, true)}
+                                            className="text-emerald-500 hover:bg-emerald-500/10 p-2 rounded-lg transition-colors"
+                                            title="Lembrete WhatsApp"
+                                          >
+                                            <Send size={15} />
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   ))}
@@ -1782,7 +1801,8 @@ const scheduleUpdates = [
                                       <h4 className="font-bold text-foreground text-sm mt-2">{app.client_name}</h4>
                                       <p className="text-xs text-muted">{app.service_name}</p>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="text-right flex flex-col items-end gap-1">
+                                      <ReminderIndicator appointment={app} />
                                       <span className="text-sm font-black text-primary">{app.time}</span>
                                       <p className="text-[10px] text-muted font-bold uppercase">{safeFormatDate(app.date, 'dd/MM')}</p>
                                     </div>
@@ -2416,6 +2436,41 @@ const scheduleUpdates = [
 
                   {activeTab === 'settings' && isAdmin && (
                     <div className="fade-in-up duration-500 space-y-8">
+                      <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Seções de ajustes">
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={settingsSection === 'geral'}
+                          onClick={() => setSettingsSection('geral')}
+                          className={`min-h-[44px] px-4 rounded-xl text-xs font-black uppercase tracking-wider shrink-0 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            settingsSection === 'geral'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-card/60 text-muted border-primary/20 hover:text-foreground'
+                          }`}
+                        >
+                          Geral
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={settingsSection === 'lembretes'}
+                          onClick={() => setSettingsSection('lembretes')}
+                          className={`min-h-[44px] px-4 rounded-xl text-xs font-black uppercase tracking-wider shrink-0 border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            settingsSection === 'lembretes'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-card/60 text-muted border-primary/20 hover:text-foreground'
+                          }`}
+                        >
+                          Lembretes e notificações
+                        </button>
+                      </div>
+
+                      {settingsSection === 'lembretes' && (
+                        <ReminderSettings professionals={professionals} />
+                      )}
+
+                      {settingsSection === 'geral' && (
+                      <div className="space-y-8">
 
                       {/* Seção 1: Identidade */}
                       <div className="glass-card p-6">
@@ -2940,6 +2995,8 @@ const scheduleUpdates = [
                           <CheckCircle size={18} /> Salvar Todas as Configurações
                         </button>
                       </div>
+                      </div>
+                      )}
 
                     </div>
                   )}
@@ -3565,7 +3622,7 @@ const scheduleUpdates = [
           </div>
         ) : (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
-            <div className="bg-card border border-primary/20 rounded-[2.5rem] w-full max-w-md shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+            <div className="bg-card border border-primary/20 rounded-[2.5rem] w-full max-w-md max-h-[90vh] shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
               
               <div className={`grid ${isPhoneProtected(selectedAppointment.client_phone) ? 'grid-cols-2' : 'grid-cols-4'} gap-1 p-4 bg-gradient-to-br from-muted/20 to-transparent border-b border-border/50`}>
                 {!isPhoneProtected(selectedAppointment.client_phone) && (
@@ -3724,6 +3781,8 @@ const scheduleUpdates = [
                   </div>
                 </div>
 
+                <AppointmentReminderPanel appointment={selectedAppointment} />
+
               </div>
 
               {/* Footer Actions */}
@@ -3873,5 +3932,6 @@ const scheduleUpdates = [
       </nav>
 
     </div>
+    </ReminderProvider>
   );
 }

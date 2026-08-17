@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { format, isSameDay, isSameMonth, startOfToday } from 'date-fns';
 import ptBR from 'date-fns/locale/pt-BR/index.js';
 import { CheckCircle, Lock, Users } from 'lucide-react';
+import ReminderIndicator from '../reminders/ReminderIndicator';
 import {
   appointmentDate,
   calculateDayMetrics,
@@ -193,7 +194,7 @@ export default function AgendaMonthView({
                           return (
                             <div
                               key={app.id}
-                              className={`truncate text-[8px] font-bold px-1 py-0.2 rounded ${
+                              className={`truncate text-[8px] font-bold px-1 py-0.2 rounded flex items-center gap-0.5 ${
                                 isBlock
                                   ? 'bg-amber-500/10 text-amber-200'
                                   : app.status === 'confirmado'
@@ -203,7 +204,8 @@ export default function AgendaMonthView({
                                   : 'bg-white/5 text-muted'
                               }`}
                             >
-                              {app.time} {label}
+                              {!isBlock && <ReminderIndicator appointment={app} />}
+                              <span className="truncate">{app.time} {label}</span>
                             </div>
                           );
                         })}
