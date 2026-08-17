@@ -50,6 +50,24 @@ const {
     createOtpManager,
     createSupabaseOtpStore
 } = require('./otp');
+const {
+    createReminderWhatsAppSenderFromEnv,
+    isReminderChannelReady
+} = require('./whatsapp');
+const {
+    DEFAULT_TEMPLATES,
+    SETTING_KEYS,
+    createReminderService,
+    isReminderOwner,
+    isReminderPrivileged,
+    isValidE164,
+    normalizeE164,
+    omitStaffWhatsApp,
+    presentStaffWhatsApp,
+    reminderSettingSpec,
+    requireCronSecret,
+    validateReminderTemplate
+} = require('./reminders');
 
 // --- CONFIGURAÇÃO SUPABASE (CENTRALIZADA PARA VERCEL) ---
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -118,6 +136,13 @@ const clientOtpManager = whatsAppOtpSender
         sendCode: whatsAppOtpSender
     })
     : null;
+
+const reminderWhatsAppSender = createReminderWhatsAppSenderFromEnv();
+const reminderService = createReminderService({
+    supabase,
+    sendMessage: reminderWhatsAppSender,
+    timeZone: process.env.BUSINESS_TIMEZONE || 'America/Sao_Paulo'
+});
 
 if (typeof supabase.from !== 'function') {
     console.error('[SUPABASE DIAGNOSTIC] Erro Crítico: supabase.from não é uma função!', {
@@ -1203,25 +1228,25 @@ app.get('/api/professionals', async (req, res) => {
 
         const settingsMap = await loadSettingsMap().catch(() => ({}));
         const withSchedule = await Promise.all((professionalsList || []).map(async (professional) => ({
-            ...professional,
+            ...omitStaffWhatsApp(professional),
             ...await buildProfessionalScheduleWithExceptions(supabase, settingsMap, professional.id)
         })));
 
         res.json({ message: "success", data: withSchedule });
     } catch {
-        res.json({ message: "success", data: defaultProfessionalsMock });
+        res.json({ message: "success", data: defaultProfessionalsMock.map(omitStaffWhatsApp) });
     }
 });
 
 app.get('/api/professionals/:id', async (req, res) => {
     const { id } = req.params;
     const canViewPrivate = req.auth?.type === 'staff' && (
-        req.auth.role === 'admin' || sameSubject(req.auth.id, id)
+        req.auth.role === 'admin' || isReminderOwner(req.auth) || sameSubject(req.auth.id, id)
     );
     const { data, error } = await supabase
         .from('professionals')
         .select(canViewPrivate
-            ? 'id, name, role, avatar, specialty, username, status'
+            ? 'id, name, role, avatar, specialty, username, status, whatsapp_phone'
             : 'id, name, avatar, specialty, status')
         .eq('id', id)
         .eq('status', 'ativo')
@@ -1232,16 +1257,39 @@ app.get('/api/professionals/:id', async (req, res) => {
     try {
         const settingsMap = await loadSettingsMap();
         const scheduleWithExceptions = await buildProfessionalScheduleWithExceptions(supabase, settingsMap, data.id);
+        const payload = canViewPrivate ? presentStaffWhatsApp(data) : omitStaffWhatsApp(data);
         res.json({
             "message": "success",
             "data": {
-                ...data,
+                ...payload,
                 ...scheduleWithExceptions
             }
         });
     } catch (settingsError) {
         res.status(400).json({ error: safeDbErrorMessage(settingsError, 'Não foi possível carregar as configurações do profissional.') });
     }
+});
+
+app.put('/api/professionals/:id/whatsapp_phone', requireStaff(), async (req, res) => {
+    const { id } = req.params;
+    if (!isReminderPrivileged(req.auth) && !sameSubject(req.auth.id, id)) {
+        return res.status(403).json({ error: 'Você só pode editar o próprio WhatsApp profissional.' });
+    }
+
+    const normalized = normalizeE164(req.body?.whatsapp_phone);
+    if (!isValidE164(normalized)) {
+        return res.status(400).json({ error: 'Informe um WhatsApp em E.164, por exemplo +5511999999999.' });
+    }
+
+    const { data, error } = await supabase
+        .from('professionals')
+        .update({ whatsapp_phone: normalized })
+        .eq('id', id)
+        .select('id, name, role, status, whatsapp_phone')
+        .single();
+
+    if (error) return res.status(400).json({ error: safeDbErrorMessage(error, 'Não foi possível salvar o WhatsApp profissional.') });
+    res.json({ message: 'success', data: presentStaffWhatsApp(data) });
 });
 
 app.post('/api/professionals', requireStaff('admin'), async (req, res) => {
@@ -1966,6 +2014,14 @@ app.post('/api/appointments', rateLimit({
             }, maxAge), maxAge);
         }
 
+        try {
+            await reminderService.notifyNewBooking(insertedAppointment);
+        } catch (notifyError) {
+            if (process.env.NODE_ENV !== 'test') {
+                console.error('[Reminders] Falha ao notificar novo agendamento:', notifyError.code || notifyError.message);
+            }
+        }
+
         const canViewPhones = isStaff ? canViewClientPhone(req.auth, settingsMap) : true;
         const responseData = {
             ...insertedAppointment,
@@ -2459,6 +2515,74 @@ app.post('/api/appointments/:id/cancel', async (req, res) => {
     res.json({ message: "success" });
 });
 
+app.post('/api/jobs/appointment-reminders', requireCronSecret(), rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 12,
+    keyPrefix: 'appointment-reminders-job',
+    message: 'O job de lembretes já foi disparado recentemente.'
+}), async (req, res) => {
+    try {
+        const summary = await reminderService.runAutomaticJob();
+        res.json({ message: 'success', data: summary });
+    } catch (error) {
+        if (process.env.NODE_ENV !== 'test') {
+            console.error('[Reminders] Job falhou:', error.code || error.message);
+        }
+        res.status(503).json({ error: 'Não foi possível processar os lembretes agora.' });
+    }
+});
+
+app.post('/api/appointments/:id/reminders', requireStaff(), rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyPrefix: 'appointment-reminder-manual',
+    message: 'Muitos lembretes manuais. Aguarde alguns minutos.'
+}), async (req, res) => {
+    const { id } = req.params;
+    const { data: appointment, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+    if (error || !appointment) return res.status(404).json({ error: 'Agendamento não encontrado.' });
+    if (!isReminderPrivileged(req.auth) && !sameSubject(req.auth.id, appointment.professional_id)) {
+        return res.status(403).json({ error: 'Você não pode enviar lembrete deste agendamento.' });
+    }
+
+    const result = await reminderService.sendClientReminder(appointment, {
+        mode: 'manual',
+        confirm: req.body?.confirm === true,
+        createdByStaffId: String(req.auth.id),
+        sessionWindowOpen: req.body?.session_window_open === true
+    });
+    if (result.needs_confirm) {
+        return res.status(409).json({ needs_confirm: true, error: result.error });
+    }
+    if (!result.ok) {
+        return res.status(result.status || 400).json({ error: result.error, data: result.event || null });
+    }
+    res.json({ message: 'success', data: result.event, suppressed: Boolean(result.suppressed), skipped: Boolean(result.skipped) });
+});
+
+app.get('/api/appointments/:id/message-events', requireStaff(), async (req, res) => {
+    const { id } = req.params;
+    const { data: appointment, error } = await supabase
+        .from('appointments')
+        .select('id, professional_id')
+        .eq('id', id)
+        .maybeSingle();
+    if (error || !appointment) return res.status(404).json({ error: 'Agendamento não encontrado.' });
+    if (!isReminderPrivileged(req.auth) && !sameSubject(req.auth.id, appointment.professional_id)) {
+        return res.status(403).json({ error: 'Você não pode ver os eventos deste agendamento.' });
+    }
+    try {
+        const events = await reminderService.listMessageEvents(id, req.auth, { appointment });
+        res.json({ message: 'success', data: events });
+    } catch (listError) {
+        res.status(400).json({ error: safeDbErrorMessage(listError, 'Não foi possível carregar os eventos de mensagem.') });
+    }
+});
+
 app.post('/api/appointments/:id/complete', requireStaff(), async (req, res) => {
     const { id } = req.params;
     const ownership = await loadAppointmentForAuthorization(id);
@@ -2587,7 +2711,27 @@ app.get('/api/settings', async (req, res) => {
         const ownPrefix = `professional_${req.auth.id}_`;
         visibleSettings = visibleSettings.filter(setting => publicKeys.has(setting.key) || setting.key.startsWith(ownPrefix));
     }
-    res.json({ "message": "success", "data": visibleSettings });
+    if (isReminderPrivileged(req.auth)) {
+        const present = new Set(visibleSettings.map(setting => setting.key));
+        const reminderDefaults = [
+            [SETTING_KEYS.notifyOwner, 'false'],
+            [SETTING_KEYS.notifyProfessional, 'false'],
+            [SETTING_KEYS.clientAuto, 'false'],
+            [SETTING_KEYS.leadHours, '24'],
+            [SETTING_KEYS.templateOwner, DEFAULT_TEMPLATES.owner],
+            [SETTING_KEYS.templateProfessional, DEFAULT_TEMPLATES.professional],
+            [SETTING_KEYS.templateClientPending, DEFAULT_TEMPLATES.client_pending],
+            [SETTING_KEYS.templateClientConfirmed, DEFAULT_TEMPLATES.client_confirmed]
+        ];
+        for (const [key, value] of reminderDefaults) {
+            if (!present.has(key)) visibleSettings.push({ key, value });
+        }
+    }
+    const payload = { message: 'success', data: visibleSettings };
+    if (isReminderPrivileged(req.auth)) {
+        payload.reminder_channel_ready = isReminderChannelReady();
+    }
+    res.json(payload);
 });
 
 app.get('/api/settings/audit-logs', requireStaff('admin'), async (req, res) => {
@@ -2618,10 +2762,17 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
         'business_name', 'whatsapp_message', 'work_start', 'work_end', 'slot_interval',
         'work_days', 'whatsapp_number', 'allow_online_booking', 'max_advance_days', 'public_profile',
         'hide_client_phone_from_collaborators', 'allow_admins_view_client_phone', 'authorized_phone_viewer_ids',
-        'schedule'
+        'schedule',
+        SETTING_KEYS.notifyOwner, SETTING_KEYS.notifyProfessional, SETTING_KEYS.clientAuto, SETTING_KEYS.leadHours,
+        SETTING_KEYS.templateOwner, SETTING_KEYS.templateProfessional,
+        SETTING_KEYS.templateClientPending, SETTING_KEYS.templateClientConfirmed
     ]);
     const professionalMatch = key.match(/^professional_(\d+)_(work_start|work_end|slot_interval|work_days|is_public_agenda|schedule)$/);
     const isGlobalAdmin = req.auth.role === 'admin' || isOwner(req.auth);
+    const reminderSpec = reminderSettingSpec(key);
+    if (reminderSpec && !isReminderPrivileged(req.auth)) {
+        return res.status(403).json({ error: 'Você não pode alterar esta configuração.' });
+    }
     const allowed = isGlobalAdmin
         ? globalKeys.has(key) || Boolean(professionalMatch)
         : Boolean(professionalMatch && sameSubject(professionalMatch[1], req.auth.id));
@@ -2639,6 +2790,22 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
     }
     if (['allow_online_booking', 'is_public_agenda', 'hide_client_phone_from_collaborators', 'allow_admins_view_client_phone'].includes(suffix) && !['true', 'false'].includes(value)) {
         return res.status(400).json({ error: 'Valor booleano inválido.' });
+    }
+    if (reminderSpec?.kind === 'boolean' && !['true', 'false'].includes(value)) {
+        return res.status(400).json({ error: 'Valor booleano inválido.' });
+    }
+    if (reminderSpec?.kind === 'leadHours') {
+        const hours = Number(value);
+        if (!Number.isInteger(hours) || hours < 1 || hours > 72) {
+            return res.status(400).json({ error: 'A antecedência do lembrete deve ficar entre 1 e 72 horas.' });
+        }
+    }
+    if (reminderSpec?.kind === 'template') {
+        const parsedTemplate = validateReminderTemplate(reminderSpec.templateKind, value);
+        if (!parsedTemplate.valid) {
+            return res.status(400).json({ error: parsedTemplate.error });
+        }
+        value = parsedTemplate.value;
     }
     if (suffix === 'authorized_phone_viewer_ids') {
         try {
