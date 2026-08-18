@@ -6,8 +6,10 @@ const {
     MAX_ATTEMPTS,
     RETRY_BACKOFF_MS,
     SETTING_KEYS,
+    canonicalizeTemplateText,
     createReminderService,
     findReminderOwners,
+    foldPlaceholderName,
     formatDateBR,
     isDummyPhone,
     isMissingWhatsappPhoneColumn,
@@ -19,6 +21,8 @@ const {
     parametersFor,
     presentStaffWhatsApp,
     renderTemplate,
+    resolveConfiguredFlow,
+    serviceNameFromAppointment,
     staffWhatsAppWriteError,
     validateReminderTemplate,
     zonedLocalToUtcMs
@@ -126,7 +130,13 @@ test('render escapes values and formats BR date / 24h time', () => {
     assert.match(text, /14:30/);
     assert.deepEqual(
         parametersFor('professional', { cliente: 'Ana', servico: 'Gel', data: '18/08/2026', hora: '14:30', estabelecimento: 'Mary' }),
-        ['Ana', 'Gel', '18/08/2026', '14:30', 'Mary']
+        [
+            { name: 'cliente', text: 'Ana' },
+            { name: 'servico', text: 'Gel' },
+            { name: 'data', text: '18/08/2026' },
+            { name: 'hora', text: '14:30' },
+            { name: 'estabelecimento', text: 'Mary' }
+        ]
     );
 });
 
@@ -192,6 +202,19 @@ test('Meta sender uses pre-approved template params, not panel text, unless sess
     assert.equal(calls[0].body.template.name, 'owner_booking');
     assert.equal(calls[0].body.text, undefined);
     assert.equal(JSON.stringify(calls[0].body).includes('TEXTO DO PAINEL'), false);
+    assert.equal(calls[0].body.template.components[0].parameters[0].parameter_name, undefined);
+    assert.equal(calls[0].body.template.components[0].parameters[0].text, 'Ana');
+
+    await send({
+        to: '+5511999999999',
+        flow: 'owner',
+        parameters: [{ name: 'servico', text: 'Depilação' }, { name: 'serviço', text: 'alongamento' }],
+        renderedText: 'TEXTO DO PAINEL NAO DEVE IR',
+        sessionWindowOpen: false
+    });
+    assert.equal(calls[1].body.template.components[0].parameters[0].parameter_name, 'servico');
+    assert.equal(calls[1].body.template.components[0].parameters[0].text, 'Depilação');
+    assert.equal(calls[1].body.template.components[0].parameters[1].parameter_name, 'servico');
 
     await send({
         to: '+5511999999999',
@@ -200,8 +223,8 @@ test('Meta sender uses pre-approved template params, not panel text, unless sess
         renderedText: 'Janela aberta',
         sessionWindowOpen: true
     });
-    assert.equal(calls[1].body.type, 'text');
-    assert.equal(calls[1].body.text.body, 'Janela aberta');
+    assert.equal(calls[2].body.type, 'text');
+    assert.equal(calls[2].body.text.body, 'Janela aberta');
 });
 
 test('Meta 131047/131026 become failed delivery codes and channel without template is not ready', async () => {
@@ -465,4 +488,182 @@ test('without Meta template the client reminder does not fake a send', async () 
     }, { mode: 'manual' });
     assert.equal(result.status, 503);
     assert.equal(db.tables.appointment_message_events.length, 0);
+});
+
+test('placeholders with cedilla, capital letters and horario alias render to canonical values', () => {
+    assert.equal(foldPlaceholderName('serviço'), 'servico');
+    assert.equal(foldPlaceholderName('Profissional'), 'profissional');
+    assert.equal(foldPlaceholderName('horario'), 'hora');
+    const ownerText = 'Olá {cliente} {serviço} {Profissional} {data} {horario} {estabelecimento}';
+    assert.equal(validateReminderTemplate('owner', ownerText).valid, true);
+    assert.equal(validateReminderTemplate('professional', 'Olá {cliente} {serviço} {data} {horario} {estabelecimento}').valid, true);
+    const raw = 'Serviço: {serviço} com {Profissional} às {horario}';
+    assert.equal(
+        canonicalizeTemplateText(raw),
+        'Serviço: {servico} com {profissional} às {hora}'
+    );
+    const rendered = renderTemplate(raw, {
+        servico: 'Depilação',
+        profissional: 'Mariana',
+        hora: '18:30'
+    });
+    assert.equal(rendered, 'Serviço: Depilação com Mariana às 18:30');
+});
+
+test('MULTI_SERVICES notes become the service name used in template params', () => {
+    const name = serviceNameFromAppointment({
+        notes: 'MULTI_SERVICES:[{"name":"Depilação"},{"name":"Manicure"}]|extra'
+    }, 'Catálogo');
+    assert.equal(name, 'Depilação + Manicure');
+    assert.equal(serviceNameFromAppointment({ notes: '' }, 'Manicure'), 'Manicure');
+});
+
+test('owner flow without owner Meta template falls back to professional template', () => {
+    assert.equal(resolveConfiguredFlow('owner', {
+        WHATSAPP_REMINDER_TEMPLATE_PROFESSIONAL: 'pro_tpl'
+    }), 'professional');
+    assert.equal(resolveConfiguredFlow('owner', {
+        WHATSAPP_REMINDER_TEMPLATE_OWNER: 'owner_tpl',
+        WHATSAPP_REMINDER_TEMPLATE_PROFESSIONAL: 'pro_tpl'
+    }), 'owner');
+});
+
+test('same person still gets professional notice when owner notify is off', async () => {
+    const db = memorySupabase({
+        professionals: [
+            { id: 4, name: 'Mariana', role: 'owner', is_owner: true, status: 'ativo', whatsapp_phone: '+5511911111111' }
+        ],
+        settings: [
+            { key: SETTING_KEYS.notifyOwner, value: 'false' },
+            { key: SETTING_KEYS.notifyProfessional, value: 'true' },
+            { key: 'business_name', value: 'Mary' }
+        ],
+        services: [{ id: 11, name: 'Manicure' }]
+    });
+    const deliveries = [];
+    const service = createReminderService({
+        supabase: db,
+        sendMessage: async payload => {
+            deliveries.push(payload);
+            return { providerMessageId: 'wamid.pro' };
+        },
+        env: {
+            WHATSAPP_ACCESS_TOKEN: 't',
+            WHATSAPP_PHONE_NUMBER_ID: '1',
+            WHATSAPP_GRAPH_API_VERSION: 'v21.0',
+            WHATSAPP_REMINDER_TEMPLATE_PROFESSIONAL: 'pro_tpl'
+        }
+    });
+    const summary = await service.notifyNewBooking({
+        id: 101,
+        professional_id: 4,
+        client_name: 'Cíntia',
+        client_phone: '11987654321',
+        date: '2026-08-18',
+        time: '18:30',
+        status: 'agendado',
+        service_id: 11,
+        notes: ''
+    });
+    assert.equal(summary.sent, 1);
+    assert.equal(summary.suppressed, 0);
+    assert.equal(deliveries.length, 1);
+    assert.equal(deliveries[0].flow, 'professional');
+});
+
+test('owner send failure does not suppress the professional for the same person', async () => {
+    const db = memorySupabase({
+        professionals: [
+            { id: 4, name: 'Mariana', role: 'owner', is_owner: true, status: 'ativo', whatsapp_phone: '+5511911111111' }
+        ],
+        settings: [
+            { key: SETTING_KEYS.notifyOwner, value: 'true' },
+            { key: SETTING_KEYS.notifyProfessional, value: 'true' },
+            { key: 'business_name', value: 'Mary' }
+        ],
+        services: [{ id: 11, name: 'Manicure' }]
+    });
+    const deliveries = [];
+    const service = createReminderService({
+        supabase: db,
+        sendMessage: async payload => {
+            deliveries.push(payload);
+            if (payload.flow === 'owner') {
+                const error = new Error('missing template');
+                error.code = 'CHANNEL_NOT_CONFIGURED';
+                error.status = 503;
+                throw error;
+            }
+            return { providerMessageId: 'wamid.pro' };
+        },
+        env: {
+            WHATSAPP_ACCESS_TOKEN: 't',
+            WHATSAPP_PHONE_NUMBER_ID: '1',
+            WHATSAPP_GRAPH_API_VERSION: 'v21.0',
+            WHATSAPP_REMINDER_TEMPLATE_OWNER: 'owner_tpl',
+            WHATSAPP_REMINDER_TEMPLATE_PROFESSIONAL: 'pro_tpl'
+        }
+    });
+    const summary = await service.notifyNewBooking({
+        id: 102,
+        professional_id: 4,
+        client_name: 'Cíntia',
+        client_phone: '11987654321',
+        date: '2026-08-18',
+        time: '18:30',
+        status: 'agendado',
+        service_id: 11,
+        notes: 'MULTI_SERVICES:[{"name":"Depilação"}]'
+    });
+    assert.equal(summary.sent, 1);
+    assert.equal(summary.failed, 1);
+    assert.equal(summary.suppressed, 0);
+    assert.equal(deliveries.length, 2);
+    assert.equal(deliveries[1].flow, 'professional');
+    assert.equal(deliveries[1].parameters.find(item => item.name === 'servico').text, 'Depilação');
+    const events = db.tables.appointment_message_events;
+    assert.equal(events.find(event => event.type === EVENT_TYPE.OWNER).status, 'failed');
+    assert.equal(events.find(event => event.type === EVENT_TYPE.PROFESSIONAL).status, 'sent');
+});
+
+test('owner booking uses professional Meta template when owner env is missing', async () => {
+    const db = memorySupabase({
+        professionals: [
+            { id: 4, name: 'Mariana', role: 'owner', is_owner: true, status: 'ativo', whatsapp_phone: '+5511911111111' }
+        ],
+        settings: [
+            { key: SETTING_KEYS.notifyOwner, value: 'true' },
+            { key: SETTING_KEYS.notifyProfessional, value: 'true' },
+            { key: 'business_name', value: 'Mary' }
+        ],
+        services: [{ id: 11, name: 'Manicure' }]
+    });
+    const deliveries = [];
+    const service = createReminderService({
+        supabase: db,
+        sendMessage: async payload => {
+            deliveries.push(payload);
+            return { providerMessageId: 'wamid.fallback' };
+        },
+        env: {
+            WHATSAPP_ACCESS_TOKEN: 't',
+            WHATSAPP_PHONE_NUMBER_ID: '1',
+            WHATSAPP_GRAPH_API_VERSION: 'v21.0',
+            WHATSAPP_REMINDER_TEMPLATE_PROFESSIONAL: 'pro_tpl'
+        }
+    });
+    const summary = await service.notifyNewBooking({
+        id: 103,
+        professional_id: 4,
+        client_name: 'Cíntia',
+        client_phone: '11987654321',
+        date: '2026-08-18',
+        time: '18:30',
+        status: 'agendado',
+        service_id: 11
+    });
+    assert.equal(summary.sent, 1);
+    assert.equal(summary.suppressed, 1);
+    assert.equal(deliveries.length, 1);
+    assert.equal(deliveries[0].flow, 'professional');
 });
