@@ -8,7 +8,7 @@ const { createTestCredential } = require('./fixtures');
 process.env.NODE_ENV = 'test';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SECRET_KEY = createTestCredential();
-process.env.SESSION_SECRET = 'mary-esmalteria-adversarial-test-secret-key-at-least-32-chars';
+process.env.SESSION_SECRET = createTestCredential();
 
 function getNextBusinessDate(daysAhead = 1) {
     const date = new Date();
