@@ -11,6 +11,17 @@ import ReminderIndicator from '../components/reminders/ReminderIndicator';
 import ReminderSettings from '../components/reminders/ReminderSettings';
 import AppointmentReminderPanel from '../components/reminders/AppointmentReminderPanel';
 import { ReminderProvider } from '../components/reminders/ReminderContext';
+import {
+  findUnseenAppointments,
+  formatBookingAlert,
+  readSeenIds,
+  showBrowserNotification,
+  writeSeenIds
+} from '../utils/bookingAlerts';
+import {
+  DEFAULT_CLIENT_BOOKING_WHATSAPP,
+  resolveClientBookingWhatsappTemplate
+} from '../utils/whatsappBookingMessage';
 
 const isPhoneProtected = (phone) => {
   if (!phone) return false;
@@ -111,6 +122,8 @@ export default function AdminDashboard() {
   const [newAppt, setNewAppt] = useState({ client_name: '', client_phone: '', service_ids: [], professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
   const [allowOutsideHours, setAllowOutsideHours] = useState(false);
   const [noShowCount, setNoShowCount] = useState(0);
+  const [liveBookingAlert, setLiveBookingAlert] = useState(null);
+  const bookingAlertSeeded = useRef(false);
 
   useEffect(() => {
     if (newAppt.client_phone && newAppt.client_phone.length >= 8) {
@@ -194,7 +207,7 @@ export default function AdminDashboard() {
   const [editingService, setEditingService] = useState(null);
 
   const [businessName, setBusinessName] = useState('Mary Esmalteria');
-  const [whatsappMessage, setWhatsappMessage] = useState('');
+  const [whatsappMessage, setWhatsappMessage] = useState(DEFAULT_CLIENT_BOOKING_WHATSAPP);
   const [publicProfile, setPublicProfile] = useState(defaultPublicProfile);
 
   // Configurações Avançadas
@@ -370,7 +383,7 @@ export default function AdminDashboard() {
       const bName = incomingSettings.find(s => s.key === 'business_name');
       if (bName) setBusinessName(bName.value);
       const wMsg = incomingSettings.find(s => s.key === 'whatsapp_message');
-      if (wMsg) setWhatsappMessage(wMsg.value);
+      if (wMsg) setWhatsappMessage(resolveClientBookingWhatsappTemplate(wMsg.value));
       const profileSetting = incomingSettings.find(s => s.key === 'public_profile');
       if (profileSetting?.value) {
         try {
@@ -443,6 +456,46 @@ export default function AdminDashboard() {
       });
     return () => { active = false; };
   }, [navigate]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    bookingAlertSeeded.current = false;
+    let cancelled = false;
+
+    const pollNewBookings = async () => {
+      try {
+        const appQuery = user.role === 'admin' ? '' : `?professional_id=${user.id}`;
+        const response = await api.get(`/api/appointments${appQuery}`);
+        const rows = response.data?.data || [];
+        if (cancelled) return;
+        setAppointments(rows);
+        const currentIds = rows.map(item => String(item.id));
+        if (!bookingAlertSeeded.current) {
+          const already = readSeenIds(user.id);
+          writeSeenIds(user.id, [...already, ...currentIds]);
+          bookingAlertSeeded.current = true;
+          return;
+        }
+        const unseen = findUnseenAppointments(rows, readSeenIds(user.id));
+        if (!unseen.length) return;
+        writeSeenIds(user.id, [...readSeenIds(user.id), ...unseen.map(item => item.id)]);
+        const latest = unseen[unseen.length - 1];
+        const alert = formatBookingAlert(latest);
+        const extra = unseen.length > 1 ? ` (+${unseen.length - 1})` : '';
+        setLiveBookingAlert({ ...alert, body: `${alert.body}${extra}` });
+        showBrowserNotification(alert.title, `${alert.body}${extra}`);
+      } catch {
+        // polling silencioso: o carregamento inicial já trata 401
+      }
+    };
+
+    pollNewBookings();
+    const timer = setInterval(pollNewBookings, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -1281,6 +1334,19 @@ const scheduleUpdates = [
       user={user}
     >
     <div className="flex h-screen bg-background overflow-hidden font-sans transition-colors duration-300">
+      {liveBookingAlert && (
+        <div className="fixed top-4 left-1/2 z-[90] w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl border border-primary/40 bg-card px-4 py-3 shadow-2xl">
+          <p className="text-sm font-bold text-foreground">{liveBookingAlert.title}</p>
+          <p className="text-xs text-muted mt-1">{liveBookingAlert.body}</p>
+          <button
+            type="button"
+            className="mt-2 text-[11px] font-bold uppercase tracking-wider text-primary"
+            onClick={() => setLiveBookingAlert(null)}
+          >
+            Fechar
+          </button>
+        </div>
+      )}
 
       {/* Premium Confirm/Alert Modal */}
       {modal.isOpen && (
@@ -2731,7 +2797,7 @@ const scheduleUpdates = [
                           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center"><CheckCircle size={20} className="text-emerald-500" /></div>
                           <div>
                             <h3 className="text-xl font-serif text-foreground">Modelo de Mensagem</h3>
-                            <p className="text-xs text-muted">Personalize a mensagem de confirmação do WhatsApp</p>
+                            <p className="text-xs text-muted">Texto que a cliente envia no WhatsApp do salão depois de marcar. É ela avisando a profissional, não um lembrete da loja para a cliente.</p>
                           </div>
                         </div>
                         <div>

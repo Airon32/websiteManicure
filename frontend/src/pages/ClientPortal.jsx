@@ -38,6 +38,11 @@ import FadeContent from '../components/FadeContent';
 import PublicExperienceSections from '../components/PublicExperienceSections';
 import { buildEffectiveSchedule, buildTimeSlots } from '../utils/schedule';
 import { buildGoogleCalendarUrl, buildMapUrl, downloadIcsFile } from '../utils/bookingExtras';
+import {
+  DEFAULT_CLIENT_BOOKING_WHATSAPP,
+  fillClientBookingWhatsappMessage,
+  resolveClientBookingWhatsappTemplate
+} from '../utils/whatsappBookingMessage';
 
 const emptyClientData = { name: '', phone: '', email: '' };
 const publicDayLabels = { seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex', sab: 'Sáb', dom: 'Dom' };
@@ -82,7 +87,7 @@ export default function ClientPortal() {
   const [quickSlots, setQuickSlots] = useState([]);
   const [quickSlotsLoading, setQuickSlotsLoading] = useState(true);
   const [quickSlotIntent, setQuickSlotIntent] = useState(null);
-  const [whatsappTemplate, setWhatsappTemplate] = useState('Olá! Gostaria de confirmar meu agendamento.\n\n*Serviço:* {servico}\n*Profissional:* {profissional}\n*Data:* {data}\n*Horário:* {hora}\n*Nome:* {cliente}');
+  const [whatsappTemplate, setWhatsappTemplate] = useState(DEFAULT_CLIENT_BOOKING_WHATSAPP);
   const [serviceSearch, setServiceSearch] = useState('');
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedPro, setSelectedPro] = useState(null);
@@ -159,7 +164,7 @@ export default function ClientPortal() {
       const bName = settings.find(s => s.key === 'business_name');
       if(bName) setBusinessName(bName.value);
       const wMsg = settings.find(s => s.key === 'whatsapp_message');
-      if(wMsg) setWhatsappTemplate(wMsg.value);
+      if(wMsg) setWhatsappTemplate(resolveClientBookingWhatsappTemplate(wMsg.value));
       const baseSchedule = buildEffectiveSchedule(settings);
       setWorkStart(baseSchedule.workStart);
       setWorkEnd(baseSchedule.workEnd);
@@ -539,13 +544,13 @@ export default function ClientPortal() {
       return;
     }
     const destination = digits.length <= 11 ? `55${digits}` : digits;
-    let msg = whatsappTemplate
-      .replace(/{cliente}/g, clientData.name)
-      .replace(/{servico}/g, selectedServices.map(s => s.name).join(' + '))
-      .replace(/{profissional}/g, selectedPro?.name || '')
-      .replace(/{data}/g, selectedDate ? format(selectedDate, "dd/MM/yyyy") : '')
-      .replace(/{hora}/g, selectedTime || '');
-      
+    const msg = fillClientBookingWhatsappMessage(whatsappTemplate, {
+      cliente: clientData.name,
+      servico: selectedServices.map(s => s.name).join(' + '),
+      profissional: selectedPro?.name || '',
+      data: selectedDate ? format(selectedDate, 'dd/MM/yyyy') : '',
+      hora: selectedTime || ''
+    });
     window.open(`https://wa.me/${destination}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -1181,7 +1186,7 @@ export default function ClientPortal() {
 
                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl mx-auto">
                        <button onClick={handleWhatsApp} className="btn-primary w-full flex justify-center items-center gap-2 py-4 shadow-xl shadow-primary/30">
-                         Receber no WhatsApp
+                         Avisar no WhatsApp
                        </button>
                        <button onClick={handleGoogleCalendar} className="btn-outline w-full flex justify-center items-center gap-2 py-4">
                          <Calendar size={18} /> Google Agenda

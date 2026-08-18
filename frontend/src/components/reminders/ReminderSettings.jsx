@@ -28,6 +28,7 @@ import {
   validateTemplate
 } from '../../utils/reminders';
 import { useReminders } from './ReminderContext';
+import { enableBrowserNotifications } from '../../utils/bookingAlerts';
 
 function PinkToggle({ checked, disabled, onToggle, label, id }) {
   return (
@@ -344,9 +345,25 @@ export default function ReminderSettings({ professionals = [] }) {
           </div>
         </div>
         {!channelReady && (
-          <p className="mt-4 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-            Canal WhatsApp (Meta) indisponível. Um toggle ligado não fica Ativo e nenhum envio é fingido até o canal estar pronto.
-          </p>
+          <div className="mt-4 space-y-2">
+            <p className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+              Canal WhatsApp (Meta) indisponível. Enquanto isso, deixe o painel aberto neste computador: a agenda avisa sozinha quando entrar um horário novo.
+            </p>
+            <button
+              type="button"
+              className="btn-secondary min-h-[44px] text-[11px]"
+              onClick={async () => {
+                const result = await enableBrowserNotifications();
+                setFeedback(
+                  result.ok
+                    ? 'Avisos deste computador ativados. Deixe o painel aberto.'
+                    : 'O navegador bloqueou o aviso. Permita notificações para este site ou deixe o painel visível.'
+                );
+              }}
+            >
+              Ativar aviso neste computador
+            </button>
+          </div>
         )}
       </header>
 
