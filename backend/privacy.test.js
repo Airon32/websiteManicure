@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const Module = require('node:module');
 const { createTestCredential } = require('./fixtures');
 
@@ -67,7 +68,7 @@ function createQueryBuilder(table) {
             const list = Array.isArray(rows) ? rows : [rows];
             if (store[table]) {
                 list.forEach(r => {
-                    const entry = { id: Date.now() + Math.floor(Math.random() * 1000), ...r };
+                    const entry = { id: Date.now() + crypto.randomInt(0, 1000), ...r };
                     store[table].push(entry);
                 });
             }
