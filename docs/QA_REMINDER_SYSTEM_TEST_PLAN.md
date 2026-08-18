@@ -96,8 +96,8 @@ Cada cenário: pré-condição, ação, esperado, evidência. Resultado = PASS /
 #### C10 — OWNER = profissional (mesmo ID) — uma mensagem
 - **Pré:** `owner.id === appointment.professional_id`; ambos toggles ON.
 - **Ação:** criar agendamento.
-- **Esperado:** 1 `sent` com template **OWNER**; evento profissional `suppressed` com `suppress_reason=MESMO_DESTINATARIO`; **não** há segundo disparo ao provedor. Comparação **só por ID**, nunca nome/telefone.
-- **Evidência:** 2 rows (sent + suppressed) no mesmo appointment; 1 `provider_message_id`.
+- **Esperado:** se o envio OWNER **sair**, 1 `sent` OWNER e o profissional fica `suppressed` com `MESMO_DESTINATARIO` (comparação **só por ID**). Se o OWNER **falhar** ou o toggle da proprietária estiver OFF, o profissional **ainda envia**.
+- **Evidência:** sucesso: 2 rows (sent + suppressed) e 1 `provider_message_id`. Falha do OWNER: 1 failed OWNER + 1 sent PROFESSIONAL.
 
 #### C11 — Zero owners canônicos
 - **Pré:** nenhum professional ativo com `role=owner` nem `is_owner`; toggle owner tentado ON.

@@ -6,6 +6,7 @@ import {
   LEAD_HOUR_CATALOG,
   canEnableTeamToggle,
   extractPlaceholders,
+  foldPlaceholderName,
   getDestinationState,
   getStaffDestination,
   getVisibleLeadHourOptions,
@@ -17,6 +18,7 @@ import {
   isReminderToggleActive,
   maskWhatsappPhone,
   normalizeStaffWhatsAppInput,
+  renderTemplatePreview,
   resolveClientIndicator,
   stripRawWhatsappPhone,
   validateTemplate
@@ -175,4 +177,17 @@ test('409 needs_confirm pede segundo POST com confirm', () => {
   });
   assert.equal(failure.needs_confirm, true);
   assert.equal(failure.status, 409);
+});
+
+test('preview e extração aceitam {serviço}, {Profissional} e {horario}', () => {
+  assert.equal(foldPlaceholderName('serviço'), 'servico');
+  const text = 'Serviço: {serviço} com {Profissional} às {horario}';
+  const used = extractPlaceholders(text).sort();
+  assert.deepEqual(used, ['hora', 'profissional', 'servico']);
+  const preview = renderTemplatePreview(text);
+  assert.equal(preview.includes('{serviço}'), false);
+  assert.match(preview, /Alongamento em gel/);
+  assert.match(preview, /Jécia/);
+  assert.match(preview, /14:30/);
+  assert.equal(validateTemplate(`${DEFAULT_TEMPLATES.owner}\n{serviço}`, 'owner').valid, true);
 });

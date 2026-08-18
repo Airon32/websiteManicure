@@ -2085,7 +2085,17 @@ app.post('/api/appointments', rateLimit({
         }
 
         try {
-            await reminderService.notifyNewBooking(insertedAppointment);
+            const notifySummary = await reminderService.notifyNewBooking(insertedAppointment);
+            if (process.env.NODE_ENV !== 'test') {
+                console.info('[Reminders] novo agendamento', {
+                    appointment_id: insertedAppointment.id,
+                    sent: notifySummary.sent,
+                    failed: notifySummary.failed,
+                    suppressed: notifySummary.suppressed,
+                    skipped: notifySummary.skipped,
+                    owner_missing: notifySummary.owner_missing
+                });
+            }
         } catch (notifyError) {
             if (process.env.NODE_ENV !== 'test') {
                 console.error('[Reminders] Falha ao notificar novo agendamento:', notifyError.code || notifyError.message);

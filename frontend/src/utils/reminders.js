@@ -7,7 +7,8 @@ export const ALLOWED_PLACEHOLDERS = [
   'estabelecimento'
 ];
 
-export const PLACEHOLDER_TOKEN = /\{([a-z_]+)\}/gi;
+export const PLACEHOLDER_TOKEN = /\{([^\s{}]+)\}/g;
+const PLACEHOLDER_ALIASES = Object.freeze({ horario: 'hora' });
 
 export const SETTING_KEYS = {
   notifyOwner: 'reminder_notify_owner',
@@ -141,13 +142,29 @@ export function getVisibleLeadHourOptions(catalog = LEAD_HOUR_CATALOG) {
   return catalog.filter(option => option.enabled);
 }
 
+export function foldPlaceholderName(name) {
+  const folded = String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '');
+  return PLACEHOLDER_ALIASES[folded] || folded;
+}
+
+export function canonicalizeTemplateText(text) {
+  return String(text || '').replace(PLACEHOLDER_TOKEN, (match, name) => {
+    const canonical = foldPlaceholderName(name);
+    return ALLOWED_PLACEHOLDERS.includes(canonical) ? `{${canonical}}` : match;
+  });
+}
+
 export function extractPlaceholders(text) {
   const found = new Set();
-  const source = String(text || '');
-  source.replace(PLACEHOLDER_TOKEN, (_, name) => {
-    found.add(String(name).toLowerCase());
-    return '';
-  });
+  const pattern = /\{([^\s{}]+)\}/g;
+  let match;
+  while ((match = pattern.exec(String(text || ''))) !== null) {
+    found.add(foldPlaceholderName(match[1]));
+  }
   return [...found];
 }
 
@@ -190,7 +207,7 @@ export function validateTemplate(text, type) {
 
 export function renderTemplatePreview(text, fixture = PREVIEW_FIXTURE) {
   return String(text || '').replace(PLACEHOLDER_TOKEN, (match, name) => {
-    const key = String(name).toLowerCase();
+    const key = foldPlaceholderName(name);
     if (Object.prototype.hasOwnProperty.call(fixture, key)) return String(fixture[key]);
     return match;
   });

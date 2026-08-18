@@ -18,7 +18,12 @@ const RETRY_BACKOFF_MS = Object.freeze([
 const MANUAL_WINDOW_MS = 6 * 60 * 60 * 1000;
 const E164_PATTERN = /^\+[1-9][0-9]{7,14}$/;
 const ALLOWED_PLACEHOLDERS = Object.freeze(['cliente', 'profissional', 'servico', 'data', 'hora', 'estabelecimento']);
+const PLACEHOLDER_ALIASES = Object.freeze({ horario: 'hora' });
 const HTML_PATTERN = /<\/?[a-z][\s\S]*?>/i;
+const FLOW_FALLBACK = Object.freeze({
+    owner: 'professional',
+    professional: 'owner'
+});
 
 const EVENT_TYPE = Object.freeze({
     OWNER: 'BOOKING_OWNER_NOTIFICATION',
@@ -140,12 +145,28 @@ function sanitizeTemplateValue(value) {
         .slice(0, 160);
 }
 
+function foldPlaceholderName(name) {
+    const folded = String(name || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '');
+    return PLACEHOLDER_ALIASES[folded] || folded;
+}
+
+function canonicalizeTemplateText(text) {
+    return String(text || '').replace(/\{([^\s{}]+)\}/g, (match, name) => {
+        const canonical = foldPlaceholderName(name);
+        return ALLOWED_PLACEHOLDERS.includes(canonical) ? `{${canonical}}` : match;
+    });
+}
+
 function extractPlaceholders(text) {
     const found = [];
-    const pattern = /\{([a-z_]+)\}/gi;
+    const pattern = /\{([^\s{}]+)\}/g;
     let match;
     while ((match = pattern.exec(String(text || ''))) !== null) {
-        found.push(match[1].toLowerCase());
+        found.push(foldPlaceholderName(match[1]));
     }
     return found;
 }
@@ -167,13 +188,15 @@ function validateReminderTemplate(kind, text) {
     if (missing.length) {
         return { valid: false, error: `Faltam placeholders obrigatórios: ${missing.map(name => `{${name}}`).join(', ')}.` };
     }
-    return { valid: true, value: raw.replace(/\u0000/g, '') };
+    return { valid: true, value: canonicalizeTemplateText(raw).replace(/\u0000/g, '') };
 }
 
 function renderTemplate(text, vars = {}) {
-    return String(text || '').replace(/\{([a-z_]+)\}/gi, (_, name) => (
-        sanitizeTemplateValue(vars[name.toLowerCase()] ?? '')
-    ));
+    return String(text || '').replace(/\{([^\s{}]+)\}/g, (match, name) => {
+        const key = foldPlaceholderName(name);
+        if (!Object.prototype.hasOwnProperty.call(vars, key)) return match;
+        return sanitizeTemplateValue(vars[key] ?? '');
+    });
 }
 
 function formatDateBR(dateStr) {
@@ -368,7 +391,32 @@ function buildTemplateVars({ appointment, professionalName, serviceName, busines
 }
 
 function parametersFor(kind, vars) {
-    return (PARAMETER_ORDER[kind] || []).map(name => vars[name] || '-');
+    return (PARAMETER_ORDER[kind] || []).map(name => ({
+        name,
+        text: vars[name] || '-'
+    }));
+}
+
+function resolveConfiguredFlow(preferred, env = process.env) {
+    if (isReminderFlowTemplateConfigured(preferred, env)) return preferred;
+    const fallback = FLOW_FALLBACK[preferred];
+    if (fallback && isReminderFlowTemplateConfigured(fallback, env)) return fallback;
+    return preferred;
+}
+
+function serviceNameFromAppointment(appointment, catalogName) {
+    const notes = String(appointment?.notes || '');
+    if (notes.includes('MULTI_SERVICES:')) {
+        try {
+            const marker = notes.split('|').find(part => part.startsWith('MULTI_SERVICES:'));
+            const items = JSON.parse(String(marker || '').replace('MULTI_SERVICES:', ''));
+            const names = (items || []).map(item => item?.name).filter(Boolean);
+            if (names.length) return names.join(' + ');
+        } catch {
+            // notes malformadas: cai no nome do catálogo
+        }
+    }
+    return catalogName || 'Serviço';
 }
 
 function nextAttemptAt(attemptCount, nowMs) {
@@ -547,10 +595,11 @@ function createReminderService({
         }
 
         try {
+            const resolvedFlow = resolveConfiguredFlow(flow, env);
             const result = await sendMessage({
                 to,
-                flow,
-                parameters: parametersFor(flow, vars),
+                flow: resolvedFlow,
+                parameters: parametersFor(resolvedFlow, vars),
                 renderedText: renderTemplate(templateFor(settingsMap, flow), vars),
                 sessionWindowOpen
             });
@@ -611,6 +660,7 @@ function createReminderService({
                 .maybeSingle();
             if (data?.name) serviceName = data.name;
         }
+        serviceName = serviceNameFromAppointment(appointment, serviceName);
         const vars = buildTemplateVars({
             appointment,
             professionalName: professional?.name || 'Profissional',
@@ -631,6 +681,7 @@ function createReminderService({
         const { professional, vars, owners } = await resolveContext(appointment, map, staff);
         if (!owners.length) summary.owner_missing = true;
 
+        let ownerDelivered = false;
         if (settingFlag(map, SETTING_KEYS.notifyOwner)) {
             if (!owners.length) {
                 summary.skipped += 1;
@@ -647,8 +698,10 @@ function createReminderService({
                         vars,
                         settingsMap: map
                     });
-                    if (result.sent) summary.sent += 1;
-                    else if (result.failed) summary.failed += 1;
+                    if (result.sent) {
+                        summary.sent += 1;
+                        ownerDelivered = true;
+                    } else if (result.failed) summary.failed += 1;
                     else summary.skipped += 1;
                 }
             }
@@ -656,7 +709,8 @@ function createReminderService({
 
         if (settingFlag(map, SETTING_KEYS.notifyProfessional)) {
             const ownerIds = new Set(owners.map(owner => String(owner.id)));
-            if (professional && ownerIds.has(String(professional.id))) {
+            const professionalIsOwner = Boolean(professional && ownerIds.has(String(professional.id)));
+            if (professionalIsOwner && ownerDelivered) {
                 await suppress({
                     appointment,
                     type: EVENT_TYPE.PROFESSIONAL,
@@ -948,8 +1002,11 @@ module.exports = {
     WINDOW_TOLERANCE_MIN,
     automaticRuleKey,
     buildTemplateVars,
+    canonicalizeTemplateText,
     createReminderService,
+    extractPlaceholders,
     findReminderOwners,
+    foldPlaceholderName,
     formatDateBR,
     formatTime24,
     isBlockAppointment,
@@ -973,7 +1030,9 @@ module.exports = {
     reminderSettingSpec,
     renderTemplate,
     requireCronSecret,
+    resolveConfiguredFlow,
     sanitizeTemplateValue,
+    serviceNameFromAppointment,
     staffWhatsAppWriteError,
     validateReminderTemplate,
     zonedLocalToUtcMs

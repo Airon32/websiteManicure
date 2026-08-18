@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Bell,
@@ -17,6 +17,7 @@ import {
   TEMPLATE_CHAR_LIMIT,
   TEMPLATE_SETTING_KEY,
   canEnableTeamToggle,
+  canonicalizeTemplateText,
   getStaffDestination,
   getVisibleLeadHourOptions,
   insertPlaceholder,
@@ -161,10 +162,18 @@ function DestinationRow({ person, destination, onSavePhone }) {
 function TemplateEditor({ type, title, settings, onSave }) {
   const key = TEMPLATE_SETTING_KEY[type];
   const textareaRef = useRef(null);
-  const [draft, setDraft] = useState(settings[key] || DEFAULT_TEMPLATES[type]);
+  const incoming = settings[key] || DEFAULT_TEMPLATES[type];
+  const lastIncoming = useRef(incoming);
+  const [draft, setDraft] = useState(incoming);
   const [savedFlash, setSavedFlash] = useState(false);
   const validation = validateTemplate(draft, type);
   const preview = renderTemplatePreview(draft);
+
+  useEffect(() => {
+    if (incoming === lastIncoming.current) return;
+    lastIncoming.current = incoming;
+    setDraft(incoming);
+  }, [incoming]);
 
   const insert = name => {
     const node = textareaRef.current;
@@ -195,6 +204,7 @@ function TemplateEditor({ type, title, settings, onSave }) {
             {`{${name}}`}
           </code>
         ))}
+        {' '}Aceita também {`{serviço}`}, {`{Profissional}`} e {`{horario}`}; o envio usa a forma canônica sem acento.
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -234,7 +244,7 @@ function TemplateEditor({ type, title, settings, onSave }) {
       </div>
 
       <p className="text-[11px] text-muted">
-        Este texto é copy/preview do painel. A produção envia o template Meta. Botões de Confirmar e Preciso remarcar são do sistema e não entram aqui.
+        Este texto é copy/preview do painel. A produção envia o template Meta. No Meta, a variável do serviço precisa ser {`{{servico}}`} (sem cedilha). Botões de Confirmar e Preciso remarcar são do sistema e não entram aqui.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-2">
@@ -251,7 +261,7 @@ function TemplateEditor({ type, title, settings, onSave }) {
           disabled={!validation.valid}
           onClick={async () => {
             if (!validation.valid) return;
-            await onSave(key, draft);
+            await onSave(key, canonicalizeTemplateText(draft));
             setSavedFlash(true);
             window.setTimeout(() => setSavedFlash(false), 1600);
           }}
@@ -390,7 +400,7 @@ export default function ReminderSettings({ professionals = [] }) {
           </div>
           <div>
             <h3 className="text-lg font-serif text-foreground">Equipe</h3>
-            <p className="text-xs text-muted">Avisos de novo agendamento. Cada toggle é independente e exige destino válido.</p>
+            <p className="text-xs text-muted">Avisos de novo agendamento. Cada toggle é independente e exige destino válido. Se a proprietária também for a profissional, o segundo aviso só é omitido depois que o primeiro sair de verdade.</p>
           </div>
         </div>
 

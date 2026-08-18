@@ -41,6 +41,26 @@ function isReminderChannelReady(env = process.env) {
     ));
 }
 
+const NAMED_TEMPLATE_PARAM = /^[a-z][a-z0-9_]{0,19}$/;
+
+function normalizeTemplateParameters(parameters) {
+    return (Array.isArray(parameters) ? parameters : []).map(item => {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+            const text = String(item.text ?? '').trim() || '-';
+            const payload = { type: 'text', text: text.slice(0, 1024) };
+            const name = String(item.name || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9_]/g, '');
+            if (NAMED_TEMPLATE_PARAM.test(name)) payload.parameter_name = name;
+            return payload;
+        }
+        const text = String(item ?? '').trim() || '-';
+        return { type: 'text', text: text.slice(0, 1024) };
+    });
+}
+
 function createChannelError(message, { code = 'CHANNEL_NOT_CONFIGURED', status = 503, metaCode = '' } = {}) {
     const error = new Error(message);
     error.code = code;
@@ -159,7 +179,7 @@ function createReminderWhatsAppSender({
             language: { code: templateLanguage },
             components: [{
                 type: 'body',
-                parameters: parameters.map(text => ({ type: 'text', text: String(text || '-') }))
+                parameters: normalizeTemplateParameters(parameters)
             }]
         };
         return postGraph(body);
@@ -193,6 +213,7 @@ module.exports = {
     META_RETRY_CODES,
     createChannelError,
     createReminderWhatsAppSender,
+    normalizeTemplateParameters,
     createReminderWhatsAppSenderFromEnv,
     isReminderChannelReady,
     isReminderFlowTemplateConfigured,
