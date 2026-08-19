@@ -1,12 +1,14 @@
 import { useMemo } from 'react';
-import { format, isSameDay, isSameMonth, startOfToday } from 'date-fns';
+import { isSameDay, isSameMonth, startOfToday } from 'date-fns';
 import ptBR from 'date-fns/locale/pt-BR/index.js';
+import { safeFormat } from '../../utils/agendaMultiview';
 import { CheckCircle, Lock, Users } from 'lucide-react';
 import ReminderIndicator from '../reminders/ReminderIndicator';
 import {
   appointmentDate,
   calculateDayMetrics,
-  getMonthMatrix
+  getMonthMatrix,
+  normalizeDate
 } from '../../utils/agendaMultiview';
 import { parseBlockDescription, parseBlockNote } from '../../utils/timelineLayout';
 
@@ -39,10 +41,11 @@ export default function AgendaMonthView({
     const map = new Map();
     filteredAppointments.forEach(app => {
       if (!app || !app.date) return;
-      if (!map.has(app.date)) {
-        map.set(app.date, []);
+      const normDate = normalizeDate(app.date);
+      if (!map.has(normDate)) {
+        map.set(normDate, []);
       }
-      map.get(app.date).push(app);
+      map.get(normDate).push(app);
     });
     return map;
   }, [filteredAppointments]);
@@ -133,7 +136,7 @@ export default function AgendaMonthView({
                         ? 'bg-card/40'
                         : 'bg-card/20'
                     }`}
-                    title={`Clique para abrir o dia ${format(day, 'dd/MM/yyyy')}`}
+                    title={`Clique para abrir o dia ${safeFormat(day, 'dd/MM/yyyy')}`}
                   >
                     {/* Top Row of Cell: Day Number & Status Dots */}
                     <div className="flex items-start justify-between gap-1 w-full">
@@ -148,7 +151,7 @@ export default function AgendaMonthView({
                             : 'text-muted'
                         }`}
                       >
-                        {format(day, 'd')}
+                        {safeFormat(day, 'd')}
                       </span>
 
                       {/* Status Dots */}

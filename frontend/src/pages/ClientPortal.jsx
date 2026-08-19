@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, addDays, startOfToday, parseISO, isAfter, endOfWeek, isWithinInterval } from 'date-fns';
+import { parseDateTime, appointmentDate, safeFormat } from '../utils/agendaMultiview';
 
 const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
   if (!dateStr || typeof dateStr !== 'string') return '--';
@@ -138,7 +139,7 @@ export default function ClientPortal() {
   const nextDays = Array.from({ length: maxAdvanceDays + 1 }).map((_, i) => addDays(today, i))
     .filter(date => workDays.includes(dayNameMap[date.getDay()]));
   const groupedDays = nextDays.reduce((acc, date) => {
-    const month = format(date, 'MMMM yyyy', { locale: ptBR });
+    const month = safeFormat(date, 'MMMM yyyy', { locale: ptBR });
     if (!acc[month]) acc[month] = [];
     acc[month].push(date);
     return acc;
@@ -368,7 +369,7 @@ export default function ClientPortal() {
       service_id: selectedServices[0]?.id,
       service_ids: selectedServices.map(s => s.id),
       professional_id: selectedPro.id,
-      date: format(selectedDate, 'yyyy-MM-dd'),
+      date: appointmentDate(selectedDate),
       time: selectedTime,
       notes: ''
     };
@@ -475,7 +476,7 @@ export default function ClientPortal() {
 
   useEffect(() => {
     if (selectedDate && selectedPro) {
-      const dStr = format(selectedDate, 'yyyy-MM-dd');
+      const dStr = appointmentDate(selectedDate);
       const excludedAppointment = reschedulingAppointmentId
         ? `&exclude_appointment_id=${encodeURIComponent(reschedulingAppointmentId)}`
         : '';
@@ -531,7 +532,7 @@ export default function ClientPortal() {
       'Olá! Preciso de ajuda para remarcar meu horário fora do limite disponível no site.',
       `Cliente: ${clientData.name || 'não informado'}`,
       `Profissional: ${selectedPro?.name || 'não informada'}`,
-      `Data desejada: ${selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'não informada'}`,
+      `Data desejada: ${selectedDate ? safeFormat(selectedDate, 'dd/MM/yyyy') : 'não informada'}`,
       `Horário desejado: ${selectedTime || 'não informado'}`
     ].join('\n');
     window.open(`https://wa.me/${destination}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
@@ -548,7 +549,7 @@ export default function ClientPortal() {
       cliente: clientData.name,
       servico: selectedServices.map(s => s.name).join(' + '),
       profissional: selectedPro?.name || '',
-      data: selectedDate ? format(selectedDate, 'dd/MM/yyyy') : '',
+      data: selectedDate ? safeFormat(selectedDate, 'dd/MM/yyyy') : '',
       hora: selectedTime || ''
     });
     window.open(`https://wa.me/${destination}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
@@ -688,7 +689,7 @@ export default function ClientPortal() {
                                       const lastDayOfWeek = endOfWeek(today, { weekStartsOn: 0 });
                                       return app.status !== 'cancelado' && isWithinInterval(appDate, { start: today, end: lastDayOfWeek });
                                   })
-                                  .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))
+                                  .sort((a, b) => (parseDateTime(a.date, a.time)?.getTime() || 0) - (parseDateTime(b.date, b.time)?.getTime() || 0))
                                   .map(app => (
                                     <div key={app.id} className="group relative bg-muted/10 border border-border/50 rounded-2xl p-5 transition-all hover:border-primary/40 hover:bg-muted/20">
                                        <div className="flex justify-between items-start mb-4">
@@ -937,7 +938,7 @@ export default function ClientPortal() {
                       <div className="space-y-2 text-sm text-foreground">
                         <p><strong>Serviço:</strong> {selectedServices.map(service => service.name).join(' + ')}</p>
                         <p><strong>Profissional:</strong> {selectedPro?.name}</p>
-                        <p><strong>Quando:</strong> {selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : ''} às {selectedTime}</p>
+                        <p><strong>Quando:</strong> {selectedDate ? safeFormat(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : ''} às {selectedTime}</p>
                         <p><strong>Total:</strong> R$ {totalPrice.toFixed(2)} · {totalDuration} min</p>
                       </div>
                     </div>
@@ -1113,12 +1114,12 @@ export default function ClientPortal() {
                                  key={i} 
                                  type="button"
                                  aria-pressed={selectedDate?.getTime() === d.getTime()}
-                                 aria-label={format(d, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                                 aria-label={safeFormat(d, "EEEE, dd 'de' MMMM", { locale: ptBR })}
                                 className={`aspect-[4/5] p-2 rounded-xl border flex flex-col items-center justify-center transition-all ${selectedDate?.getTime() === d.getTime() ? 'border-primary bg-primary text-white shadow-lg shadow-primary/30 scale-105' : 'border-border bg-background/50 text-muted hover:border-primary/50 hover:text-foreground'}`}
                                 onClick={() => setSelectedDate(d)}
                               >
-                                <span className="text-[10px] uppercase font-bold mb-1 opacity-70">{format(d, 'eee', {locale: ptBR})}</span>
-                                <span className="text-lg md:text-xl font-bold">{format(d, 'dd')}</span>
+                                <span className="text-[10px] uppercase font-bold mb-1 opacity-70">{safeFormat(d, 'eee', {locale: ptBR})}</span>
+                                <span className="text-lg md:text-xl font-bold">{safeFormat(d, 'dd')}</span>
                               </button>
                             ))}
                           </div>
@@ -1180,7 +1181,7 @@ export default function ClientPortal() {
                        <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Serviços:</strong> {selectedServices.map(s => s.name).join(' + ')}</p>
                        <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Total:</strong> R$ {totalPrice.toFixed(2)} ({totalDuration} min)</p>
                        <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Profissional:</strong> {selectedPro?.name}</p>
-                       <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Data:</strong> {selectedDate ? format(selectedDate, "dd 'de' MMMM, yyyy", {locale: ptBR}) : ''}</p>
+                       <p className="mb-2"><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Data:</strong> {selectedDate ? safeFormat(selectedDate, "dd 'de' MMMM, yyyy", {locale: ptBR}) : ''}</p>
                        <p><strong className="text-muted uppercase text-[10px] tracking-widest mr-2">Horário:</strong> {selectedTime}</p>
                     </div>
 

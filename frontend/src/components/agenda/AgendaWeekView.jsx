@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
-import { format, isSameDay, startOfToday } from 'date-fns';
+import { isSameDay, startOfToday } from 'date-fns';
 import ptBR from 'date-fns/locale/pt-BR/index.js';
+import { safeFormat } from '../../utils/agendaMultiview';
 import { CheckCircle, Clock, Lock, MessageCircle, Plus, Unlock, Users } from 'lucide-react';
 import ReminderIndicator from '../reminders/ReminderIndicator';
 import {
   appointmentDate,
   calculateDayMetrics,
-  getWeekDays
+  getWeekDays,
+  normalizeDate
 } from '../../utils/agendaMultiview';
-import { buildEffectiveSchedule } from '../../utils/schedule';
+import { buildEffectiveSchedule, DEFAULT_WORK_END, DEFAULT_WORK_START } from '../../utils/schedule';
 import {
   buildHalfHourSlots,
   getTimelineBounds,
@@ -242,7 +244,7 @@ export default function AgendaWeekView({
   const filteredAppointments = useMemo(() => {
     const weekDates = new Set(weekDays.map(d => appointmentDate(d)));
     return (appointments || []).filter(app => {
-      if (!app || !app.date || !weekDates.has(app.date)) return false;
+      if (!app || !app.date || !weekDates.has(normalizeDate(app.date))) return false;
       if (selectedProfessionalId !== 'all') {
         return String(app.professional_id) === String(selectedProfessionalId);
       }
@@ -272,8 +274,8 @@ export default function AgendaWeekView({
     if (!professional) return null;
     const schedule = buildEffectiveSchedule(settings, professional.id);
     return {
-      workStart: professional.work_start || schedule.workStart,
-      workEnd: professional.work_end || schedule.workEnd
+      workStart: professional.work_start || schedule.workStart || workStart || DEFAULT_WORK_START,
+      workEnd: professional.work_end || schedule.workEnd || workEnd || DEFAULT_WORK_END
     };
   };
 
@@ -325,19 +327,19 @@ export default function AgendaWeekView({
 
       {/* Week Grid Container */}
       <div className="relative flex-1 overflow-auto no-scrollbar flex flex-col">
-        <div className="flex flex-col min-w-max md:min-w-0 md:w-full">
+        <div className="flex flex-col w-full min-w-0">
           {/* Sticky Header Row: Time Axis Corner + 7 Weekday Headers */}
-          <div className="sticky top-0 z-40 flex border-b border-border/50 bg-card/95 backdrop-blur-2xl">
+          <div className="sticky top-0 z-40 flex border-b border-border/50 bg-card/95 backdrop-blur-2xl min-w-0">
             {/* Sticky Time Axis Column Header (HORA) */}
             <div className="sticky left-0 z-50 flex w-12 md:w-16 shrink-0 items-center justify-center border-r border-border/50 bg-background/95 text-[9px] md:text-[10px] font-black uppercase tracking-wider text-primary">
               <Clock size={11} className="mr-0.5" /> HORA
             </div>
 
             {/* 7 Weekday Headers */}
-            <div className="flex-1 grid grid-cols-7 min-w-[840px] md:min-w-0">
+            <div className="flex-1 grid grid-cols-7 min-w-0">
               {weekDays.map(day => {
                 const dayStr = appointmentDate(day);
-                const dayAppts = filteredAppointments.filter(a => a.date === dayStr);
+                const dayAppts = filteredAppointments.filter(a => normalizeDate(a.date) === dayStr);
                 const metrics = calculateDayMetrics(dayAppts);
                 const isToday = isSameDay(day, startOfToday());
                 const isSelected = isSameDay(day, selectedDate);
@@ -357,11 +359,11 @@ export default function AgendaWeekView({
                         ? 'bg-card/90 hover:bg-card'
                         : 'bg-card/50 hover:bg-card/80'
                     }`}
-                    title={`Ver dia ${format(day, 'dd/MM')} em detalhe`}
+                    title={`Ver dia ${safeFormat(day, 'dd/MM')} em detalhe`}
                   >
                     <div className="flex items-center gap-1">
                       <span className="text-[9px] md:text-[10px] font-black uppercase text-muted group-hover:text-foreground">
-                        {format(day, 'EEE', { locale: ptBR })}
+                        {safeFormat(day, 'EEE', { locale: ptBR })}
                       </span>
                       <span
                         className={`inline-flex h-5 w-5 md:h-6 md:w-6 items-center justify-center rounded-full text-[10px] md:text-[11px] font-black ${
@@ -372,7 +374,7 @@ export default function AgendaWeekView({
                             : 'text-foreground'
                         }`}
                       >
-                        {format(day, 'dd')}
+                        {safeFormat(day, 'dd')}
                       </span>
                     </div>
 
@@ -412,12 +414,12 @@ export default function AgendaWeekView({
 
             {/* 7 Day Columns Grid */}
             <div
-              className="flex-1 grid grid-cols-7 relative min-w-[840px] md:min-w-0"
+              className="flex-1 grid grid-cols-7 relative min-w-0"
               style={{ height: `${gridHeight}px` }}
             >
               {weekDays.map(day => {
                 const dayStr = appointmentDate(day);
-                const dayItems = filteredAppointments.filter(a => a.date === dayStr);
+                const dayItems = filteredAppointments.filter(a => normalizeDate(a.date) === dayStr);
                 const layout = layoutOverlaps(dayItems);
                 const isColToday = isSameDay(day, now);
                 const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -447,7 +449,7 @@ export default function AgendaWeekView({
                   <div
                     key={dayStr}
                     id={`agenda-week-col-${dayStr}`}
-                    className="relative border-r border-border/40 bg-grid-pattern min-w-[120px] md:min-w-0"
+                    className="relative border-r border-border/40 bg-grid-pattern min-w-0"
                     style={{ height: `${gridHeight}px`, backgroundSize: `100% ${PIXELS_PER_30_MINUTES}px` }}
                   >
                     {/* Schedule overlay for non-working hours */}
@@ -470,7 +472,7 @@ export default function AgendaWeekView({
                         onClick={quickAdd}
                         onDragOver={event => event.preventDefault()}
                         onDrop={dropTime}
-                        aria-label={`Agendar ${slot.label} em ${format(day, 'dd/MM')}`}
+                        aria-label={`Agendar ${slot.label} em ${safeFormat(day, 'dd/MM')}`}
                       >
                         <span className="pointer-events-none absolute right-1 top-1 hidden items-center gap-0.5 rounded border border-primary/30 bg-primary/20 px-1 py-0.2 text-[8px] font-black text-primary group-hover:flex shadow-sm">
                           <Plus size={8} aria-hidden="true" /> {slot.label}
@@ -488,7 +490,7 @@ export default function AgendaWeekView({
                         <span className="-ml-1 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.9)] animate-pulse" />
                         <span className="h-0.5 flex-1 bg-gradient-to-r from-red-500 via-pink-500 to-transparent" />
                         <span className="mr-0.5 rounded bg-red-500 px-1 py-0.2 text-[7px] font-black uppercase text-white shadow-md">
-                          {format(now, 'HH:mm')}
+                          {safeFormat(now, 'HH:mm')}
                         </span>
                       </div>
                     )}
