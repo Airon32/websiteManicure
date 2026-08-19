@@ -284,9 +284,9 @@ const ClientDashboard = () => {
       
       {/* Premium Modal */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe">
           <div className="absolute inset-0 bg-background/60 backdrop-blur-md animate-in fade-in duration-300" onClick={modal.onCancel}></div>
-          <div className="relative bg-card border border-border shadow-2xl rounded-[2.5rem] p-10 max-w-sm w-full animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+          <div className="relative bg-card border border-border shadow-2xl rounded-t-[2rem] sm:rounded-[2.5rem] p-8 sm:p-10 max-w-sm w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
             <div className="flex flex-col items-center text-center">
               <div className={`mb-8 p-5 rounded-3xl ${
                 modal.type === 'confirm' ? 'bg-amber-100 text-amber-600' : 

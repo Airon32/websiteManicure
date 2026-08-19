@@ -1364,9 +1364,9 @@ const scheduleUpdates = [
 
       {/* Premium Confirm/Alert Modal */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe">
           <div className="absolute inset-0 bg-background/60 backdrop-blur-md animate-in fade-in duration-300" onClick={modal.onCancel}></div>
-          <div className="relative bg-card border border-border shadow-2xl rounded-[2rem] p-8 max-w-sm w-full animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+          <div className="relative bg-card border border-border shadow-2xl rounded-t-3xl sm:rounded-[2rem] p-6 sm:p-8 max-w-sm w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
             <div className="flex flex-col items-center text-center">
               <div className={`mb-6 p-4 rounded-2xl ${
                 modal.type === 'confirm' ? 'bg-amber-100 text-amber-600' : 
@@ -1382,18 +1382,18 @@ const scheduleUpdates = [
               <h3 className="text-2xl font-serif text-foreground mb-2">{modal.title}</h3>
               <p className="text-muted text-sm mb-8 leading-relaxed">{modal.message}</p>
               
-              <div className="flex gap-3 w-full">
+              <div className="flex flex-col sm:flex-row gap-3 w-full">
                 {modal.type === 'confirm' && (
                   <button 
                     onClick={modal.onCancel}
-                    className="flex-1 py-3 px-4 rounded-xl border border-border text-sm font-bold text-muted hover:bg-border/50 transition-colors"
+                    className="flex-1 min-h-11 py-3 px-4 rounded-xl border border-border text-sm font-bold text-muted hover:bg-border/50 transition-colors"
                   >
                     {modal.cancelText}
                   </button>
                 )}
                 <button 
                   onClick={modal.onConfirm}
-                  className={`flex-1 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 ${
+                  className={`flex-1 min-h-11 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 ${
                     modal.type === 'error' ? 'bg-red-500 shadow-red-500/20' : 
                     modal.type === 'success' ? 'bg-green-500 shadow-green-500/20' : 
                     'bg-primary shadow-primary/20'
@@ -1494,9 +1494,9 @@ const scheduleUpdates = [
         <div className={`${activeTab === 'agenda' ? 'p-0 md:p-4' : 'p-4 md:p-8'}`}>
 
           {showAddAppt && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 animate-in fade-in duration-300">
-              <div className="bg-card border border-primary/20 rounded-xl md:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-                <div className="flex justify-between items-center p-4 md:p-6 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent shrink-0">
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 pt-safe pb-safe animate-in fade-in duration-300">
+              <div className="bg-card border border-primary/20 rounded-t-xl md:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="flex justify-between items-center p-4 md:p-6 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent shrink-0 sticky top-0 z-10">
                   <div className="flex items-center gap-2 md:gap-3">
                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
                       <Plus size={20} />
@@ -1506,7 +1506,7 @@ const scheduleUpdates = [
                       <p className="text-[10px] text-muted">Preencha os dados abaixo</p>
                     </div>
                   </div>
-                  <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground hover:bg-muted/20 p-1.5 md:p-2 rounded-full transition-colors"><X size={18} /></button>
+                  <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground hover:bg-muted/20 min-h-11 min-w-11 p-1.5 md:p-2 rounded-full transition-colors inline-flex items-center justify-center"><X size={18} /></button>
                 </div>
                 
                 <form onSubmit={handleAddAppt} className="flex flex-col flex-1 overflow-hidden relative">
@@ -2508,11 +2508,11 @@ const scheduleUpdates = [
 
                   {/* Modal de Edição de Cliente */}
                   {showEditClientModal && selectedClient && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                      <div className="glass-card p-8 max-w-md w-full slide-in-from-bottom-4 animate-in duration-300">
-                        <div className="flex justify-between items-center mb-6">
+                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                      <div className="glass-card p-6 sm:p-8 max-w-md w-full max-h-[80vh] overflow-y-auto slide-in-from-bottom-4 animate-in duration-300 rounded-t-3xl sm:rounded-[1.5rem]">
+                        <div className="flex justify-between items-center mb-6 sticky top-0 bg-card/95 backdrop-blur z-10">
                           <h3 className="text-2xl font-serif text-foreground">Editar Cliente</h3>
-                          <button onClick={() => setShowEditClientModal(false)} className="text-muted hover:text-foreground"><X size={24} /></button>
+                          <button onClick={() => setShowEditClientModal(false)} className="text-muted hover:text-foreground min-h-11 min-w-11 inline-flex items-center justify-center"><X size={24} /></button>
                         </div>
                         <form onSubmit={handleEditClient} className="space-y-4">
                           <div>
@@ -3467,11 +3467,11 @@ const scheduleUpdates = [
 
       {/* MODAL FECHAR HORÁRIO */}
       {showBlockModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 fade-in-up">
-          <div className="bg-card w-full max-w-md rounded-[2.5rem] border border-amber-500/30 shadow-2xl p-6 relative overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md p-4 pt-safe pb-safe fade-in-up">
+          <div className="bg-card w-full max-w-md max-h-[80vh] overflow-y-auto rounded-t-[2rem] sm:rounded-[2.5rem] border border-amber-500/30 shadow-2xl p-6 relative">
             <button 
               onClick={() => setShowBlockModal(false)}
-              className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors p-1"
+              className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors min-h-11 min-w-11 inline-flex items-center justify-center"
             >
               <X size={20} />
             </button>
@@ -3610,12 +3610,12 @@ const scheduleUpdates = [
 
       {/* MODAL EDITAR SERVIÇO (POP-UP) */}
       {editingService && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setEditingService(null)}>
-          <div className="bg-card border border-primary/30 rounded-[2.5rem] w-full max-w-lg shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative p-6 md:p-8" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setEditingService(null)}>
+          <div className="bg-card border border-primary/30 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex flex-col animate-in zoom-in-95 duration-300 relative p-6 md:p-8" onClick={e => e.stopPropagation()}>
             
             <button 
               onClick={() => setEditingService(null)} 
-              className="absolute right-6 top-6 text-muted hover:text-foreground transition-colors p-1 rounded-xl hover:bg-muted/10"
+              className="absolute right-6 top-6 text-muted hover:text-foreground transition-colors min-h-11 min-w-11 p-1 rounded-xl hover:bg-muted/10 inline-flex items-center justify-center"
             >
               <X size={20} />
             </button>
@@ -3720,12 +3720,12 @@ const scheduleUpdates = [
 
       {selectedAppointment && (
         selectedAppointment.notes?.startsWith('BLOCK:') ? (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
-            <div className="bg-card border border-amber-500/40 rounded-[2.5rem] w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative p-6 space-y-5" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
+            <div className="bg-card border border-amber-500/40 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 relative p-6 space-y-5" onClick={e => e.stopPropagation()}>
               
               <button 
                 onClick={() => setSelectedAppointment(null)}
-                className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors p-1"
+                className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors min-h-11 min-w-11 inline-flex items-center justify-center"
               >
                 <X size={20} />
               </button>
@@ -3780,13 +3780,13 @@ const scheduleUpdates = [
             </div>
           </div>
         ) : (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
-            <div className="bg-card border border-primary/20 rounded-[2.5rem] w-full max-w-md max-h-[90vh] shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
+            <div className="bg-card border border-primary/20 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-md max-h-[80vh] shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
               
               <div className={`grid ${isPhoneProtected(selectedAppointment.client_phone) ? 'grid-cols-2' : 'grid-cols-4'} gap-1 p-4 bg-gradient-to-br from-muted/20 to-transparent border-b border-border/50`}>
                 {!isPhoneProtected(selectedAppointment.client_phone) && (
                   <>
-                    <button onClick={() => handleWhatsAppAction(selectedAppointment, false)} className="flex flex-col items-center gap-1 text-green-500 hover:text-green-600 transition-colors p-2 rounded-2xl hover:bg-green-500/10">
+                    <button onClick={() => handleWhatsAppAction(selectedAppointment, false)} className="flex flex-col items-center justify-center gap-1 text-green-500 hover:text-green-600 transition-colors min-h-11 p-2 rounded-2xl hover:bg-green-500/10">
                       <MessageCircle size={20} />
                       <span className="text-[10px] font-bold uppercase tracking-widest">Whats</span>
                     </button>
@@ -3971,11 +3971,11 @@ const scheduleUpdates = [
       )}
 
       {showEditAppt && editAppt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-background rounded-2xl w-full max-w-md shadow-2xl p-6 relative border border-border scale-in-center">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-background rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl p-6 relative border border-border scale-in-center">
             <button 
               onClick={() => { setShowEditAppt(false); setEditAppt(null); }}
-              className="absolute top-4 right-4 text-muted hover:text-foreground hover:bg-muted/20 p-2 rounded-full transition-colors"
+              className="absolute top-4 right-4 text-muted hover:text-foreground hover:bg-muted/20 min-h-11 min-w-11 p-2 rounded-full transition-colors inline-flex items-center justify-center"
             >
               <X size={20} />
             </button>
@@ -4039,7 +4039,7 @@ const scheduleUpdates = [
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-2xl border-t border-border/60 px-2 py-2 flex justify-around items-center pb-safe shadow-[0_-10px_25px_rgba(0,0,0,0.2)]">
         <button
           onClick={() => setActiveTab('agenda')}
-          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
             activeTab === 'agenda' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
           }`}
         >
@@ -4049,7 +4049,7 @@ const scheduleUpdates = [
 
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
             activeTab === 'dashboard' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
           }`}
         >
@@ -4059,7 +4059,7 @@ const scheduleUpdates = [
 
         <button
           onClick={() => setActiveTab('clients')}
-          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
             activeTab === 'clients' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
           }`}
         >
@@ -4070,7 +4070,7 @@ const scheduleUpdates = [
         {isAdmin && (
           <button
             onClick={() => setActiveTab('catalog')}
-            className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+            className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
               activeTab === 'catalog' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
             }`}
           >
@@ -4081,7 +4081,7 @@ const scheduleUpdates = [
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
             activeTab === 'settings' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
           }`}
         >
