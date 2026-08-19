@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from '../router';
 import api from '../api';
 import { format, parseISO, isAfter, startOfToday, addDays, isBefore, isWithinInterval } from 'date-fns';
+import { parseDateTime, appointmentDate, normalizeDate } from '../utils/agendaMultiview';
 
 const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
   if (!dateStr || typeof dateStr !== 'string') return '--';
@@ -166,35 +167,36 @@ const ClientDashboard = () => {
   // Lógica de filtragem calculada
   const filteredAppointments = useMemo(() => {
     const now = new Date();
-    const currentDateStr = format(now, 'yyyy-MM-dd');
+    const currentDateStr = appointmentDate(now);
     const currentTimeStr = format(now, 'HH:mm');
     
     return appointments.filter(app => {
+      const appDate = normalizeDate(app.date);
       // Filtro de Aba
       if (activeTab === 'upcoming') {
         if (app.status === 'cancelado' || app.status === 'concluído') return false;
-        if (app.date < currentDateStr) return false;
-        if (app.date === currentDateStr && app.time < currentTimeStr) return false;
+        if (appDate < currentDateStr) return false;
+        if (appDate === currentDateStr && app.time < currentTimeStr) return false;
         
         // Filtro de Modo de Visualização (dentro de Próximos)
         if (viewMode === '20days') {
-          const limitDateStr = format(addDays(now, 20), 'yyyy-MM-dd');
-          return app.date <= limitDateStr;
+          const limitDateStr = appointmentDate(addDays(now, 20));
+          return appDate <= limitDateStr;
         }
         if (viewMode === 'custom') {
-          return app.date >= startDate && app.date <= endDate;
+          return appDate >= startDate && appDate <= endDate;
         }
         return true; // Mode 'all'
       } else {
         // Aba Histórico (passados ou cancelados ou concluídos)
-        const isPastDate = app.date < currentDateStr;
-        const isPastTimeToday = app.date === currentDateStr && app.time < currentTimeStr;
+        const isPastDate = appDate < currentDateStr;
+        const isPastTimeToday = appDate === currentDateStr && app.time < currentTimeStr;
         return isPastDate || isPastTimeToday || app.status === 'cancelado' || app.status === 'concluído';
       }
     }).sort((a, b) => {
       // Ordenação: próximos (crescente), histórico (decrescente)
-      const dateA = new Date(`${a.date}T${a.time}`);
-      const dateB = new Date(`${b.date}T${b.time}`);
+      const dateA = parseDateTime(a.date, a.time)?.getTime() || 0;
+      const dateB = parseDateTime(b.date, b.time)?.getTime() || 0;
       return activeTab === 'upcoming' ? dateA - dateB : dateB - dateA;
     });
   }, [appointments, activeTab, viewMode, startDate, endDate]);

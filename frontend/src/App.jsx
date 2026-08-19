@@ -3,11 +3,10 @@ import React from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import api from './api';
 import { RouterProvider, useLocation, useNavigate } from './router';
-
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -16,21 +15,38 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('ErrorBoundary capturou falha:', error, errorInfo);
+    this.setState({ error, errorInfo });
   }
 
   render() {
     if (this.state.hasError) {
+      const errorMessage = this.state.error?.message || 'Erro desconhecido';
+      const isDateError = errorMessage.includes('Invalid Date') || 
+                          errorMessage.includes('RangeError') || 
+                          errorMessage.includes('Invalid time value');
+      
       return (
         <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
           <div className="bg-card border border-primary/30 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl space-y-4">
             <div className="w-16 h-16 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto text-2xl font-bold">
               ⚠️
             </div>
-            <h2 className="text-xl font-serif font-black">Ops! Falha ao carregar tela.</h2>
-            <p className="text-xs text-muted">Ocorreu um erro temporário no aplicativo. Clique abaixo para recarregar.</p>
+            <h2 className="text-xl font-serif font-black">
+              {isDateError ? 'Erro de data detectado' : 'Ops! Falha ao carregar tela.'}
+            </h2>
+            <p className="text-xs text-muted">
+              {isDateError 
+                ? 'Ocorreu um erro ao processar datas. Isso pode acontecer com formatos de data incompatíveis. Clique abaixo para recarregar.'
+                : 'Ocorreu um erro temporário no aplicativo. Clique abaixo para recarregar.'
+              }
+            </p>
+            <details className="text-left text-[10px] text-muted/60 bg-background/50 rounded p-2 max-h-32 overflow-auto">
+              <summary className="cursor-pointer font-bold mb-1">Detalhes técnicos</summary>
+              <pre>{this.state.error?.stack || this.state.error?.message || 'Sem detalhes'}</pre>
+            </details>
             <button
               onClick={() => {
-                this.setState({ hasError: false });
+                this.setState({ hasError: false, error: null, errorInfo: null });
                 window.location.reload();
               }}
               className="w-full py-3 bg-primary text-white font-bold rounded-2xl hover:bg-primary-dark transition-all text-xs uppercase tracking-wider shadow-lg shadow-primary/20"
@@ -41,6 +57,7 @@ class ErrorBoundary extends React.Component {
         </div>
       );
     }
+
     return this.props.children;
   }
 }

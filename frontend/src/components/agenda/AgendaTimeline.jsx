@@ -1,23 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { format, isSameDay, startOfToday } from 'date-fns';
+import { isSameDay, startOfToday } from 'date-fns';
 import ptBR from 'date-fns/locale/pt-BR/index.js';
+import { safeFormat } from '../../utils/agendaMultiview';
 import { CheckCircle, ChevronLeft, ChevronRight, Clock, Lock, MessageCircle, Plus, Unlock } from 'lucide-react';
 import ReminderIndicator from '../reminders/ReminderIndicator';
 import {
   appointmentDate,
+  filterVisibleProfessionals,
   formatViewTitle,
   getWeekDays,
   isCurrentPeriod,
+  isPartner,
+  normalizeDate,
   stepDate,
+  toValidDate,
   VIEW_MODES
 } from '../../utils/agendaMultiview';
-import { buildEffectiveSchedule } from '../../utils/schedule';
+import { buildEffectiveSchedule, DEFAULT_WORK_END, DEFAULT_WORK_START } from '../../utils/schedule';
 import {
   buildHalfHourSlots,
   getTimelineBounds,
   layoutOverlaps,
   minuteToPixels,
-  parseAppointmentDuration,
   parseBlockDescription,
   parseBlockNote,
   PIXELS_PER_30_MINUTES,
@@ -27,13 +31,7 @@ import AgendaMonthView from './AgendaMonthView';
 import AgendaWeekView from './AgendaWeekView';
 import ViewModeSelector from './ViewModeSelector';
 
-export const isPartner = professional => {
-  const identity = `${professional?.name || ''} ${professional?.specialty || ''}`
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-  return identity.includes('socio') || identity.includes('socia');
-};
+export { isPartner };
 
 function formatMinutesToTimeString(minutes) {
   const total = Math.max(0, Math.min(24 * 60, Number(minutes) || 0));
@@ -308,22 +306,26 @@ export default function AgendaTimeline({
     return () => window.clearInterval(timer);
   }, []);
 
+  const safeSelectedDate = useMemo(
+    () => toValidDate(selectedDate) || startOfToday(),
+    [selectedDate]
+  );
+
   const visibleProfessionals = useMemo(
     () =>
-      professionals.filter(
-        professional =>
-          !isPartner(professional) &&
-          (isAdmin || String(professional.id) === String(currentUser?.id) || professional.is_public_agenda)
-      ),
+      filterVisibleProfessionals(professionals, {
+        isAdmin,
+        currentUserId: currentUser?.id
+      }),
     [professionals, isAdmin, currentUser?.id]
   );
 
-  const weekDays = useMemo(() => getWeekDays(selectedDate, 0), [selectedDate]);
+  const weekDays = useMemo(() => getWeekDays(safeSelectedDate, 0), [safeSelectedDate]);
 
   const columnAppointments = professionalId =>
     appointments.filter(
       appointment =>
-        appointment.date === appointmentDate(selectedDate) &&
+        normalizeDate(appointment.date) === appointmentDate(safeSelectedDate) &&
         String(appointment.professional_id) === String(professionalId)
     );
 
@@ -331,10 +333,10 @@ export default function AgendaTimeline({
     () =>
       appointments.filter(
         appointment =>
-          appointment.date === appointmentDate(selectedDate) &&
+          normalizeDate(appointment.date) === appointmentDate(safeSelectedDate) &&
           visibleProfessionals.some(p => String(p.id) === String(appointment.professional_id))
       ),
-    [appointments, selectedDate, visibleProfessionals]
+    [appointments, safeSelectedDate, visibleProfessionals]
   );
 
   const bounds = useMemo(
@@ -349,16 +351,16 @@ export default function AgendaTimeline({
     if (!professional) return null;
     const schedule = buildEffectiveSchedule(settings, professional.id);
     return {
-      workStart: professional.work_start || schedule.workStart,
-      workEnd: professional.work_end || schedule.workEnd
+      workStart: professional.work_start || schedule.workStart || workStart || DEFAULT_WORK_START,
+      workEnd: professional.work_end || schedule.workEnd || workEnd || DEFAULT_WORK_END
     };
   };
 
   const moveDate = direction => {
-    setSelectedDate(stepDate(selectedDate, direction, viewMode));
+    setSelectedDate(stepDate(safeSelectedDate, direction, viewMode));
   };
 
-  const isCurrent = isCurrentPeriod(selectedDate, viewMode, now);
+  const isCurrent = isCurrentPeriod(safeSelectedDate, viewMode, now);
 
   // Determinar estrutura de grid para o Modo DIA
   // 1 profissional (Agenda Pessoal): 100% da largura útil
@@ -406,7 +408,7 @@ export default function AgendaTimeline({
             </button>
             <div className="px-2">
               <span className="text-xs md:text-sm font-black uppercase tracking-wider text-foreground">
-                {formatViewTitle(viewMode, selectedDate)}
+                {formatViewTitle(viewMode, safeSelectedDate)}
               </span>
             </div>
             <button
@@ -450,7 +452,7 @@ export default function AgendaTimeline({
         {viewMode === VIEW_MODES.DAY && (
           <div className="grid grid-cols-7 gap-1">
             {weekDays.map(day => {
-              const isSelected = isSameDay(day, selectedDate);
+              const isSelected = isSameDay(day, safeSelectedDate);
               const isToday = isSameDay(day, startOfToday());
               return (
                 <button
@@ -463,12 +465,12 @@ export default function AgendaTimeline({
                       : 'border-border/40 bg-card/40 text-muted hover:text-foreground hover:bg-card/70'
                   }`}
                 >
-                  <span className="text-[8px] md:text-[9px] uppercase font-bold opacity-80 leading-none">
-                    {format(day, 'EEE', { locale: ptBR })}
-                  </span>
-                  <span className="text-[11px] md:text-xs font-black leading-tight mt-0.5">
-                    {format(day, 'dd')}
-                  </span>
+<span className="text-[8px] md:text-[9px] uppercase font-bold opacity-80 leading-none">
+                      {safeFormat(day, 'EEE', { locale: ptBR })}
+                    </span>
+                    <span className="text-[11px] md:text-xs font-black leading-tight mt-0.5">
+                      {safeFormat(day, 'dd')}
+                    </span>
                   {isToday && !isSelected && (
                     <span className="h-1 w-1 rounded-full bg-primary mt-0.5" />
                   )}
@@ -539,7 +541,7 @@ export default function AgendaTimeline({
                 {visibleProfessionals.map(professional => {
                   const columnItems = columnAppointments(professional.id);
                   const layout = layoutOverlaps(columnItems);
-                  const isColToday = isSameDay(selectedDate, now);
+                  const isColToday = isSameDay(safeSelectedDate, now);
                   const nowMinutes = now.getHours() * 60 + now.getMinutes();
                   const showLive = isColToday && nowMinutes >= bounds.start && nowMinutes <= bounds.end;
 
@@ -557,7 +559,7 @@ export default function AgendaTimeline({
                   };
 
                   const quickAdd = event => {
-                    onQuickAdd?.(professional.id, appointmentDate(selectedDate), event.currentTarget.dataset.time);
+                    onQuickAdd?.(professional.id, appointmentDate(safeSelectedDate), event.currentTarget.dataset.time);
                   };
 
                   return (
@@ -603,7 +605,7 @@ export default function AgendaTimeline({
                           <span className="-ml-1 h-3 w-3 shrink-0 rounded-full border-2 border-white bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.9)] animate-pulse" />
                           <span className="h-0.5 flex-1 bg-gradient-to-r from-red-500 via-pink-500 to-transparent" />
                           <span className="mr-1 rounded bg-red-500 px-1.5 py-0.2 text-[7.5px] font-black uppercase tracking-wider text-white shadow-md">
-                            {format(now, 'HH:mm')}
+                            {safeFormat(now, 'HH:mm')}
                           </span>
                         </div>
                       )}
@@ -632,7 +634,7 @@ export default function AgendaTimeline({
       {/* Mode SEMANA */}
       {viewMode === VIEW_MODES.WEEK && (
         <AgendaWeekView
-          selectedDate={selectedDate}
+          selectedDate={safeSelectedDate}
           setSelectedDate={setSelectedDate}
           onSelectDay={day => {
             setSelectedDate(day);
@@ -659,7 +661,7 @@ export default function AgendaTimeline({
       {/* Mode MÊS */}
       {viewMode === VIEW_MODES.MONTH && (
         <AgendaMonthView
-          selectedDate={selectedDate}
+          selectedDate={safeSelectedDate}
           onDayClick={day => {
             setSelectedDate(day);
             setViewMode(VIEW_MODES.DAY);

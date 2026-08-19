@@ -8,6 +8,7 @@ import {
   format,
   isSameDay,
   isSameMonth,
+  isValid,
   startOfMonth,
   startOfWeek,
   subDays,
@@ -23,15 +24,111 @@ export const VIEW_MODES = {
   MONTH: 'mes'
 };
 
-export const appointmentDate = date => format(date, 'yyyy-MM-dd');
+export const toValidDate = value => {
+  if (value instanceof Date) {
+    return isValid(value) ? value : null;
+  }
+  if (!value) return null;
+  if (typeof value === 'number') {
+    const fromNumber = new Date(value);
+    return isValid(fromNumber) ? fromNumber : null;
+  }
+  if (typeof value === 'string') {
+    const datePart = value.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || value.split('T')[0];
+    const fromIso = new Date(`${datePart}T00:00:00`);
+    return isValid(fromIso) ? fromIso : null;
+  }
+  return null;
+};
+
+export const appointmentDate = date => {
+  const valid = toValidDate(date);
+  if (!valid) return '';
+  try {
+    return format(valid, 'yyyy-MM-dd');
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Normaliza data para formato YYYY-MM-DD, aceitando ISO com T, Date ou apenas data
+ */
+export const normalizeDate = dateInput => {
+  if (dateInput instanceof Date) return appointmentDate(dateInput);
+  if (!dateInput) return '';
+  const match = String(dateInput).match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : String(dateInput).split('T')[0];
+};
+
+/**
+ * Safe format wrapper que valida Date antes de chamar date-fns
+ */
+export const safeFormat = (date, formatStr, options = {}) => {
+  const valid = toValidDate(date);
+  if (!valid) return '';
+  try {
+    return format(valid, formatStr, options);
+  } catch {
+    return '';
+  }
+};
+
+export const isPartner = professional => {
+  const identity = `${professional?.name || ''} ${professional?.specialty || ''}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  return identity.includes('socio') || identity.includes('socia');
+};
+
+/**
+ * Agenda pessoal (1 coluna / a própria profissional): nunca remover por isPartner.
+ * Grade da equipe: oculta sócias, mas não deixa a lista vazia.
+ */
+export function filterVisibleProfessionals(professionals = [], { isAdmin = false, currentUserId } = {}) {
+  const list = Array.isArray(professionals) ? professionals : [];
+  const eligible = list.filter(
+    professional =>
+      isAdmin ||
+      String(professional.id) === String(currentUserId) ||
+      professional.is_public_agenda
+  );
+
+  if (eligible.length <= 1) return eligible;
+
+  const withoutPartners = eligible.filter(
+    professional =>
+      String(professional.id) === String(currentUserId) || !isPartner(professional)
+  );
+
+  return withoutPartners.length > 0 ? withoutPartners : eligible;
+}
+
+/**
+ * Parse date string safely, normalizing ISO formats
+ * Returns Date object or null if invalid
+ */
+export const parseDateTime = (dateStr, timeStr) => {
+  if (!dateStr || !timeStr) return null;
+  const normDate = normalizeDate(dateStr);
+  const isoStr = `${normDate}T${timeStr}`;
+  const d = new Date(isoStr);
+  return isNaN(d.getTime()) ? null : d;
+};
 
 /**
  * Obtém os 7 dias da semana para uma data base (iniciando em Domingo por padrão ou Segunda).
  * weekStartsOn: 0 (Domingo) ou 1 (Segunda). Na Mary Esmalteria, padrão 0 para 7 colunas completas.
  */
 export function getWeekDays(baseDate, weekStartsOn = 0) {
-  const start = startOfWeek(baseDate, { weekStartsOn });
-  return eachDayOfInterval({ start, end: addDays(start, 6) });
+  const safe = toValidDate(baseDate) || new Date();
+  try {
+    const start = startOfWeek(safe, { weekStartsOn });
+    return eachDayOfInterval({ start, end: addDays(start, 6) });
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -39,8 +136,9 @@ export function getWeekDays(baseDate, weekStartsOn = 0) {
  * Retorna array de semanas (cada uma com 7 dias), preenchendo os dias antes e depois do mês.
  */
 export function getMonthMatrix(baseDate, weekStartsOn = 0) {
-  const monthStart = startOfMonth(baseDate);
-  const monthEnd = endOfMonth(baseDate);
+  const safe = toValidDate(baseDate) || new Date();
+  const monthStart = startOfMonth(safe);
+  const monthEnd = endOfMonth(safe);
   const startDate = startOfWeek(monthStart, { weekStartsOn });
   const endDate = endOfWeek(monthEnd, { weekStartsOn });
 
@@ -59,7 +157,8 @@ export function groupAppointmentsByDate(appointments = []) {
   const map = new Map();
   (appointments || []).forEach(app => {
     if (!app || !app.date) return;
-    const dateStr = app.date;
+    const dateStr = normalizeDate(app.date);
+    if (!dateStr) return;
     if (!map.has(dateStr)) {
       map.set(dateStr, []);
     }
@@ -117,52 +216,61 @@ export function calculateDayMetrics(dayAppointments = []) {
  * Formata o título descritivo do cabeçalho de navegação conforme o modo ativo
  */
 export function formatViewTitle(viewMode, selectedDate) {
+  const safe = toValidDate(selectedDate) || new Date();
   if (viewMode === VIEW_MODES.WEEK) {
-    const start = startOfWeek(selectedDate, { weekStartsOn: 0 });
+    const start = startOfWeek(safe, { weekStartsOn: 0 });
     const end = addDays(start, 6);
-    const startMonth = format(start, 'MMM', { locale: ptBR });
-    const endMonth = format(end, 'MMM', { locale: ptBR });
+    const startMonth = safeFormat(start, 'MMM', { locale: ptBR });
+    const endMonth = safeFormat(end, 'MMM', { locale: ptBR });
 
     if (startMonth === endMonth) {
-      return `${format(start, 'dd')} a ${format(end, 'dd')} de ${format(end, 'MMMM, yyyy', { locale: ptBR })}`;
+      return `${safeFormat(start, 'dd')} a ${safeFormat(end, 'dd')} de ${safeFormat(end, 'MMMM, yyyy', { locale: ptBR })}`;
     }
-    return `${format(start, "dd 'de' MMM", { locale: ptBR })} – ${format(end, "dd 'de' MMM, yyyy", { locale: ptBR })}`;
+    return `${safeFormat(start, "dd 'de' MMM", { locale: ptBR })} – ${safeFormat(end, "dd 'de' MMM, yyyy", { locale: ptBR })}`;
   }
 
   if (viewMode === VIEW_MODES.MONTH) {
-    return format(selectedDate, "MMMM 'de' yyyy", { locale: ptBR });
+    return safeFormat(safe, "MMMM 'de' yyyy", { locale: ptBR });
   }
 
   // Padrão: Modo DIA
-  return format(selectedDate, "dd 'de' MMMM, yyyy", { locale: ptBR });
+  return safeFormat(safe, "dd 'de' MMMM, yyyy", { locale: ptBR });
 }
 
 /**
  * Calcula a navegação de data anterior / posterior de acordo com o modo de visão
  */
 export function stepDate(currentDate, direction, viewMode) {
+  const safe = toValidDate(currentDate) || new Date();
   if (viewMode === VIEW_MODES.WEEK) {
-    return direction > 0 ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1);
+    return direction > 0 ? addWeeks(safe, 1) : subWeeks(safe, 1);
   }
   if (viewMode === VIEW_MODES.MONTH) {
-    return direction > 0 ? addMonths(currentDate, 1) : subMonths(currentDate, 1);
+    return direction > 0 ? addMonths(safe, 1) : subMonths(safe, 1);
   }
-  return direction > 0 ? addDays(currentDate, 1) : subDays(currentDate, 1);
+  return direction > 0 ? addDays(safe, 1) : subDays(safe, 1);
 }
 
 /**
  * Avalia se a data atual está no período ativo do modo de visão
  */
 export function isCurrentPeriod(selectedDate, viewMode, now = new Date()) {
-  if (viewMode === VIEW_MODES.WEEK) {
-    const currentWeekStart = startOfWeek(now, { weekStartsOn: 0 });
-    const selectedWeekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
-    return isSameDay(currentWeekStart, selectedWeekStart);
+  const safeSelected = toValidDate(selectedDate);
+  const safeNow = toValidDate(now) || new Date();
+  if (!safeSelected) return false;
+  try {
+    if (viewMode === VIEW_MODES.WEEK) {
+      const currentWeekStart = startOfWeek(safeNow, { weekStartsOn: 0 });
+      const selectedWeekStart = startOfWeek(safeSelected, { weekStartsOn: 0 });
+      return isSameDay(currentWeekStart, selectedWeekStart);
+    }
+    if (viewMode === VIEW_MODES.MONTH) {
+      return isSameMonth(safeSelected, safeNow);
+    }
+    return isSameDay(safeSelected, safeNow);
+  } catch {
+    return false;
   }
-  if (viewMode === VIEW_MODES.MONTH) {
-    return isSameMonth(selectedDate, now);
-  }
-  return isSameDay(selectedDate, now);
 }
 
 /**

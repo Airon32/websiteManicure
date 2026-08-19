@@ -3,6 +3,7 @@ import api from '../api';
 import { useNavigate } from '../router';
 import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, Clock, MessageCircle, Tag, Copy, FileText, Send, Printer, Shield, ShieldCheck } from 'lucide-react';
 import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, isSameMonth, formatDistanceToNow } from 'date-fns';
+import { parseDateTime, appointmentDate, normalizeDate } from '../utils/agendaMultiview';
 import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey, toApiWeekSchedule, toEditorWeekSchedule } from '../utils/schedule';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -945,15 +946,19 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDropAppt = async (appId, newTime, colData, timelineMode) => {
+  const handleDropAppt = async (appId, newTime, colData, timelineMode, dayStr) => {
     const appToMove = appointments.find(a => String(a.id) === String(appId));
     if (!appToMove) return;
 
     let payload = { time: newTime };
     if (timelineMode === 'dia') {
-      payload.professional_id = colData.id;
+      payload.professional_id = colData?.id;
     } else {
-      payload.date = format(colData, 'yyyy-MM-dd');
+      const movedDate = dayStr || appointmentDate(colData);
+      if (movedDate) payload.date = movedDate;
+      if (colData?.id && !(colData instanceof Date)) {
+        payload.professional_id = colData.id;
+      }
     }
 
     setAppointments(prev => prev.map(a => String(a.id) === String(appId) ? { ...a, ...payload } : a));
@@ -1278,10 +1283,10 @@ const scheduleUpdates = [
     appointmentSchedule.workEnd,
     appointmentSchedule.slotInterval,
     allowOutsideHours,
-    activeAppointments.filter(a => a.date === newAppt.date)
+    activeAppointments.filter(a => normalizeDate(a.date) === normalizeDate(newAppt.date))
   );
-  const selectedDayStr = format(selectedCalendarDate, 'yyyy-MM-dd');
-  const selectedDayAppointments = activeAppointments.filter(app => app.date === selectedDayStr);
+  const selectedDayStr = appointmentDate(selectedCalendarDate);
+  const selectedDayAppointments = activeAppointments.filter(app => normalizeDate(app.date) === selectedDayStr);
 
   // Cálculo Financeiro — usa service_price já enriquecido pelo backend
   const totalRevenue = activeAppointments.reduce((sum, app) => sum + (app.service_price || 0), 0);
@@ -1466,7 +1471,7 @@ const scheduleUpdates = [
             </button>
 
             <div className="flex items-center gap-1.5 md:gap-2">
-              <button onClick={() => { handleOpenBlockModal(null, '12:00', format(selectedCalendarDate || new Date(), 'yyyy-MM-dd')); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="h-10 w-10 md:h-auto md:w-auto md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md flex items-center justify-center" title="Bloquear Horário">
+              <button onClick={() => { handleOpenBlockModal(null, '12:00', appointmentDate(selectedCalendarDate || new Date())); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="h-10 w-10 md:h-auto md:w-auto md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md flex items-center justify-center" title="Bloquear Horário">
                 <Lock size={16} />
               </button>
               <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary h-10 !py-0 !px-3 md:h-auto md:!py-2.5 md:!px-5 glow-primary whitespace-nowrap">
@@ -1720,13 +1725,13 @@ const scheduleUpdates = [
 
                 <div className="flex flex-wrap gap-2 text-xs font-bold">
                   <span className="badge-pending">
-                    ⏳ {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'agendado' && !a.notes?.startsWith('BLOCK:')).length} Aguardando Confirmação
+                    ⏳ {activeAppointments.filter(a => normalizeDate(a.date) === appointmentDate(startOfToday()) && a.status === 'agendado' && !a.notes?.startsWith('BLOCK:')).length} Aguardando Confirmação
                   </span>
                   <span className="badge-confirmed">
-                    ✅ {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'confirmado' && !a.notes?.startsWith('BLOCK:')).length} Presença Confirmada
+                    ✅ {activeAppointments.filter(a => normalizeDate(a.date) === appointmentDate(startOfToday()) && a.status === 'confirmado' && !a.notes?.startsWith('BLOCK:')).length} Presença Confirmada
                   </span>
                   <span className="badge-completed">
-                    🟢 {activeAppointments.filter(a => a.date === format(startOfToday(), 'yyyy-MM-dd') && a.status === 'concluído' && !a.notes?.startsWith('BLOCK:')).length} Atendidos / Concluídos
+                    🟢 {activeAppointments.filter(a => normalizeDate(a.date) === appointmentDate(startOfToday()) && a.status === 'concluído' && !a.notes?.startsWith('BLOCK:')).length} Atendidos / Concluídos
                   </span>
                 </div>
               </div>
@@ -1791,18 +1796,18 @@ const scheduleUpdates = [
                         const getTimeStamp = (item) => {
                           if (!item || !item.date) return 0;
                           const t = item.time || '00:00';
-                          const d = new Date(`${item.date}T${t}`);
-                          return isNaN(d.getTime()) ? 0 : d.getTime();
+                          return parseDateTime(item.date, t)?.getTime() || 0;
                         };
 
                         const upcomingList = (activeAppointments || [])
                           .filter(app => {
-                            if (!app || !app.date) return false;
+                            const appDate = normalizeDate(app.date);
+                            if (!appDate) return false;
                             if (app.status === 'cancelado' || app.status === 'concluído' || app.notes?.startsWith('BLOCK:')) return false;
                             const appTime = app.time || '00:00';
-                            if (app.date < currentDateStr) return false;
-                            if (app.date === currentDateStr && appTime < currentTimeStr) return false;
-                            return app.date <= limitDayStr;
+                            if (appDate < currentDateStr) return false;
+                            if (appDate === currentDateStr && appTime < currentTimeStr) return false;
+                            return appDate <= limitDayStr;
                           })
                           .sort((a, b) => getTimeStamp(a) - getTimeStamp(b));
 
@@ -1929,7 +1934,7 @@ const scheduleUpdates = [
                         <div className="glass-card p-6 flex flex-col justify-between">
                           <p className="text-muted text-sm mb-2 uppercase tracking-wider font-semibold">Hoje</p>
                           <p className="text-3xl font-serif text-foreground">
-                            {(activeAppointments || []).filter(a => a && a.date === format(startOfToday(), 'yyyy-MM-dd')).length} <span className="text-sm font-sans font-medium text-muted">Apt.</span>
+                            {(activeAppointments || []).filter(a => a && normalizeDate(a.date) === appointmentDate(startOfToday())).length} <span className="text-sm font-sans font-medium text-muted">Apt.</span>
                           </p>
                         </div>
                                                 <div className="glass-card p-6 flex flex-col justify-between">
@@ -2278,11 +2283,17 @@ const scheduleUpdates = [
                       </div>
                       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                         {professionals.map(p => {
-                          const todayStr = format(startOfToday(), 'yyyy-MM-dd');
+                          const todayStr = appointmentDate(startOfToday());
                           const now = new Date();
                           const activeProApps = activeAppointments.filter(a => a.professional_id === p.id);
-                          const pastApps = activeProApps.filter(a => a.date < todayStr || (a.date === todayStr && a.time < format(now, 'HH:mm')));
-                          const futureApps = activeProApps.filter(a => a.date > todayStr || (a.date === todayStr && a.time >= format(now, 'HH:mm')));
+                          const pastApps = activeProApps.filter(a => {
+                            const appDate = normalizeDate(a.date);
+                            return appDate < todayStr || (appDate === todayStr && a.time < format(now, 'HH:mm'));
+                          });
+                          const futureApps = activeProApps.filter(a => {
+                            const appDate = normalizeDate(a.date);
+                            return appDate > todayStr || (appDate === todayStr && a.time >= format(now, 'HH:mm'));
+                          });
 
                           const pastRevenue = pastApps.reduce((acc, a) => acc + (a.service_price || 0), 0);
                           const futureRevenue = futureApps.reduce((acc, a) => acc + (a.service_price || 0), 0);
@@ -3906,14 +3917,14 @@ const scheduleUpdates = [
             <form onSubmit={handleEditApptSubmit} className="space-y-4">
               <div>
                 <label className="text-sm text-muted mb-1 block">Data</label>
-                <input type="date" className="input-field w-full" value={editAppt.date} onChange={e => setEditAppt({ ...editAppt, date: e.target.value })} min={format(startOfToday(), 'yyyy-MM-dd')} required />
+                <input type="date" className="input-field w-full" value={normalizeDate(editAppt.date)} onChange={e => setEditAppt({ ...editAppt, date: e.target.value })} min={appointmentDate(startOfToday())} required />
               </div>
 
               <div>
                 <label className="text-sm text-muted mb-1 block">Horário</label>
                 <select className="input-field w-full" value={editAppt.time} onChange={e => setEditAppt({ ...editAppt, time: e.target.value })} required>
                   <option value="" disabled>Selecione um horário</option>
-                  {buildTimeSlots(workStart, workEnd, slotInterval, allowOutsideHours || (editAppt.time && (timeToMinutes(editAppt.time) < timeToMinutes(workStart) || timeToMinutes(editAppt.time) >= timeToMinutes(workEnd))), activeAppointments.filter(a => a.date === editAppt.date)).map(t => {
+                  {buildTimeSlots(workStart, workEnd, slotInterval, allowOutsideHours || (editAppt.time && (timeToMinutes(editAppt.time) < timeToMinutes(workStart) || timeToMinutes(editAppt.time) >= timeToMinutes(workEnd))), activeAppointments.filter(a => normalizeDate(a.date) === normalizeDate(editAppt.date))).map(t => {
                     const appOrig = appointments.find(a => a.id === editAppt.id);
                     const duration = appOrig ? appOrig.service_duration : 30;
                     return <option key={t} value={t}>{t} - {calculateEndTime(t, duration)}</option>
