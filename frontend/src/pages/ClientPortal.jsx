@@ -718,10 +718,10 @@ export default function ClientPortal() {
          </div>
       )}
 
-      <header className="fixed top-0 left-0 right-0 py-3.5 md:py-5 px-4 md:px-10 border-b border-border/50 z-50 flex justify-between items-center bg-background/95 backdrop-blur-2xl shadow-sm transition-all">
-        <h1 className="text-base md:text-2xl font-serif text-foreground tracking-wider md:tracking-widest flex items-center gap-2 md:gap-3 whitespace-nowrap">
-          <img src="/assets/images/logo.png" alt="Mary Esmalteria" className="w-8 h-8 md:w-10 md:h-10 rounded-full object-contain" />
-          {businessName}
+      <header className="fixed top-0 left-0 right-0 py-3.5 md:py-5 px-4 md:px-10 border-b border-border/50 z-50 flex justify-between items-center gap-2 min-w-0 bg-background/95 backdrop-blur-2xl shadow-sm transition-all">
+        <h1 className="min-w-0 text-base md:text-2xl font-serif text-foreground tracking-wider md:tracking-widest flex items-center gap-2 md:gap-3">
+          <img src="/assets/images/logo.png" alt="Mary Esmalteria" className="w-8 h-8 md:w-10 md:h-10 rounded-full object-contain shrink-0" />
+          <span className="truncate">{businessName}</span>
         </h1>
         {step === 0 && (
           <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-muted" aria-label="Navegação principal">
@@ -730,7 +730,7 @@ export default function ClientPortal() {
             <a href="#localizacao" className="hover:text-primary transition-colors">Localização</a>
           </nav>
         )}
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-2 md:gap-4 shrink-0">
           <button onClick={() => setIsDark(!isDark)} className="text-muted hover:text-foreground transition-colors p-2" aria-label={isDark ? 'Usar tema claro' : 'Usar tema escuro'}>
             {isDark ? <Sun size={20} /> : <Moon size={20} />}
           </button>

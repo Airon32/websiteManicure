@@ -152,7 +152,7 @@ function AppRoutes() {
   else page = <NotFound />;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen min-w-0 max-w-full bg-background flex flex-col">
       <Suspense fallback={<PageLoader />}>{page}</Suspense>
     </div>
   );

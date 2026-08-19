@@ -1347,7 +1347,7 @@ const scheduleUpdates = [
       channelReady={reminderChannelReady}
       user={user}
     >
-    <div className="flex h-screen bg-background overflow-hidden font-sans transition-colors duration-300" style={{ height: '100dvh' }}>
+    <div className="flex min-w-0 w-full h-screen bg-background overflow-hidden font-sans transition-colors duration-300" style={{ height: '100dvh' }}>
       {liveBookingAlert && (
         <div className="fixed top-4 left-1/2 z-[90] w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl border border-primary/40 bg-card px-4 py-3 shadow-2xl">
           <p className="text-sm font-bold text-foreground">{liveBookingAlert.title}</p>
@@ -1459,7 +1459,7 @@ const scheduleUpdates = [
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-y-auto relative bg-background w-full pb-24 lg:pb-0">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative bg-background w-full max-w-full pb-24 lg:pb-0">
         <header className="min-h-16 md:h-20 border-b border-border/40 flex items-center justify-between gap-2 px-3 py-2 md:px-8 md:py-0 bg-background/80 backdrop-blur-2xl sticky top-0 z-40">
           <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
             <button className="lg:hidden h-10 w-10 shrink-0 text-muted hover:text-primary rounded-xl bg-card/60 border border-border/50 transition-all flex items-center justify-center" onClick={() => setIsMobileMenuOpen(true)}>
@@ -1483,15 +1483,15 @@ const scheduleUpdates = [
               <button onClick={() => { handleOpenBlockModal(null, '12:00', appointmentDate(selectedCalendarDate || new Date())); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="h-10 w-10 md:h-auto md:w-auto md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md flex items-center justify-center" title="Bloquear Horário">
                 <Lock size={16} />
               </button>
-              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary h-10 !py-0 !px-3 md:h-auto md:!py-2.5 md:!px-5 glow-primary whitespace-nowrap">
+              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary h-10 min-w-11 !py-0 !px-3 md:h-auto md:!py-2.5 md:!px-5 glow-primary">
                 {showAddAppt ? <X size={17} /> : <Plus size={17} />}
-                <span className="ml-0.5 md:ml-1 uppercase font-black tracking-wider text-[10px] md:text-xs">Marcar</span>
+                <span className="hidden sm:inline ml-0.5 md:ml-1 uppercase font-black tracking-wider text-[10px] md:text-xs">Marcar</span>
               </button>
             </div>
           </div>
         </header>
 
-        <div className={`${activeTab === 'agenda' ? 'p-0 md:p-4' : 'p-4 md:p-8'}`}>
+        <div className={`min-w-0 max-w-full ${activeTab === 'agenda' ? 'p-0 md:p-4' : 'p-4 md:p-8'}`}>
 
           {showAddAppt && (
             <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 pt-safe pb-safe animate-in fade-in duration-300">
@@ -1718,7 +1718,7 @@ const scheduleUpdates = [
           )}
 
           {activeTab === 'dashboard' && (
-            <div className="fade-in-up duration-500 space-y-6 md:space-y-8">
+            <div className="fade-in-up duration-500 space-y-6 md:space-y-8 min-w-0">
               
               {/* Pill de Resumo de Confirmações */}
               <div className="glass-panel p-4 md:p-6 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-primary">
@@ -1789,10 +1789,10 @@ const scheduleUpdates = [
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                    <div className="lg:col-span-2 glass-card p-6">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-xl font-serif text-foreground">Próximos em Atendimento</h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 min-w-0">
+                    <div className="lg:col-span-2 glass-card p-4 sm:p-6 min-w-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-6 min-w-0">
+                        <h3 className="text-lg sm:text-xl font-serif text-foreground min-w-0 truncate">Próximos em Atendimento</h3>
                         <span className="text-xs text-muted font-bold uppercase tracking-wider">Próximos 10 dias</span>
                       </div>
 
@@ -1912,11 +1912,11 @@ const scheduleUpdates = [
                       })()}
                     </div>
 
-                    <div className="glass-card p-6 border-l-4 border-l-primary flex flex-col">
-                      <h3 className="text-xl font-serif text-foreground mb-6">Ranking Financeiro</h3>
+                    <div className="glass-card p-4 sm:p-6 border-l-4 border-l-primary flex flex-col min-w-0">
+                      <h3 className="text-lg sm:text-xl font-serif text-foreground mb-6 truncate">Ranking Financeiro</h3>
                       <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                         {revenuePerProfessional.map((pro, idx) => (
-                          <div key={pro.id} className="flex items-center gap-3 bg-card/60 border border-border/50 p-3.5 rounded-2xl">
+                          <div key={pro.id} className="flex items-center gap-3 bg-card/60 border border-border/50 p-3.5 rounded-2xl min-w-0">
                             <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs shrink-0">
                               {idx + 1}º
                             </div>
@@ -1924,8 +1924,8 @@ const scheduleUpdates = [
                               <h4 className="text-foreground font-bold text-xs truncate">{pro.name}</h4>
                               <p className="text-[10px] text-muted">{pro.totalApps} agendamentos</p>
                             </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-primary font-black text-sm tabular-nums whitespace-nowrap">R$ {formatMoney(pro.revenue)}</p>
+                            <div className="text-right min-w-0 shrink">
+                              <p className="text-primary font-black text-sm tabular-nums truncate">R$ {formatMoney(pro.revenue)}</p>
                             </div>
                           </div>
                         ))}
@@ -2195,10 +2195,10 @@ const scheduleUpdates = [
                     <div className="fade-in-up duration-500">
 
                       {/* GESTÃO FINANCEIRA INICIO */}
-                      <div className="glass-card p-6 mb-8 border-primary/20 shadow-[0_0_40px_rgba(244,114,182,0.06)] relative overflow-hidden">
+                      <div className="glass-card p-4 sm:p-6 mb-8 border-primary/20 shadow-[0_0_40px_rgba(244,114,182,0.06)] relative overflow-hidden min-w-0">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-bl-full pointer-events-none"></div>
-                        <div className="flex justify-between items-center mb-6">
-                          <h3 className="text-2xl font-serif text-foreground flex items-center gap-2">
+                        <div className="flex flex-wrap justify-between items-center gap-2 mb-6 min-w-0">
+                          <h3 className="text-lg sm:text-2xl font-serif text-foreground flex items-center gap-2 min-w-0">
                             <DollarSign className="text-green-500" />
                             Controle Financeiro
                           </h3>
@@ -2223,16 +2223,16 @@ const scheduleUpdates = [
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
                               {/* Histórico Mensal */}
-                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm">
+                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm min-w-0">
                                 <h4 className="text-sm font-bold uppercase tracking-widest text-muted mb-4">Histórico de Faturamento</h4>
-                                <div className="h-[250px] w-full">
+                                <div className="h-[250px] w-full min-w-0 overflow-hidden">
                                   <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={[...financialStats.history].slice(0, 6).reverse()}>
                                       <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
                                       <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.5 }} />
-                                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.5 }} tickFormatter={(value) => `R$${value}`} />
+                                      <YAxis width={36} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.5 }} tickFormatter={(value) => `${value}`} />
                                       <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'var(--tw-colors-background)' }} formatter={(value) => [`R$ ${value.toFixed(2).replace('.', ',')}`, 'Faturamento']} />
                                       <Bar dataKey="total" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={40} />
                                     </BarChart>
@@ -2241,7 +2241,7 @@ const scheduleUpdates = [
                               </div>
 
                               {/* Ranking Profissionais */}
-                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm flex flex-col">
+                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm flex flex-col min-w-0">
                                 <h4 className="text-sm font-bold uppercase tracking-widest text-muted mb-4">Desempenho por Profissional (Mês)</h4>
                                 <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                                   {financialStats.professionals.length > 0 ? financialStats.professionals.map((prof, idx) => (

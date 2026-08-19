@@ -280,7 +280,7 @@ const ClientDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen min-w-0 max-w-full bg-background pb-20">
       
       {/* Premium Modal */}
       {modal.isOpen && (
@@ -326,7 +326,7 @@ const ClientDashboard = () => {
           </div>
         </div>
       )}
-      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 px-6 py-4">
+      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 px-4 sm:px-6 py-4 min-w-0">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <button 
             onClick={() => navigate('/')}
