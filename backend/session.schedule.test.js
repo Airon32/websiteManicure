@@ -499,7 +499,7 @@ test('client booking enforces the per-day window instead of a single weekly rang
     mock.tables.settings = mock.tables.settings.filter(row => !row.key.endsWith('schedule'));
     mock.tables.settings.push({
         key: `professional_${STAFF_COLLABORATOR.id}_schedule`,
-        // 2026-08-18 is a Tuesday and 2026-08-19 a Wednesday.
+        // 2026-08-25 is a Tuesday and 2026-08-26 a Wednesday.
         value: JSON.stringify({ ter: { start: '09:00', end: '18:00' }, qua: null })
     });
 
@@ -508,16 +508,16 @@ test('client booking enforces the per-day window instead of a single weekly rang
         body: { date, time, professional_id: String(STAFF_COLLABORATOR.id), service_ids: [11] }
     });
 
-    const closedDay = await booking('2026-08-19', '10:00');
+    const closedDay = await booking('2026-08-26', '10:00');
     assert.equal(closedDay.status, 400);
     assert.match((await closedDay.json()).error, /não atende no dia/i);
 
     // The 60 minute service would end at 18:30, past Tuesday's 18:00 close.
-    const afterHours = await booking('2026-08-18', '17:30');
+    const afterHours = await booking('2026-08-25', '17:30');
     assert.equal(afterHours.status, 400);
     assert.match((await afterHours.json()).error, /fora do expediente/i);
 
-    const withinHours = await booking('2026-08-18', '10:00');
+    const withinHours = await booking('2026-08-25', '10:00');
     assert.equal(withinHours.status, 201, await withinHours.text());
 });
 
