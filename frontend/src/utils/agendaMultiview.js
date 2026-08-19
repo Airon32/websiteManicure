@@ -24,41 +24,139 @@ export const VIEW_MODES = {
   MONTH: 'mes'
 };
 
+export const SALON_TIME_ZONE = 'America/Sao_Paulo';
+
+const salonDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: SALON_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+});
+
+const salonTimeFormatter = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: SALON_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
+});
+
+function readParts(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).formatToParts(date);
+  const map = {};
+  parts.forEach(part => {
+    if (part.type !== 'literal') map[part.type] = part.value;
+  });
+  const hour = map.hour === '24' ? 0 : Number(map.hour);
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number.isFinite(hour) ? hour : 0,
+    minute: Number(map.minute),
+    second: Number(map.second)
+  };
+}
+
+function salonOffsetMs(date) {
+  const wall = readParts(date, SALON_TIME_ZONE);
+  const asUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second);
+  return asUtc - date.getTime();
+}
+
+/** Interpreta YYYY-MM-DD HH:mm como horário de parede em America/Sao_Paulo. */
+export function salonLocalToDate(ymd, hm = '12:00') {
+  const dateMatch = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = String(hm || '12:00').match(/^(\d{1,2}):([0-5]\d)/);
+  if (!dateMatch || !timeMatch) return null;
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  if (hour > 23) return null;
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const first = new Date(utcGuess - salonOffsetMs(new Date(utcGuess)));
+  const second = new Date(utcGuess - salonOffsetMs(first));
+  return isValid(second) ? second : null;
+}
+
+export function salonCalendarDate(value = new Date()) {
+  if (value instanceof Date) {
+    return isValid(value) ? salonDateFormatter.format(value) : '';
+  }
+  return normalizeDate(value);
+}
+
+export function salonClock(value = new Date()) {
+  const valid = value instanceof Date && isValid(value) ? value : toValidDate(value);
+  if (!valid) return '';
+  try {
+    return salonTimeFormatter.format(valid).replace('24:', '00:');
+  } catch {
+    return '';
+  }
+}
+
 export const toValidDate = value => {
   if (value instanceof Date) {
     return isValid(value) ? value : null;
   }
-  if (!value) return null;
+  if (value == null || value === '') return null;
   if (typeof value === 'number') {
     const fromNumber = new Date(value);
     return isValid(fromNumber) ? fromNumber : null;
   }
   if (typeof value === 'string') {
-    const datePart = value.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || value.split('T')[0];
-    const fromIso = new Date(`${datePart}T00:00:00`);
-    return isValid(fromIso) ? fromIso : null;
+    const trimmed = value.trim();
+    const datePart = trimmed.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+    if (!datePart) return null;
+    if (trimmed.includes('T') || trimmed.endsWith('Z')) {
+      const instant = new Date(trimmed);
+      return isValid(instant) ? instant : salonLocalToDate(datePart, '12:00');
+    }
+    return salonLocalToDate(datePart, '12:00');
   }
   return null;
 };
 
 export const appointmentDate = date => {
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
+    return date.trim();
+  }
   const valid = toValidDate(date);
   if (!valid) return '';
   try {
-    return format(valid, 'yyyy-MM-dd');
+    return salonDateFormatter.format(valid);
   } catch {
     return '';
   }
 };
 
 /**
- * Normaliza data para formato YYYY-MM-DD, aceitando ISO com T, Date ou apenas data
+ * Normaliza data para formato YYYY-MM-DD, aceitando ISO com T, Date ou apenas data.
+ * Timestamps com fuso viram o dia civil em America/Sao_Paulo.
+ * YYYY-MM-DD puro (data de agenda) permanece intacto — Safari trata date-only como UTC.
  */
 export const normalizeDate = dateInput => {
   if (dateInput instanceof Date) return appointmentDate(dateInput);
-  if (!dateInput) return '';
-  const match = String(dateInput).match(/^(\d{4}-\d{2}-\d{2})/);
-  return match ? match[1] : String(dateInput).split('T')[0];
+  if (dateInput == null || dateInput === '') return '';
+  const str = String(dateInput).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (str.includes('T') || str.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(str)) {
+    const instant = new Date(str);
+    if (isValid(instant)) return salonDateFormatter.format(instant);
+  }
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : '';
 };
 
 /**
@@ -112,9 +210,10 @@ export function filterVisibleProfessionals(professionals = [], { isAdmin = false
 export const parseDateTime = (dateStr, timeStr) => {
   if (!dateStr || !timeStr) return null;
   const normDate = normalizeDate(dateStr);
-  const isoStr = `${normDate}T${timeStr}`;
-  const d = new Date(isoStr);
-  return isNaN(d.getTime()) ? null : d;
+  const timeMatch = String(timeStr).trim().match(/^(\d{1,2}):([0-5]\d)/);
+  if (!normDate || !timeMatch) return null;
+  const clock = `${String(timeMatch[1]).padStart(2, '0')}:${timeMatch[2]}`;
+  return salonLocalToDate(normDate, clock);
 };
 
 /**

@@ -11,7 +11,7 @@ const ACCESS_TTL = 15 * 60;
 const REFRESH_TTL = 30 * 24 * 60 * 60;
 // A rotated token may still arrive from a request that raced the rotation.
 // Inside this window it is treated as a retry instead of a stolen token.
-const REFRESH_REUSE_GRACE_MS = 10 * 1000;
+const REFRESH_REUSE_GRACE_MS = 30 * 1000;
 
 // Bucket A: consecutive credential failures per IP + username, cleared on a
 // successful login. Bucket B: raw login volume per IP. rateLimitBuckets backs

@@ -1,19 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { format, addDays, startOfToday, parseISO, isAfter, endOfWeek, isWithinInterval } from 'date-fns';
-import { parseDateTime, appointmentDate, safeFormat } from '../utils/agendaMultiview';
+import { addDays, startOfToday, isAfter, endOfWeek, isWithinInterval } from 'date-fns';
+import { parseDateTime, appointmentDate, safeFormat, toValidDate } from '../utils/agendaMultiview';
+import { ptBR } from 'date-fns/locale';
 
 const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
-  if (!dateStr || typeof dateStr !== 'string') return '--';
-  try {
-    const clean = dateStr.split('T')[0];
-    const parsed = parseISO(clean);
-    if (isNaN(parsed.getTime())) return dateStr;
-    return format(parsed, formatStr, options);
-  } catch {
-    return dateStr;
-  }
+  const valid = toValidDate(dateStr);
+  if (!valid) return typeof dateStr === 'string' && dateStr ? dateStr : '--';
+  return safeFormat(valid, formatStr, options) || '--';
 };
-import { ptBR } from 'date-fns/locale';
 import { 
   Calendar, 
   Clock, 
@@ -64,11 +58,9 @@ function normalizePublicProfile(profile) {
 
 function readSavedClientData() {
   try {
-    const saved = localStorage.getItem('client_portal_data');
-    return saved ? { ...emptyClientData, ...JSON.parse(saved) } : emptyClientData;
-  } catch {
-    return emptyClientData;
-  }
+    localStorage.removeItem('client_portal_data');
+  } catch {}
+  return emptyClientData;
 }
 
 function shiftTime(time, minutes) {
@@ -206,7 +198,6 @@ export default function ClientPortal() {
         setLoginName(session.name);
         setLoginPhone(session.phone);
         setClientAuthenticated(true);
-        localStorage.setItem('client_portal_data', JSON.stringify(nextClient));
       })
       .catch(() => {
         if (active) setClientAuthenticated(false);
@@ -273,7 +264,6 @@ export default function ClientPortal() {
     setAccountStage('phone');
     setLoginCode('');
     setAccountMessage('');
-    localStorage.setItem('client_portal_data', JSON.stringify(nextClient));
     await loadMyAppointments();
   };
 
@@ -374,7 +364,6 @@ export default function ClientPortal() {
       notes: ''
     };
     
-    localStorage.setItem('client_portal_data', JSON.stringify(clientData));
     setConfirmError(null);
     setRescheduleContactRequired(false);
     setBookingSubmitting(true);
@@ -394,7 +383,6 @@ export default function ClientPortal() {
         setClientAuthenticated(true);
         setLoginName(nextClient.name);
         setLoginPhone(nextClient.phone);
-        localStorage.setItem('client_portal_data', JSON.stringify(nextClient));
       }
       setWasRescheduled(isRescheduling);
       setStep(6);
@@ -463,7 +451,7 @@ export default function ClientPortal() {
       setQuickSlotIntent(null);
       return;
     }
-    setSelectedDate(parseISO(quickSlotIntent.date));
+    setSelectedDate(toValidDate(quickSlotIntent.date));
     setSelectedTime(quickSlotIntent.time);
     setStep(3);
     setQuickSlotIntent(null);
@@ -674,7 +662,8 @@ export default function ClientPortal() {
                                    <p className="text-sm text-muted">Buscando seus agendamentos...</p>
                                 </div>
                             ) : myAppointments.filter(app => {
-                                const appDate = parseISO(app.date);
+                                const appDate = toValidDate(app.date);
+                                if (!appDate) return false;
                                 const lastDayOfWeek = endOfWeek(today, { weekStartsOn: 0 }); // Domingo a Sábado
                                 return app.status !== 'cancelado' && isWithinInterval(appDate, { start: today, end: lastDayOfWeek });
                             }).length === 0 ? (
@@ -685,7 +674,8 @@ export default function ClientPortal() {
                             ) : (
                                 myAppointments
                                   .filter(app => {
-                                      const appDate = parseISO(app.date);
+                                      const appDate = toValidDate(app.date);
+                                      if (!appDate) return false;
                                       const lastDayOfWeek = endOfWeek(today, { weekStartsOn: 0 });
                                       return app.status !== 'cancelado' && isWithinInterval(appDate, { start: today, end: lastDayOfWeek });
                                   })

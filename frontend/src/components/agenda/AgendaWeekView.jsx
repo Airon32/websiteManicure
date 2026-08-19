@@ -10,7 +10,7 @@ import {
   getWeekDays,
   normalizeDate
 } from '../../utils/agendaMultiview';
-import { buildEffectiveSchedule, DEFAULT_WORK_END, DEFAULT_WORK_START } from '../../utils/schedule';
+import { buildEffectiveSchedule, DEFAULT_WORK_END, DEFAULT_WORK_START, resolveWorkClock } from '../../utils/schedule';
 import {
   buildHalfHourSlots,
   getTimelineBounds,
@@ -65,7 +65,7 @@ function WeekAppointmentCard({ item, startMinute, onCancel, onConfirm, onComplet
         appointment
       )}`}
       style={cardStyle}
-      draggable={!isBlock}
+      draggable={false}
       role="button"
       tabIndex={0}
       onClick={selectAppointment}
@@ -274,8 +274,8 @@ export default function AgendaWeekView({
     if (!professional) return null;
     const schedule = buildEffectiveSchedule(settings, professional.id);
     return {
-      workStart: professional.work_start || schedule.workStart || workStart || DEFAULT_WORK_START,
-      workEnd: professional.work_end || schedule.workEnd || workEnd || DEFAULT_WORK_END
+      workStart: resolveWorkClock(professional.work_start, schedule.workStart, workStart, DEFAULT_WORK_START) || DEFAULT_WORK_START,
+      workEnd: resolveWorkClock(professional.work_end, schedule.workEnd, workEnd, DEFAULT_WORK_END) || DEFAULT_WORK_END
     };
   };
 
@@ -329,9 +329,9 @@ export default function AgendaWeekView({
       <div className="relative flex-1 overflow-auto no-scrollbar flex flex-col">
         <div className="flex flex-col w-full min-w-0">
           {/* Sticky Header Row: Time Axis Corner + 7 Weekday Headers */}
-          <div className="sticky top-0 z-40 flex border-b border-border/50 bg-card/95 backdrop-blur-2xl min-w-0">
+          <div className="sticky-ios top-0 z-40 flex border-b border-border/50 bg-card/95 backdrop-blur-2xl min-w-0">
             {/* Sticky Time Axis Column Header (HORA) */}
-            <div className="sticky left-0 z-50 flex w-12 md:w-16 shrink-0 items-center justify-center border-r border-border/50 bg-background/95 text-[9px] md:text-[10px] font-black uppercase tracking-wider text-primary">
+            <div className="sticky-ios left-0 z-50 flex w-12 md:w-16 shrink-0 items-center justify-center border-r border-border/50 bg-background/95 text-[9px] md:text-[10px] font-black uppercase tracking-wider text-primary">
               <Clock size={11} className="mr-0.5" /> HORA
             </div>
 
@@ -398,7 +398,7 @@ export default function AgendaWeekView({
           {/* Grid Body: Time Axis + 7 Day Columns */}
           <div className="flex relative flex-1">
             {/* Sticky Time Axis Column on Left */}
-            <div className="sticky left-0 z-30 w-12 md:w-16 shrink-0 border-r border-border/50 bg-background/95">
+            <div className="sticky-ios left-0 z-30 w-12 md:w-16 shrink-0 border-r border-border/50 bg-background/95">
               {slots.map(slot => (
                 <div
                   key={slot.minute}

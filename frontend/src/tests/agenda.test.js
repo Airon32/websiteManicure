@@ -30,7 +30,12 @@ import {
   formatViewTitle,
   stepDate,
   isCurrentPeriod,
-  getProfessionalGridClass
+  getProfessionalGridClass,
+  isPartner,
+  filterVisibleProfessionals,
+  normalizeDate,
+  appointmentDate,
+  safeFormat
 } from '../utils/agendaMultiview.js';
 
 describe('Agenda Redesign - Test Suite', () => {
@@ -213,19 +218,28 @@ describe('Agenda Redesign - Test Suite', () => {
 
   describe('5. Professional Filtering & Partner Logic', () => {
     it('should identify partner accounts correctly with accents and gender variations', () => {
-      const isPartner = professional => {
-        const identity = `${professional?.name || ''} ${professional?.specialty || ''}`
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase();
-        return identity.includes('socio') || identity.includes('socia');
-      };
-
       assert.strictEqual(isPartner({ name: 'Larissa Manoela', specialty: 'Sócia Administradora' }), true);
       assert.strictEqual(isPartner({ name: 'Larissa Manoela', specialty: 'Socia Proprietaria' }), true);
       assert.strictEqual(isPartner({ name: 'Marcos Socio', specialty: 'Diretor' }), true);
       assert.strictEqual(isPartner({ name: 'Carla Silva', specialty: 'Manicure e Nail Designer' }), false);
       assert.strictEqual(isPartner({ name: 'Juliana Paes', specialty: 'Pedicure' }), false);
+    });
+
+    it('should keep the professional in Personal Agenda even when isPartner is true', () => {
+      const self = { id: 'pro-9', name: 'Mariana Sócia', specialty: 'Sócia', is_public_agenda: true };
+      const visible = filterVisibleProfessionals([self], { isAdmin: false, currentUserId: 'pro-9' });
+      assert.strictEqual(visible.length, 1);
+      assert.strictEqual(visible[0].id, 'pro-9');
+    });
+
+    it('should hide other partners in team grid but never empty the list', () => {
+      const team = [
+        { id: '1', name: 'Ana', specialty: 'Manicure', is_public_agenda: true },
+        { id: '2', name: 'Sócia Gerente', specialty: 'Sócia', is_public_agenda: true }
+      ];
+      const visible = filterVisibleProfessionals(team, { isAdmin: true, currentUserId: 'admin-1' });
+      assert.strictEqual(visible.length, 1);
+      assert.strictEqual(visible[0].name, 'Ana');
     });
   });
 
@@ -554,6 +568,32 @@ describe('Agenda Redesign - Test Suite', () => {
       assert.strictEqual(currentMode, VIEW_MODES.DAY);
       assert.strictEqual(selectedDate.getDate(), 21);
       assert.strictEqual(selectedDate.getMonth(), 7);
+    });
+  });
+
+  describe('9. WebKit-safe dates and ISO normalization', () => {
+    it('should normalize ISO timestamps to YYYY-MM-DD for appointment matching', () => {
+      assert.strictEqual(normalizeDate('2026-08-19T14:30:00.000Z'), '2026-08-19');
+      assert.strictEqual(normalizeDate('2026-08-19'), '2026-08-19');
+      assert.strictEqual(normalizeDate(new Date(2026, 7, 19)), '2026-08-19');
+      assert.strictEqual(normalizeDate('2026-08-19T14:30:00.000Z'), appointmentDate(new Date(2026, 7, 19)));
+    });
+
+    it('should not throw RangeError when formatting invalid dates', () => {
+      assert.strictEqual(safeFormat(new Date('invalid'), 'yyyy-MM-dd'), '');
+      assert.strictEqual(safeFormat(null, 'dd/MM'), '');
+      assert.strictEqual(appointmentDate(new Date(NaN)), '');
+      assert.doesNotThrow(() => getWeekDays(new Date('invalid')));
+      assert.strictEqual(getWeekDays(new Date('invalid')).length, 7);
+      assert.doesNotThrow(() => formatViewTitle(VIEW_MODES.DAY, new Date('invalid')));
+    });
+
+    it('should group ISO and plain dates on the same calendar day', () => {
+      const grouped = groupAppointmentsByDate([
+        { id: 1, date: '2026-08-19T09:00:00.000Z' },
+        { id: 2, date: '2026-08-19' }
+      ]);
+      assert.strictEqual(grouped.get('2026-08-19').length, 2);
     });
   });
 });

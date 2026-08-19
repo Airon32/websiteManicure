@@ -16,7 +16,7 @@ import {
   toValidDate,
   VIEW_MODES
 } from '../../utils/agendaMultiview';
-import { buildEffectiveSchedule, DEFAULT_WORK_END, DEFAULT_WORK_START } from '../../utils/schedule';
+import { buildEffectiveSchedule, DEFAULT_WORK_END, DEFAULT_WORK_START, resolveWorkClock } from '../../utils/schedule';
 import {
   buildHalfHourSlots,
   getTimelineBounds,
@@ -53,7 +53,7 @@ export const statusClasses = appointment => {
   return 'border-primary bg-primary/25 text-white shadow-primary/20 hover:border-pink-300';
 };
 
-function AppointmentCard({ item, startMinute, onCancel, onConfirm, onComplete, onSelect }) {
+function AppointmentCard({ item, startMinute, onCancel, onConfirm, onComplete, onSelect, enableDrag = false }) {
   const { appointment, start, duration, lane, laneCount } = item;
   const block = parseBlockNote(appointment.notes, duration);
   const isBlock = block.isBlock;
@@ -88,7 +88,7 @@ function AppointmentCard({ item, startMinute, onCancel, onConfirm, onComplete, o
         appointment
       )}`}
       style={cardStyle}
-      draggable={!isBlock}
+      draggable={!isBlock && enableDrag}
       role="button"
       tabIndex={0}
       onClick={selectAppointment}
@@ -293,6 +293,8 @@ export default function AgendaTimeline({
   onSelectAppt,
   onDropAppt,
   onQuickAdd,
+  loading = false,
+  error = null,
   workStart,
   workEnd
 }) {
@@ -301,9 +303,16 @@ export default function AgendaTimeline({
   const [now, setNow] = useState(() => new Date());
   const gridScrollContainerRef = useRef(null);
 
+  const [enableDesktopDrag, setEnableDesktopDrag] = useState(false);
+
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)')?.matches;
+    setEnableDesktopDrag(!coarse);
   }, []);
 
   const safeSelectedDate = useMemo(
@@ -351,8 +360,8 @@ export default function AgendaTimeline({
     if (!professional) return null;
     const schedule = buildEffectiveSchedule(settings, professional.id);
     return {
-      workStart: professional.work_start || schedule.workStart || workStart || DEFAULT_WORK_START,
-      workEnd: professional.work_end || schedule.workEnd || workEnd || DEFAULT_WORK_END
+      workStart: resolveWorkClock(professional.work_start, schedule.workStart, workStart, DEFAULT_WORK_START) || DEFAULT_WORK_START,
+      workEnd: resolveWorkClock(professional.work_end, schedule.workEnd, workEnd, DEFAULT_WORK_END) || DEFAULT_WORK_END
     };
   };
 
@@ -389,7 +398,7 @@ export default function AgendaTimeline({
 
   return (
     <section
-      className="glass-panel mb-0 flex flex-1 h-[calc(100dvh-5.5rem)] lg:h-[calc(100vh-6.5rem)] flex-col overflow-hidden border-border/50 bg-background/90 p-0 shadow-2xl"
+      className="agenda-shell glass-panel mb-0 flex flex-1 flex-col overflow-hidden border-border/50 bg-background/90 p-0 shadow-2xl"
       aria-label="Agenda"
     >
       {/* 1. Header & Navigation Control Strip */}
@@ -481,8 +490,29 @@ export default function AgendaTimeline({
         )}
       </div>
 
+      {loading && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4" role="status" aria-live="polite">
+          <div className="h-10 w-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+          <p className="text-sm text-muted">Carregando agenda...</p>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 px-6 text-center" role="alert">
+          <p className="text-base font-black text-foreground">Não foi possível carregar a agenda</p>
+          <p className="text-xs text-muted">{String(error)}</p>
+        </div>
+      )}
+
+      {!loading && !error && visibleProfessionals.length === 0 && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 px-6 text-center">
+          <p className="text-base font-black text-foreground">Agenda vazia</p>
+          <p className="text-xs text-muted">Nenhuma profissional visível neste perfil. Verifique o cadastro ou o filtro de sócia.</p>
+        </div>
+      )}
+
       {/* 2. Main Content Area according to Active View Mode */}
-      {viewMode === VIEW_MODES.DAY && (
+      {!loading && !error && visibleProfessionals.length > 0 && viewMode === VIEW_MODES.DAY && (
         <div
           ref={gridScrollContainerRef}
           id="view-mode-panel-dia"
@@ -491,9 +521,9 @@ export default function AgendaTimeline({
         >
           <div className={`flex flex-col ${isSingleProfessional || isTwoProfessionals ? 'w-full' : 'min-w-max'}`}>
             {/* Sticky Header Row: HORA + Professionals */}
-            <div className="sticky top-0 z-40 flex border-b border-border/50 bg-card/95 backdrop-blur-2xl">
+            <div className="sticky-ios top-0 z-40 flex border-b border-border/50 bg-card/95 backdrop-blur-2xl">
               {/* Top-Left Corner (HORA): Sticky in both X and Y */}
-              <div className="sticky left-0 z-50 flex w-12 md:w-16 shrink-0 items-center justify-center border-r border-border/50 bg-background/95 text-[9px] md:text-[10px] font-black uppercase tracking-wider text-primary">
+              <div className="sticky-ios left-0 z-50 flex w-12 md:w-16 shrink-0 items-center justify-center border-r border-border/50 bg-background/95 text-[9px] md:text-[10px] font-black uppercase tracking-wider text-primary">
                 <Clock size={11} className="mr-0.5" /> HORA
               </div>
 
@@ -519,7 +549,7 @@ export default function AgendaTimeline({
             {/* Grid Body: Time Axis + Professional Columns */}
             <div className="flex relative flex-1">
               {/* Sticky Time Axis Column on Left */}
-              <div className="sticky left-0 z-30 w-12 md:w-16 shrink-0 border-r border-border/50 bg-background/95">
+              <div className="sticky-ios left-0 z-30 w-12 md:w-16 shrink-0 border-r border-border/50 bg-background/95">
                 {slots.map(slot => (
                   <div
                     key={slot.minute}
@@ -620,6 +650,7 @@ export default function AgendaTimeline({
                           onComplete={onComplete}
                           onConfirm={onConfirm}
                           onSelect={onSelectAppt}
+                          enableDrag={enableDesktopDrag}
                         />
                       ))}
                     </div>
@@ -631,8 +662,12 @@ export default function AgendaTimeline({
         </div>
       )}
 
+      {!loading && !error && visibleProfessionals.length > 0 && viewMode === VIEW_MODES.DAY && appointmentsInView.length === 0 && (
+        <p className="sr-only">Nenhum agendamento neste dia. Toque em um horário para criar.</p>
+      )}
+
       {/* Mode SEMANA */}
-      {viewMode === VIEW_MODES.WEEK && (
+      {!loading && !error && visibleProfessionals.length > 0 && viewMode === VIEW_MODES.WEEK && (
         <AgendaWeekView
           selectedDate={safeSelectedDate}
           setSelectedDate={setSelectedDate}
@@ -659,7 +694,7 @@ export default function AgendaTimeline({
       )}
 
       {/* Mode MÊS */}
-      {viewMode === VIEW_MODES.MONTH && (
+      {!loading && !error && visibleProfessionals.length > 0 && viewMode === VIEW_MODES.MONTH && (
         <AgendaMonthView
           selectedDate={safeSelectedDate}
           onDayClick={day => {

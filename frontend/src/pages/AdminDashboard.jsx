@@ -3,7 +3,7 @@ import api from '../api';
 import { useNavigate } from '../router';
 import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, Clock, MessageCircle, Tag, Copy, FileText, Send, Printer, Shield, ShieldCheck } from 'lucide-react';
 import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, isSameMonth, formatDistanceToNow } from 'date-fns';
-import { parseDateTime, appointmentDate, normalizeDate } from '../utils/agendaMultiview';
+import { parseDateTime, appointmentDate, normalizeDate, safeFormat } from '../utils/agendaMultiview';
 import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey, toApiWeekSchedule, toEditorWeekSchedule } from '../utils/schedule';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -93,6 +93,8 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [settingsSection, setSettingsSection] = useState('geral');
   const [appointments, setAppointments] = useState([]);
+  const [agendaLoading, setAgendaLoading] = useState(true);
+  const [agendaError, setAgendaError] = useState(null);
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
   const [professionals, setProfessionals] = useState([]);
@@ -120,7 +122,7 @@ export default function AdminDashboard() {
   const [newStaff, setNewStaff] = useState({ name: '', specialty: '', avatar: '', username: '', password: '' });
 
   const [showAddAppt, setShowAddAppt] = useState(false);
-  const [newAppt, setNewAppt] = useState({ client_name: '', client_phone: '', service_ids: [], professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
+  const [newAppt, setNewAppt] = useState({ client_name: '', client_phone: '', service_ids: [], professional_id: '', date: appointmentDate(new Date()), time: '' });
   const [allowOutsideHours, setAllowOutsideHours] = useState(false);
   const [noShowCount, setNoShowCount] = useState(0);
   const [liveBookingAlert, setLiveBookingAlert] = useState(null);
@@ -139,7 +141,7 @@ export default function AdminDashboard() {
   const [editAppt, setEditAppt] = useState(null);
 
   const [showBlockModal, setShowBlockModal] = useState(false);
-  const [newBlock, setNewBlock] = useState({ professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '12:00', endTime: '13:00', duration: '60', description: '' });
+  const [newBlock, setNewBlock] = useState({ professional_id: '', date: appointmentDate(new Date()), time: '12:00', endTime: '13:00', duration: '60', description: '' });
 
   const handleOpenBlockModal = (profId = null, timeStr = '12:00', dateStr = '') => {
     const startTime = timeStr || '12:00';
@@ -152,7 +154,7 @@ export default function AdminDashboard() {
 
     setNewBlock({
       professional_id: defaultProf,
-      date: dateStr || format(new Date(), 'yyyy-MM-dd'),
+      date: dateStr || appointmentDate(new Date()),
       time: startTime,
       endTime: endTime,
       duration: '60',
@@ -311,6 +313,8 @@ export default function AdminDashboard() {
   };
 
   const loadData = async (loggedUser) => {
+    setAgendaLoading(true);
+    setAgendaError(null);
     try {
       const appQuery = loggedUser.role === 'admin' ? '' : `?professional_id=${loggedUser.id}`;
       const baseRequests = [
@@ -439,7 +443,10 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       console.error("Erro ao carregar os dados:", err);
+      setAgendaError(err.response?.data?.error || 'Falha ao carregar a agenda.');
       if (err.response?.status === 401) navigate('/login', { replace: true });
+    } finally {
+      setAgendaLoading(false);
     }
   };
 
@@ -676,7 +683,7 @@ export default function AdminDashboard() {
 
       await api.post('/api/appointments', payload);
       setShowAddAppt(false);
-      setNewAppt({ client_name: '', client_phone: '', service_ids: [], professional_id: '', date: format(new Date(), 'yyyy-MM-dd'), time: '' });
+      setNewAppt({ client_name: '', client_phone: '', service_ids: [], professional_id: '', date: appointmentDate(new Date()), time: '' });
       loadData(user);
     } catch (err) { 
       openModal({ 
@@ -1338,7 +1345,7 @@ const scheduleUpdates = [
       channelReady={reminderChannelReady}
       user={user}
     >
-    <div className="flex h-screen bg-background overflow-hidden font-sans transition-colors duration-300">
+    <div className="flex h-screen bg-background overflow-hidden font-sans transition-colors duration-300" style={{ height: '100dvh' }}>
       {liveBookingAlert && (
         <div className="fixed top-4 left-1/2 z-[90] w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl border border-primary/40 bg-card px-4 py-3 shadow-2xl">
           <p className="text-sm font-bold text-foreground">{liveBookingAlert.title}</p>
@@ -1789,9 +1796,9 @@ const scheduleUpdates = [
 
                       {(() => {
                         const now = new Date();
-                        const currentDateStr = format(now, 'yyyy-MM-dd');
+                        const currentDateStr = appointmentDate(now);
                         const currentTimeStr = format(now, 'HH:mm');
-                        const limitDayStr = format(addDays(now, 10), 'yyyy-MM-dd');
+                        const limitDayStr = appointmentDate(addDays(now, 10));
 
                         const getTimeStamp = (item) => {
                           if (!item || !item.date) return 0;
@@ -2038,6 +2045,8 @@ const scheduleUpdates = [
                       workStart={workStart}
                       workEnd={workEnd}
                       slotInterval={slotInterval}
+                      loading={agendaLoading}
+                      error={agendaError}
                     />
                   </div>
                 )}
@@ -3049,7 +3058,7 @@ const scheduleUpdates = [
                                       return (
                                         <tr key={log.id} className="hover:bg-card/40 transition-colors">
                                           <td className="py-2.5 px-3 whitespace-nowrap text-muted font-mono text-[11px]">
-                                            {log.created_at ? format(new Date(log.created_at), 'dd/MM/yyyy HH:mm:ss') : '-'}
+                                            {log.created_at ? (safeFormat(new Date(log.created_at), 'dd/MM/yyyy HH:mm:ss') || '-') : '-'}
                                           </td>
                                           <td className="py-2.5 px-3 font-semibold text-foreground">
                                             {log.changed_by_name || log.changed_by_username || 'Administrador'}

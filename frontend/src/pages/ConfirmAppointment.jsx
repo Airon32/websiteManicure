@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from '../router';
 import { CheckCircle, AlertTriangle, Calendar, Clock, User, Scissors, ExternalLink, Download, ArrowRight } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import api from '../api';
 import { buildGoogleCalendarUrl, downloadIcsFile } from '../utils/bookingExtras';
+import { normalizeDate, safeFormat, toValidDate } from '../utils/agendaMultiview';
 
 function ConfirmAppointment() {
   const location = useLocation();
@@ -59,11 +59,8 @@ function ConfirmAppointment() {
 
   const formattedDate = useMemo(() => {
     if (!apptInfo?.date) return '';
-    try {
-      return format(parseISO(apptInfo.date), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-    } catch {
-      return apptInfo.date;
-    }
+    const valid = toValidDate(normalizeDate(apptInfo.date) || apptInfo.date);
+    return valid ? safeFormat(valid, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : apptInfo.date;
   }, [apptInfo?.date]);
 
   const handleOpenGoogle = () => {
