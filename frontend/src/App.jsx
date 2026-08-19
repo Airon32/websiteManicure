@@ -21,12 +21,12 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       const errorMessage = this.state.error?.message || 'Erro desconhecido';
-      const isDateError = errorMessage.includes('Invalid Date') || 
-                          errorMessage.includes('RangeError') || 
-                          errorMessage.includes('Invalid time value');
+      const isDateError =
+        this.state.error?.name === 'RangeError' ||
+        /Invalid Date|Invalid time value|RangeError/i.test(errorMessage);
       
       return (
-        <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4">
+        <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 pb-safe">
           <div className="bg-card border border-primary/30 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl space-y-4">
             <div className="w-16 h-16 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto text-2xl font-bold">
               ⚠️

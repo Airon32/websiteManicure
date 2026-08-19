@@ -24,9 +24,18 @@ export function parseWorkDays(value) {
 }
 
 export function normalizeClock(value) {
-  const match = String(value ?? '').trim().match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (value == null || value === '' || Number.isNaN(value)) return '';
+  const match = String(value).trim().match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
   if (!match) return '';
   return `${String(match[1]).padStart(2, '0')}:${match[2]}`;
+}
+
+export function resolveWorkClock(...candidates) {
+  for (const value of candidates) {
+    const clock = normalizeClock(value);
+    if (clock) return clock;
+  }
+  return '';
 }
 
 function isEditorDayOff(entry) {

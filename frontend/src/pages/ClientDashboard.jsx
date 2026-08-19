@@ -1,21 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from '../router';
 import api from '../api';
-import { format, parseISO, isAfter, startOfToday, addDays, isBefore, isWithinInterval } from 'date-fns';
-import { parseDateTime, appointmentDate, normalizeDate } from '../utils/agendaMultiview';
+import { isAfter, startOfToday, addDays } from 'date-fns';
+import { parseDateTime, appointmentDate, normalizeDate, toValidDate, safeFormat, salonClock } from '../utils/agendaMultiview';
+import { ptBR } from 'date-fns/locale';
 
 const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
-  if (!dateStr || typeof dateStr !== 'string') return '--';
-  try {
-    const clean = dateStr.split('T')[0];
-    const parsed = parseISO(clean);
-    if (isNaN(parsed.getTime())) return dateStr;
-    return format(parsed, formatStr, options);
-  } catch {
-    return dateStr;
-  }
+  const valid = toValidDate(dateStr);
+  if (!valid) return typeof dateStr === 'string' && dateStr ? dateStr : '--';
+  return safeFormat(valid, formatStr, options) || '--';
 };
-import { ptBR } from 'date-fns/locale';
 import { 
   Calendar, 
   Clock, 
@@ -96,8 +90,8 @@ const ClientDashboard = () => {
   // Novos estados para filtros e abas
   const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming' ou 'history'
   const [viewMode, setViewMode] = useState('20days'); // '20days', 'all', 'custom'
-  const [startDate, setStartDate] = useState(format(startOfToday(), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState(format(addDays(startOfToday(), 20), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(appointmentDate(startOfToday()));
+  const [endDate, setEndDate] = useState(appointmentDate(addDays(startOfToday(), 20)));
 
   useEffect(() => {
     let active = true;
@@ -110,7 +104,7 @@ const ClientDashboard = () => {
         }
         const nextClient = { name: session.name, phone: session.phone };
         setClientData(nextClient);
-        localStorage.setItem('client_portal_data', JSON.stringify(nextClient));
+        try { localStorage.removeItem('client_portal_data'); } catch {}
         fetchAppointments();
       })
       .catch(() => {
@@ -168,7 +162,7 @@ const ClientDashboard = () => {
   const filteredAppointments = useMemo(() => {
     const now = new Date();
     const currentDateStr = appointmentDate(now);
-    const currentTimeStr = format(now, 'HH:mm');
+    const currentTimeStr = salonClock(now);
     
     return appointments.filter(app => {
       const appDate = normalizeDate(app.date);
@@ -269,7 +263,7 @@ const ClientDashboard = () => {
   };
 
   const getStatusBadge = (app) => {
-    const isPast = !isAfter(parseISO(`${app.date}T${app.time}`), new Date());
+    const isPast = !isAfter(parseDateTime(normalizeDate(app.date), app.time) || new Date(0), new Date());
     if (app.status === 'cancelado') return <span className="status-badge bg-red-100 text-red-600 border-red-200">Cancelado</span>;
     if (app.status === 'concluído' || isPast) return <span className="status-badge bg-purple-100 text-purple-700 border-purple-200">Concluído</span>;
     if (app.status === 'confirmado') return <span className="status-badge bg-emerald-100 text-emerald-700 border-emerald-300">✅ Presença Confirmada</span>;

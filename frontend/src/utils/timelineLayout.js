@@ -68,16 +68,22 @@ export function appointmentDuration(appointment) {
 }
 
 export function buildHalfHourSlots(start, end) {
+  const safeStart = Number.isFinite(Number(start)) ? Number(start) : 0;
+  const safeEnd = Number.isFinite(Number(end)) ? Number(end) : safeStart + 30;
   const slots = [];
-  for (let minute = start; minute < end; minute += 30) {
+  for (let minute = safeStart; minute < safeEnd; minute += 30) {
     slots.push({ minute, label: minutesToTime(minute) });
   }
   return slots;
 }
 
 export function getTimelineBounds({ workStart = '09:00', workEnd = '18:00', appointments = [] } = {}) {
-  let earliest = timeToMinutes(workStart || '09:00');
-  let latest = timeToMinutes(workEnd || '18:00');
+  const startClock = String(workStart || '').match(/^([01]?\d|2[0-3]):[0-5]\d/) ? workStart : '09:00';
+  const endClock = String(workEnd || '').match(/^([01]?\d|2[0-3]):[0-5]\d/) ? workEnd : '18:00';
+  let earliest = timeToMinutes(startClock);
+  let latest = timeToMinutes(endClock);
+  if (!Number.isFinite(earliest)) earliest = 9 * 60;
+  if (!Number.isFinite(latest) || latest <= earliest) latest = Math.max(earliest + 60, 18 * 60);
 
   (appointments || []).forEach(appointment => {
     if (!appointment?.time) return;
@@ -153,7 +159,10 @@ export function getOverlapLayout(appointments) {
 }
 
 export function minuteToPixels(minute, startMinute = 0) {
-  return (minute - startMinute) * (PIXELS_PER_30_MINUTES / 30);
+  const safeMinute = Number(minute);
+  const safeStart = Number(startMinute);
+  if (!Number.isFinite(safeMinute) || !Number.isFinite(safeStart)) return 0;
+  return (safeMinute - safeStart) * (PIXELS_PER_30_MINUTES / 30);
 }
 
 export function getTimelineStyle(appointment, startMinutes, interval = 30) {
