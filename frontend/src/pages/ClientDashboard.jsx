@@ -508,27 +508,27 @@ const ClientDashboard = () => {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-w-0">
               {filteredAppointments.map((app) => (
                 <div 
                   key={app.id} 
-                  className={`bg-background border rounded-3xl p-6 shadow-sm hover:shadow-md transition-all group relative overflow-hidden ${
+                  className={`bg-background border rounded-3xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-all group relative overflow-hidden min-w-0 ${
                     app.status === 'cancelado' ? 'border-red-50 bg-red-50/5' : 'border-border/50 hover:border-primary/30'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
+                  <div className="flex justify-between items-start mb-6 gap-3 min-w-0">
+                    <div className="min-w-0">
                       {getStatusBadge(app)}
-                      <h4 className="text-xl font-serif text-foreground mt-3 group-hover:text-primary transition-colors">
+                      <h4 className="text-lg sm:text-xl font-serif text-foreground mt-3 group-hover:text-primary transition-colors truncate">
                         {app.service_name}
                       </h4>
                       <p className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mt-1 opacity-70">
                         {app.category || 'Geral'}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-foreground">{app.time}</p>
-                      <p className="text-[10px] text-muted uppercase font-bold tracking-widest mt-1">
+                    <div className="text-right shrink-0 min-w-0">
+                      <p className="text-xl sm:text-2xl font-bold text-foreground">{app.time}</p>
+                      <p className="text-[10px] text-muted uppercase font-bold tracking-widest mt-1 truncate max-w-[9rem]">
                         {safeFormatDate(app.date, "dd 'DE' MMMM", { locale: ptBR })}
                       </p>
                     </div>

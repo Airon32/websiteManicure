@@ -1823,8 +1823,8 @@ const scheduleUpdates = [
                         return (
                           <>
                             {/* Desktop Table View */}
-                            <div className="hidden md:block overflow-x-auto">
-                              <table className="w-full text-left border-collapse min-w-full">
+                            <div className="hidden sm:block overflow-x-auto min-w-0">
+                              <table className="w-full text-left border-collapse">
                                 <thead>
                                   <tr className="border-b border-border/50 text-muted text-xs uppercase font-bold tracking-wider">
                                     <th className="py-3 px-2">Data/Hora</th>
@@ -1848,15 +1848,15 @@ const scheduleUpdates = [
                                           <span className="badge-pending">⏳ Pendente</span>
                                         )}
                                       </td>
-                                      <td className="py-3.5 px-2 font-semibold text-sm">{app.client_name}</td>
-                                      <td className="py-3.5 px-2 text-xs text-muted">{app.service_name || '-'}</td>
-                                      <td className="py-3.5 px-2 text-xs">{app.professional_name || '-'}</td>
+                                      <td className="py-3.5 px-2 font-semibold text-sm max-w-[8rem] truncate">{app.client_name}</td>
+                                      <td className="py-3.5 px-2 text-xs text-muted max-w-[8rem] truncate">{app.service_name || '-'}</td>
+                                      <td className="py-3.5 px-2 text-xs max-w-[7rem] truncate">{app.professional_name || '-'}</td>
                                       <td className="py-3.5 px-2 text-right">
                                         <div className="inline-flex items-center justify-end gap-1">
                                           <ReminderIndicator appointment={app} />
                                           <button 
                                             onClick={() => handleWhatsAppAction(app, true)}
-                                            className="text-emerald-500 hover:bg-emerald-500/10 p-2 rounded-lg transition-colors"
+                                            className="text-emerald-500 hover:bg-emerald-500/10 min-h-11 min-w-11 p-2 rounded-lg transition-colors inline-flex items-center justify-center"
                                             title="Lembrete WhatsApp"
                                           >
                                             <Send size={15} />
@@ -1873,18 +1873,18 @@ const scheduleUpdates = [
                             </div>
 
                             {/* Mobile Card View */}
-                            <div className="md:hidden space-y-3">
+                            <div className="sm:hidden space-y-3">
                               {upcomingList.slice(0, 8).map(app => (
-                                <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl bg-card border border-border/60 flex flex-col gap-2 relative shadow-sm">
-                                  <div className="flex justify-between items-start">
-                                    <div>
+                                <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl bg-card border border-border/60 flex flex-col gap-2 relative shadow-sm min-w-0">
+                                  <div className="flex justify-between items-start gap-2 min-w-0">
+                                    <div className="min-w-0">
                                       {app.status === 'confirmado' ? (
                                         <span className="badge-confirmed">✅ Confirmado</span>
                                       ) : (
                                         <span className="badge-pending">⏳ Pendente</span>
                                       )}
-                                      <h4 className="font-bold text-foreground text-sm mt-2">{app.client_name}</h4>
-                                      <p className="text-xs text-muted">{app.service_name}</p>
+                                      <h4 className="font-bold text-foreground text-sm mt-2 truncate">{app.client_name}</h4>
+                                      <p className="text-xs text-muted truncate">{app.service_name}</p>
                                     </div>
                                     <div className="text-right flex flex-col items-end gap-1">
                                       <ReminderIndicator appointment={app} />
@@ -1896,7 +1896,7 @@ const scheduleUpdates = [
                                     <span className="text-muted text-[11px]">Profissional: <strong className="text-foreground">{app.professional_name}</strong></span>
                                     <button 
                                       onClick={(e) => { e.stopPropagation(); handleWhatsAppAction(app, true); }}
-                                      className="text-emerald-500 font-bold text-[11px] bg-emerald-500/10 px-2.5 py-1 rounded-lg flex items-center gap-1"
+                                      className="text-emerald-500 font-bold text-[11px] bg-emerald-500/10 min-h-11 px-3 rounded-lg flex items-center gap-1 shrink-0"
                                     >
                                       <Send size={12} /> WhatsApp
                                     </button>
@@ -1958,65 +1958,98 @@ const scheduleUpdates = [
                         </div>
                       </div>
 
-                      <div className="glass-card p-6 mb-8">
+                      <div className="glass-card p-4 sm:p-6 mb-8 min-w-0">
                         <h3 className="text-xl font-serif text-foreground mb-4">Sua Agenda da Semana</h3>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-sm">
-                            <thead>
-                              <tr className="border-b border-border/70 text-muted uppercase text-xs">
-                                <th className="pb-3 px-2">Data / Hora</th>
-                                <th className="pb-3 px-2">Cliente</th>
-                                <th className="pb-3 px-2">Serviço</th>
-                                <th className="pb-3 px-2 text-right">Ação</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(activeAppointments || [])
-                                .filter(a => {
-                                  const d = safeParseISO(a?.date);
-                                  if (!d) return false;
-                                  return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
-                                })
-                                .sort((a, b) => {
-                                  const dA = safeParseISO(`${a.date}T${a.time || '00:00'}`);
-                                  const dB = safeParseISO(`${b.date}T${b.time || '00:00'}`);
-                                  if (!dA || !dB) return 0;
-                                  return (isNaN(dA.getTime()) ? 0 : dA.getTime()) - (isNaN(dB.getTime()) ? 0 : dB.getTime());
-                                })
-                                .map(app => (
-                                  <tr key={app.id} className="border-b border-border/50 text-foreground last:border-0 hover:bg-border/20">
-                                    <td className="py-4 px-2">
-                                      <span className="font-medium mr-2">{safeFormatDate(app.date, 'dd/MM')}</span>
-                                      <span className="text-primary">{app.time} - {calculateEndTime(app.time, app.service_duration)}</span>
-                                    </td>
-                                    <td className="py-4 px-2 font-medium">{app.client_name}</td>
-                                    <td className="py-4 px-2 text-muted">{app.service_name || '-'}</td>
-                                    <td className="py-4 px-2 text-right">
+                        {(() => {
+                          const weekStart = startOfWeek(startOfToday(), { weekStartsOn: 0 });
+                          const weekEnd = endOfWeek(startOfToday(), { weekStartsOn: 0 });
+                          const weekList = (activeAppointments || [])
+                            .filter(a => {
+                              const d = safeParseISO(a?.date);
+                              if (!d) return false;
+                              return d >= weekStart && d <= weekEnd;
+                            })
+                            .sort((a, b) => {
+                              const dA = parseDateTime(a.date, a.time || '00:00');
+                              const dB = parseDateTime(b.date, b.time || '00:00');
+                              return (dA?.getTime() || 0) - (dB?.getTime() || 0);
+                            });
+
+                          return (
+                            <>
+                              <div className="hidden sm:block overflow-x-auto min-w-0">
+                                <table className="w-full text-left text-sm">
+                                  <thead>
+                                    <tr className="border-b border-border/70 text-muted uppercase text-xs">
+                                      <th className="pb-3 px-2">Data / Hora</th>
+                                      <th className="pb-3 px-2">Cliente</th>
+                                      <th className="pb-3 px-2">Serviço</th>
+                                      <th className="pb-3 px-2 text-right">Ação</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {weekList.map(app => (
+                                      <tr key={app.id} className="border-b border-border/50 text-foreground last:border-0 hover:bg-border/20">
+                                        <td className="py-4 px-2 whitespace-nowrap">
+                                          <span className="font-medium mr-2">{safeFormatDate(app.date, 'dd/MM')}</span>
+                                          <span className="text-primary">{app.time} - {calculateEndTime(app.time, app.service_duration)}</span>
+                                        </td>
+                                        <td className="py-4 px-2 font-medium max-w-[8rem] truncate">{app.client_name}</td>
+                                        <td className="py-4 px-2 text-muted max-w-[8rem] truncate">{app.service_name || '-'}</td>
+                                        <td className="py-4 px-2 text-right">
+                                          {app.status === 'concluído' ? (
+                                            <span className="text-green-500 inline-flex items-center justify-end gap-1 text-xs font-bold uppercase tracking-wider"><CheckCircle size={14}/> Pago</span>
+                                          ) : (
+                                            <div className="flex justify-end gap-1">
+                                              <button onClick={() => handleCompleteAppt(app.id)} className="text-green-500 hover:bg-green-500/10 min-h-11 min-w-11 p-2 rounded transition-colors inline-flex items-center justify-center" title="Concluir/Pago">
+                                                <CheckCircle size={16} />
+                                              </button>
+                                              <button onClick={() => handleCancelAppt(app.id)} className="text-red-500 hover:bg-red-500/10 min-h-11 min-w-11 p-2 rounded transition-colors inline-flex items-center justify-center" title="Desmarcar">
+                                                <Trash2 size={16} />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {weekList.length === 0 && (
+                                      <tr><td colSpan="4" className="text-center py-8 text-muted">Livre! Nenhum agendamento para esta semana.</td></tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              <div className="sm:hidden space-y-3">
+                                {weekList.map(app => (
+                                  <div key={app.id} className="p-4 rounded-2xl bg-card border border-border/60 min-w-0">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-bold text-primary">{safeFormatDate(app.date, 'dd/MM')} · {app.time}</p>
+                                        <h4 className="font-bold text-sm text-foreground truncate mt-1">{app.client_name}</h4>
+                                        <p className="text-xs text-muted truncate">{app.service_name || '-'}</p>
+                                      </div>
                                       {app.status === 'concluído' ? (
-                                        <span className="text-green-500 flex items-center justify-end gap-1 text-xs font-bold uppercase tracking-wider"><CheckCircle size={14}/> Pago</span>
+                                        <span className="text-green-500 text-[10px] font-black uppercase shrink-0">Pago</span>
                                       ) : (
-                                        <div className="flex justify-end gap-1">
-                                          <button onClick={() => handleCompleteAppt(app.id)} className="text-green-500 hover:bg-green-500/10 p-2 rounded transition-colors" title="Concluir/Pago">
+                                        <div className="flex gap-1 shrink-0">
+                                          <button onClick={() => handleCompleteAppt(app.id)} className="min-h-11 min-w-11 text-green-500 hover:bg-green-500/10 rounded-xl inline-flex items-center justify-center" title="Concluir/Pago">
                                             <CheckCircle size={16} />
                                           </button>
-                                          <button onClick={() => handleCancelAppt(app.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded transition-colors" title="Desmarcar">
+                                          <button onClick={() => handleCancelAppt(app.id)} className="min-h-11 min-w-11 text-red-500 hover:bg-red-500/10 rounded-xl inline-flex items-center justify-center" title="Desmarcar">
                                             <Trash2 size={16} />
                                           </button>
                                         </div>
                                       )}
-                                    </td>
-                                  </tr>
+                                    </div>
+                                  </div>
                                 ))}
-                              {(activeAppointments || []).filter(a => {
-                                const d = safeParseISO(a?.date);
-                                if (!d) return false;
-                                return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
-                              }).length === 0 && (
-                                  <tr><td colSpan="4" className="text-center py-8 text-muted">Livre! Nenhum agendamento para esta semana.</td></tr>
+                                {weekList.length === 0 && (
+                                  <p className="text-center py-8 text-muted text-xs">Livre! Nenhum agendamento para esta semana.</p>
                                 )}
-                            </tbody>
-                          </table>
-                        </div>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </>
                )}
@@ -2363,8 +2396,8 @@ const scheduleUpdates = [
                       </div>
 
                       {/* Desktop View */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[500px]">
+                      <div className="hidden sm:block overflow-x-auto min-w-0">
+                        <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="border-b border-border/50 text-muted text-xs uppercase font-bold tracking-wider">
                               <th className="py-3 px-4">Nome</th>
@@ -2423,7 +2456,7 @@ const scheduleUpdates = [
                       </div>
 
                       {/* Mobile View */}
-                      <div className="md:hidden space-y-3">
+                      <div className="sm:hidden space-y-3">
                         {clients
                           .filter(c => {
                             if (!clientSearch.trim()) return true;
@@ -2450,14 +2483,14 @@ const scheduleUpdates = [
                                 <div className="flex items-center gap-1 shrink-0">
                                   <button 
                                     onClick={() => { setSelectedClient(client); setShowEditClientModal(true); }}
-                                    className="p-2.5 text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                                    className="min-h-11 min-w-11 p-2.5 text-primary hover:bg-primary/10 rounded-xl transition-colors inline-flex items-center justify-center"
                                     title="Editar Cliente"
                                   >
                                     <Edit2 size={16} />
                                   </button>
                                   <button 
                                     onClick={() => handleDeleteClient(client.id)}
-                                    className="p-2.5 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
+                                    className="min-h-11 min-w-11 p-2.5 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors inline-flex items-center justify-center"
                                     title="Excluir"
                                   >
                                     <Trash2 size={16} />
@@ -3028,7 +3061,8 @@ const scheduleUpdates = [
                                 Nenhum histórico de alteração registrado ainda. As alterações desta configuração serão registradas com autor, data e valores.
                               </p>
                             ) : (
-                              <div className="overflow-x-auto rounded-xl border border-border/60 max-h-60 overflow-y-auto">
+                              <>
+                              <div className="hidden sm:block overflow-x-auto rounded-xl border border-border/60 max-h-60 overflow-y-auto min-w-0">
                                 <table className="w-full text-left text-xs border-collapse">
                                   <thead>
                                     <tr className="bg-card text-muted uppercase text-[10px] font-bold tracking-wider border-b border-border/50">
@@ -3077,6 +3111,38 @@ const scheduleUpdates = [
                                   </tbody>
                                 </table>
                               </div>
+                              <div className="sm:hidden space-y-2">
+                                {auditLogs.map((log) => {
+                                  let keyLabel = log.setting_key;
+                                  if (log.setting_key === 'hide_client_phone_from_collaborators') keyLabel = 'Ocultar telefone';
+                                  else if (log.setting_key === 'allow_admins_view_client_phone') keyLabel = 'Acesso Admins';
+                                  else if (log.setting_key === 'authorized_phone_viewer_ids') keyLabel = 'Permissões Individuais';
+                                  const formatVal = (v) => {
+                                    if (v === 'true') return 'Ativado';
+                                    if (v === 'false') return 'Desativado';
+                                    if (typeof v === 'string' && (v.startsWith('[') || v.startsWith('{'))) {
+                                      try {
+                                        const arr = JSON.parse(v);
+                                        if (Array.isArray(arr)) return arr.length === 0 ? 'Nenhum' : `${arr.length} autorizado(s)`;
+                                      } catch {}
+                                    }
+                                    return String(v || '-');
+                                  };
+                                  return (
+                                    <div key={log.id} className="p-3 rounded-xl border border-border/60 bg-card min-w-0">
+                                      <p className="text-[10px] font-mono text-muted">{log.created_at ? (safeFormat(new Date(log.created_at), 'dd/MM/yyyy HH:mm') || '-') : '-'}</p>
+                                      <p className="text-xs font-bold text-foreground truncate mt-1">{log.changed_by_name || log.changed_by_username || 'Administrador'}</p>
+                                      <p className="text-[11px] text-muted mt-0.5">{keyLabel}</p>
+                                      <p className="text-[11px] mt-1 break-words">
+                                        <span className="text-red-400 line-through">{formatVal(log.old_value)}</span>
+                                        <span className="text-muted mx-1">→</span>
+                                        <span className="text-emerald-400 font-bold">{formatVal(log.new_value)}</span>
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              </>
                             )}
                           </div>
                         </div>
