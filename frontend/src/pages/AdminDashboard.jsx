@@ -1297,6 +1297,8 @@ const scheduleUpdates = [
 
   // Cálculo Financeiro — usa service_price já enriquecido pelo backend
   const totalRevenue = activeAppointments.reduce((sum, app) => sum + (app.service_price || 0), 0);
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const revenuePerProfessional = professionals.map(pro => {
     const apps = activeAppointments.filter(a => a.professional_id === pro.id);
@@ -1745,42 +1747,42 @@ const scheduleUpdates = [
 
               {isAdmin ? (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                    <div className="glass-card p-6 flex flex-col justify-between group relative overflow-hidden">
-                      <div className="flex justify-between items-start mb-4">
-                        <p className="text-primary/70 text-[10px] font-black uppercase tracking-[0.2em]">Agendamentos</p>
-                        <div className="p-3 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-md">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6 min-w-0">
+                    <div className="glass-card p-4 sm:p-6 flex flex-col justify-between group relative overflow-hidden min-w-0">
+                      <div className="flex justify-between items-start mb-4 gap-2 min-w-0">
+                        <p className="text-primary/70 text-[10px] font-black uppercase tracking-[0.2em] truncate">Agendamentos</p>
+                        <div className="p-3 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-md shrink-0">
                            <Activity size={20} />
                         </div>
                       </div>
-                      <p className="text-3xl md:text-4xl font-black text-foreground flex items-baseline gap-2">
-                        {appointments.length} <span className="text-xs font-bold text-muted uppercase">Total</span>
+                      <p className="metric-value text-foreground flex items-baseline gap-2">
+                        {appointments.length} <span className="text-xs font-bold text-muted uppercase shrink-0">Total</span>
                       </p>
                     </div>
 
-                    <div className="glass-card p-6 flex flex-col justify-between border-l-4 border-l-emerald-500 group relative overflow-hidden">
-                      <div className="flex justify-between items-start mb-4">
-                        <p className="text-emerald-500/80 text-[10px] font-black uppercase tracking-[0.2em]">Faturamento Estimado</p>
-                        <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-md">
+                    <div className="glass-card p-4 sm:p-6 flex flex-col justify-between border-l-4 border-l-emerald-500 group relative overflow-hidden min-w-0">
+                      <div className="flex justify-between items-start mb-4 gap-2 min-w-0">
+                        <p className="text-emerald-500/80 text-[10px] font-black uppercase tracking-[0.2em] truncate">Faturamento Estimado</p>
+                        <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-md shrink-0">
                            <DollarSign size={20} />
                         </div>
                       </div>
-                      <p className="text-3xl md:text-4xl font-black text-emerald-500 flex items-baseline gap-1 tracking-tight">
-                        <span className="text-sm md:text-lg font-bold">R$</span> {totalRevenue.toFixed(2)}
+                      <p className="metric-value text-emerald-500" title={`R$ ${formatMoney(totalRevenue)}`}>
+                        R$ {formatMoney(totalRevenue)}
                       </p>
                     </div>
 
-                    <div className="glass-card p-6 lg:col-span-2 flex flex-col justify-between relative overflow-hidden">
+                    <div className="glass-card p-4 sm:p-6 md:col-span-2 flex flex-col justify-between relative overflow-hidden min-w-0">
                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none"></div>
                        <p className="text-primary/70 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Equipe & Serviços</p>
-                       <div className="flex items-center gap-8 md:gap-12">
-                          <div className="flex flex-col">
-                             <span className="text-3xl md:text-4xl font-black text-foreground">{professionals.length}</span>
+                       <div className="flex flex-wrap items-center gap-6 sm:gap-8 md:gap-12 min-w-0">
+                          <div className="flex flex-col min-w-0">
+                             <span className="metric-value text-foreground">{professionals.length}</span>
                              <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Profissionais</span>
                           </div>
-                          <div className="w-px h-10 bg-border/60"></div>
-                          <div className="flex flex-col">
-                             <span className="text-3xl md:text-4xl font-black text-foreground">{services.length}</span>
+                          <div className="w-px h-10 bg-border/60 hidden xs:block"></div>
+                          <div className="flex flex-col min-w-0">
+                             <span className="metric-value text-foreground">{services.length}</span>
                              <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Serviços no Menu</span>
                           </div>
                        </div>
@@ -1923,7 +1925,7 @@ const scheduleUpdates = [
                               <p className="text-[10px] text-muted">{pro.totalApps} agendamentos</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <p className="text-primary font-black text-sm">R$ {pro.revenue.toFixed(2)}</p>
+                              <p className="text-primary font-black text-sm tabular-nums whitespace-nowrap">R$ {formatMoney(pro.revenue)}</p>
                             </div>
                           </div>
                         ))}
@@ -1933,9 +1935,9 @@ const scheduleUpdates = [
                 </>
               ) : (
                     <>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div className="glass-card p-6 border-l-4 border-l-primary flex flex-col justify-between">
-                          <h3 className="text-2xl font-serif text-foreground mb-1">Olá, {user.name}!</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8 min-w-0">
+                        <div className="glass-card p-4 sm:p-6 border-l-4 border-l-primary flex flex-col justify-between min-w-0 sm:col-span-2 md:col-span-1">
+                          <h3 className="text-xl sm:text-2xl font-serif text-foreground mb-1 truncate">Olá, {user.name}!</h3>
                           <p className="text-sm text-muted">Bem-vindo(a) ao seu painel.</p>
                         </div>
                         <div className="glass-card p-6 flex flex-col justify-between">
@@ -2172,19 +2174,19 @@ const scheduleUpdates = [
                         {financialStats ? (
                           <div className="space-y-6 relative z-10">
                             {/* Cards de Resumo */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm hover:border-green-500/50 transition-colors">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 min-w-0">
+                              <div className="p-4 sm:p-5 rounded-xl border border-border bg-background shadow-sm hover:border-green-500/50 transition-colors min-w-0">
                                 <p className="text-sm font-semibold uppercase text-muted tracking-wide mb-1">Hoje</p>
-                                <p className="text-3xl font-bold text-foreground">R$ {financialStats.today.toFixed(2).replace('.', ',')}</p>
+                                <p className="metric-value text-foreground" title={`R$ ${formatMoney(financialStats.today)}`}>R$ {formatMoney(financialStats.today)}</p>
                               </div>
-                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm hover:border-green-500/50 transition-colors">
+                              <div className="p-4 sm:p-5 rounded-xl border border-border bg-background shadow-sm hover:border-green-500/50 transition-colors min-w-0">
                                 <p className="text-sm font-semibold uppercase text-muted tracking-wide mb-1">Esta Semana</p>
-                                <p className="text-3xl font-bold text-foreground">R$ {financialStats.week.toFixed(2).replace('.', ',')}</p>
+                                <p className="metric-value text-foreground" title={`R$ ${formatMoney(financialStats.week)}`}>R$ {formatMoney(financialStats.week)}</p>
                               </div>
-                              <div className="p-5 rounded-xl border border-green-500/30 bg-green-500/5 shadow-sm hover:border-green-500/60 transition-colors relative overflow-hidden">
+                              <div className="p-4 sm:p-5 rounded-xl border border-green-500/30 bg-green-500/5 shadow-sm hover:border-green-500/60 transition-colors relative overflow-hidden min-w-0 sm:col-span-2 md:col-span-1">
                                 <div className="absolute top-0 right-0 w-16 h-16 bg-green-500/10 rounded-bl-full"></div>
                                 <p className="text-sm font-semibold uppercase text-green-700 dark:text-green-400/80 tracking-wide mb-1">Este Mês</p>
-                                <p className="text-3xl font-bold text-green-600 dark:text-green-400">R$ {financialStats.month.toFixed(2).replace('.', ',')}</p>
+                                <p className="metric-value text-green-600 dark:text-green-400" title={`R$ ${formatMoney(financialStats.month)}`}>R$ {formatMoney(financialStats.month)}</p>
                               </div>
                             </div>
 
@@ -2210,12 +2212,12 @@ const scheduleUpdates = [
                                 <h4 className="text-sm font-bold uppercase tracking-widest text-muted mb-4">Desempenho por Profissional (Mês)</h4>
                                 <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                                   {financialStats.professionals.length > 0 ? financialStats.professionals.map((prof, idx) => (
-                                    <div key={idx} className="flex justify-between items-center p-3 rounded-lg border border-border/50 hover:bg-border/20 transition-colors">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">{prof.name.slice(0, 2).toUpperCase()}</div>
-                                        <span className="font-medium text-foreground">{prof.name}</span>
+                                    <div key={idx} className="flex justify-between items-center gap-3 p-3 rounded-lg border border-border/50 hover:bg-border/20 transition-colors min-w-0">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">{prof.name.slice(0, 2).toUpperCase()}</div>
+                                        <span className="font-medium text-foreground truncate">{prof.name}</span>
                                       </div>
-                                      <span className="font-bold text-foreground">R$ {prof.total.toFixed(2).replace('.', ',')}</span>
+                                      <span className="font-bold text-foreground tabular-nums whitespace-nowrap shrink-0">R$ {formatMoney(prof.total)}</span>
                                     </div>
                                   )) : (
                                     <p className="text-sm text-muted text-center py-8 italic border border-dashed border-border rounded-lg">Nenhum faturamento registrado pela equipe neste mês.</p>
@@ -2321,18 +2323,18 @@ const scheduleUpdates = [
                                 <div className="p-4 rounded-xl bg-background/50 border border-border">
                                   <p className="text-xs font-semibold uppercase text-muted tracking-wide mb-1">Realizado</p>
                                   <p className="text-2xl font-bold text-foreground mb-1">{pastApps.length} <span className="text-xs font-normal text-muted">Apt.</span></p>
-                                  <p className="text-primary font-semibold">R$ {pastRevenue.toFixed(2)}</p>
+                                  <p className="text-primary font-semibold tabular-nums truncate" title={`R$ ${formatMoney(pastRevenue)}`}>R$ {formatMoney(pastRevenue)}</p>
                                 </div>
                                 <div className="p-4 rounded-xl bg-background/50 border border-border">
                                   <p className="text-xs font-semibold uppercase text-muted tracking-wide mb-1">A Realizar</p>
                                   <p className="text-2xl font-bold text-foreground mb-1">{futureApps.length} <span className="text-xs font-normal text-muted">Apt.</span></p>
-                                  <p className="text-primary font-semibold">R$ {futureRevenue.toFixed(2)}</p>
+                                  <p className="text-primary font-semibold tabular-nums truncate" title={`R$ ${formatMoney(futureRevenue)}`}>R$ {formatMoney(futureRevenue)}</p>
                                 </div>
                               </div>
 
                               <div className="mt-2 pt-4 border-t border-border/50 flex justify-between items-center text-sm">
                                 <span className="text-muted">Total Cativado:</span>
-                                <span className="font-bold text-foreground text-lg">R$ {(pastRevenue + futureRevenue).toFixed(2)}</span>
+                                <span className="font-bold text-foreground text-lg tabular-nums truncate" title={`R$ ${formatMoney(pastRevenue + futureRevenue)}`}>R$ {formatMoney(pastRevenue + futureRevenue)}</span>
                               </div>
                             </div>
                           );

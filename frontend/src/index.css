@@ -127,6 +127,10 @@
   .badge-cancelled {
     @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-wider bg-red-500/15 text-red-500 border border-red-500/30;
   }
+
+  .metric-value {
+    @apply min-w-0 max-w-full truncate tabular-nums text-2xl sm:text-3xl md:text-4xl font-black leading-tight tracking-tight;
+  }
 }
 
 @layer utilities {
@@ -171,6 +175,9 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
   }
   .agenda-shell {
     height: calc(100vh - 5.5rem);

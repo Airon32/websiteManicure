@@ -4,8 +4,16 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode: 'class', 
+  darkMode: 'class',
   theme: {
+    screens: {
+      'xs': '360px',
+      'sm': '480px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1440px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         background: 'rgb(var(--color-bg) / <alpha-value>)',
@@ -14,10 +22,10 @@ export default {
         foreground: 'rgb(var(--color-text) / <alpha-value>)',
         muted: 'rgb(var(--color-muted) / <alpha-value>)',
         primary: {
-          DEFAULT: '#F472B6', 
+          DEFAULT: '#F472B6',
           hover: '#EC4899',
           dark: '#DB2777',
-          light: '#FBCFE8'    
+          light: '#FBCFE8'
         }
       },
       fontFamily: {
