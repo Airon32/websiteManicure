@@ -1297,6 +1297,8 @@ const scheduleUpdates = [
 
   // Cálculo Financeiro — usa service_price já enriquecido pelo backend
   const totalRevenue = activeAppointments.reduce((sum, app) => sum + (app.service_price || 0), 0);
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const revenuePerProfessional = professionals.map(pro => {
     const apps = activeAppointments.filter(a => a.professional_id === pro.id);
@@ -1345,7 +1347,7 @@ const scheduleUpdates = [
       channelReady={reminderChannelReady}
       user={user}
     >
-    <div className="flex h-screen bg-background overflow-hidden font-sans transition-colors duration-300" style={{ height: '100dvh' }}>
+    <div className="flex min-w-0 w-full h-screen bg-background overflow-hidden font-sans transition-colors duration-300" style={{ height: '100dvh' }}>
       {liveBookingAlert && (
         <div className="fixed top-4 left-1/2 z-[90] w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl border border-primary/40 bg-card px-4 py-3 shadow-2xl">
           <p className="text-sm font-bold text-foreground">{liveBookingAlert.title}</p>
@@ -1362,9 +1364,9 @@ const scheduleUpdates = [
 
       {/* Premium Confirm/Alert Modal */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe">
           <div className="absolute inset-0 bg-background/60 backdrop-blur-md animate-in fade-in duration-300" onClick={modal.onCancel}></div>
-          <div className="relative bg-card border border-border shadow-2xl rounded-[2rem] p-8 max-w-sm w-full animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+          <div className="relative bg-card border border-border shadow-2xl rounded-t-3xl sm:rounded-[2rem] p-6 sm:p-8 max-w-sm w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
             <div className="flex flex-col items-center text-center">
               <div className={`mb-6 p-4 rounded-2xl ${
                 modal.type === 'confirm' ? 'bg-amber-100 text-amber-600' : 
@@ -1380,18 +1382,18 @@ const scheduleUpdates = [
               <h3 className="text-2xl font-serif text-foreground mb-2">{modal.title}</h3>
               <p className="text-muted text-sm mb-8 leading-relaxed">{modal.message}</p>
               
-              <div className="flex gap-3 w-full">
+              <div className="flex flex-col sm:flex-row gap-3 w-full">
                 {modal.type === 'confirm' && (
                   <button 
                     onClick={modal.onCancel}
-                    className="flex-1 py-3 px-4 rounded-xl border border-border text-sm font-bold text-muted hover:bg-border/50 transition-colors"
+                    className="flex-1 min-h-11 py-3 px-4 rounded-xl border border-border text-sm font-bold text-muted hover:bg-border/50 transition-colors"
                   >
                     {modal.cancelText}
                   </button>
                 )}
                 <button 
                   onClick={modal.onConfirm}
-                  className={`flex-1 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 ${
+                  className={`flex-1 min-h-11 py-3 px-4 rounded-xl text-white text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95 ${
                     modal.type === 'error' ? 'bg-red-500 shadow-red-500/20' : 
                     modal.type === 'success' ? 'bg-green-500 shadow-green-500/20' : 
                     'bg-primary shadow-primary/20'
@@ -1457,7 +1459,7 @@ const scheduleUpdates = [
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-y-auto relative bg-background w-full pb-24 lg:pb-0">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative bg-background w-full max-w-full pb-24 lg:pb-0">
         <header className="min-h-16 md:h-20 border-b border-border/40 flex items-center justify-between gap-2 px-3 py-2 md:px-8 md:py-0 bg-background/80 backdrop-blur-2xl sticky top-0 z-40">
           <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
             <button className="lg:hidden h-10 w-10 shrink-0 text-muted hover:text-primary rounded-xl bg-card/60 border border-border/50 transition-all flex items-center justify-center" onClick={() => setIsMobileMenuOpen(true)}>
@@ -1481,20 +1483,20 @@ const scheduleUpdates = [
               <button onClick={() => { handleOpenBlockModal(null, '12:00', appointmentDate(selectedCalendarDate || new Date())); setShowAddAppt(false); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="h-10 w-10 md:h-auto md:w-auto md:p-3 rounded-xl md:rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shadow-md flex items-center justify-center" title="Bloquear Horário">
                 <Lock size={16} />
               </button>
-              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary h-10 !py-0 !px-3 md:h-auto md:!py-2.5 md:!px-5 glow-primary whitespace-nowrap">
+              <button onClick={() => { setShowAddAppt(!showAddAppt); setActiveTab('agenda'); setIsMobileMenuOpen(false); }} className="btn-primary h-10 min-w-11 !py-0 !px-3 md:h-auto md:!py-2.5 md:!px-5 glow-primary">
                 {showAddAppt ? <X size={17} /> : <Plus size={17} />}
-                <span className="ml-0.5 md:ml-1 uppercase font-black tracking-wider text-[10px] md:text-xs">Marcar</span>
+                <span className="hidden sm:inline ml-0.5 md:ml-1 uppercase font-black tracking-wider text-[10px] md:text-xs">Marcar</span>
               </button>
             </div>
           </div>
         </header>
 
-        <div className={`${activeTab === 'agenda' ? 'p-0 md:p-4' : 'p-4 md:p-8'}`}>
+        <div className={`min-w-0 max-w-full ${activeTab === 'agenda' ? 'p-0 md:p-4' : 'p-4 md:p-8'}`}>
 
           {showAddAppt && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 animate-in fade-in duration-300">
-              <div className="bg-card border border-primary/20 rounded-xl md:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-                <div className="flex justify-between items-center p-4 md:p-6 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent shrink-0">
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 pt-safe pb-safe animate-in fade-in duration-300">
+              <div className="bg-card border border-primary/20 rounded-t-xl md:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                <div className="flex justify-between items-center p-4 md:p-6 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent shrink-0 sticky top-0 z-10">
                   <div className="flex items-center gap-2 md:gap-3">
                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
                       <Plus size={20} />
@@ -1504,7 +1506,7 @@ const scheduleUpdates = [
                       <p className="text-[10px] text-muted">Preencha os dados abaixo</p>
                     </div>
                   </div>
-                  <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground hover:bg-muted/20 p-1.5 md:p-2 rounded-full transition-colors"><X size={18} /></button>
+                  <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground hover:bg-muted/20 min-h-11 min-w-11 p-1.5 md:p-2 rounded-full transition-colors inline-flex items-center justify-center"><X size={18} /></button>
                 </div>
                 
                 <form onSubmit={handleAddAppt} className="flex flex-col flex-1 overflow-hidden relative">
@@ -1716,7 +1718,7 @@ const scheduleUpdates = [
           )}
 
           {activeTab === 'dashboard' && (
-            <div className="fade-in-up duration-500 space-y-6 md:space-y-8">
+            <div className="fade-in-up duration-500 space-y-6 md:space-y-8 min-w-0">
               
               {/* Pill de Resumo de Confirmações */}
               <div className="glass-panel p-4 md:p-6 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-primary">
@@ -1745,52 +1747,52 @@ const scheduleUpdates = [
 
               {isAdmin ? (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                    <div className="glass-card p-6 flex flex-col justify-between group relative overflow-hidden">
-                      <div className="flex justify-between items-start mb-4">
-                        <p className="text-primary/70 text-[10px] font-black uppercase tracking-[0.2em]">Agendamentos</p>
-                        <div className="p-3 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-md">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6 min-w-0">
+                    <div className="glass-card p-4 sm:p-6 flex flex-col justify-between group relative overflow-hidden min-w-0">
+                      <div className="flex justify-between items-start mb-4 gap-2 min-w-0">
+                        <p className="text-primary/70 text-[10px] font-black uppercase tracking-[0.2em] truncate">Agendamentos</p>
+                        <div className="p-3 rounded-2xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-md shrink-0">
                            <Activity size={20} />
                         </div>
                       </div>
-                      <p className="text-3xl md:text-4xl font-black text-foreground flex items-baseline gap-2">
-                        {appointments.length} <span className="text-xs font-bold text-muted uppercase">Total</span>
+                      <p className="metric-value text-foreground flex items-baseline gap-2">
+                        {appointments.length} <span className="text-xs font-bold text-muted uppercase shrink-0">Total</span>
                       </p>
                     </div>
 
-                    <div className="glass-card p-6 flex flex-col justify-between border-l-4 border-l-emerald-500 group relative overflow-hidden">
-                      <div className="flex justify-between items-start mb-4">
-                        <p className="text-emerald-500/80 text-[10px] font-black uppercase tracking-[0.2em]">Faturamento Estimado</p>
-                        <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-md">
+                    <div className="glass-card p-4 sm:p-6 flex flex-col justify-between border-l-4 border-l-emerald-500 group relative overflow-hidden min-w-0">
+                      <div className="flex justify-between items-start mb-4 gap-2 min-w-0">
+                        <p className="text-emerald-500/80 text-[10px] font-black uppercase tracking-[0.2em] truncate">Faturamento Estimado</p>
+                        <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-md shrink-0">
                            <DollarSign size={20} />
                         </div>
                       </div>
-                      <p className="text-3xl md:text-4xl font-black text-emerald-500 flex items-baseline gap-1 tracking-tight">
-                        <span className="text-sm md:text-lg font-bold">R$</span> {totalRevenue.toFixed(2)}
+                      <p className="metric-value text-emerald-500" title={`R$ ${formatMoney(totalRevenue)}`}>
+                        R$ {formatMoney(totalRevenue)}
                       </p>
                     </div>
 
-                    <div className="glass-card p-6 lg:col-span-2 flex flex-col justify-between relative overflow-hidden">
+                    <div className="glass-card p-4 sm:p-6 md:col-span-2 flex flex-col justify-between relative overflow-hidden min-w-0">
                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none"></div>
                        <p className="text-primary/70 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Equipe & Serviços</p>
-                       <div className="flex items-center gap-8 md:gap-12">
-                          <div className="flex flex-col">
-                             <span className="text-3xl md:text-4xl font-black text-foreground">{professionals.length}</span>
+                       <div className="flex flex-wrap items-center gap-6 sm:gap-8 md:gap-12 min-w-0">
+                          <div className="flex flex-col min-w-0">
+                             <span className="metric-value text-foreground">{professionals.length}</span>
                              <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Profissionais</span>
                           </div>
-                          <div className="w-px h-10 bg-border/60"></div>
-                          <div className="flex flex-col">
-                             <span className="text-3xl md:text-4xl font-black text-foreground">{services.length}</span>
+                          <div className="w-px h-10 bg-border/60 hidden xs:block"></div>
+                          <div className="flex flex-col min-w-0">
+                             <span className="metric-value text-foreground">{services.length}</span>
                              <span className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Serviços no Menu</span>
                           </div>
                        </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                    <div className="lg:col-span-2 glass-card p-6">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-xl font-serif text-foreground">Próximos em Atendimento</h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 min-w-0">
+                    <div className="lg:col-span-2 glass-card p-4 sm:p-6 min-w-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-6 min-w-0">
+                        <h3 className="text-lg sm:text-xl font-serif text-foreground min-w-0 truncate">Próximos em Atendimento</h3>
                         <span className="text-xs text-muted font-bold uppercase tracking-wider">Próximos 10 dias</span>
                       </div>
 
@@ -1821,8 +1823,8 @@ const scheduleUpdates = [
                         return (
                           <>
                             {/* Desktop Table View */}
-                            <div className="hidden md:block overflow-x-auto">
-                              <table className="w-full text-left border-collapse min-w-full">
+                            <div className="hidden sm:block overflow-x-auto min-w-0">
+                              <table className="w-full text-left border-collapse">
                                 <thead>
                                   <tr className="border-b border-border/50 text-muted text-xs uppercase font-bold tracking-wider">
                                     <th className="py-3 px-2">Data/Hora</th>
@@ -1846,15 +1848,15 @@ const scheduleUpdates = [
                                           <span className="badge-pending">⏳ Pendente</span>
                                         )}
                                       </td>
-                                      <td className="py-3.5 px-2 font-semibold text-sm">{app.client_name}</td>
-                                      <td className="py-3.5 px-2 text-xs text-muted">{app.service_name || '-'}</td>
-                                      <td className="py-3.5 px-2 text-xs">{app.professional_name || '-'}</td>
+                                      <td className="py-3.5 px-2 font-semibold text-sm max-w-[8rem] truncate">{app.client_name}</td>
+                                      <td className="py-3.5 px-2 text-xs text-muted max-w-[8rem] truncate">{app.service_name || '-'}</td>
+                                      <td className="py-3.5 px-2 text-xs max-w-[7rem] truncate">{app.professional_name || '-'}</td>
                                       <td className="py-3.5 px-2 text-right">
                                         <div className="inline-flex items-center justify-end gap-1">
                                           <ReminderIndicator appointment={app} />
                                           <button 
                                             onClick={() => handleWhatsAppAction(app, true)}
-                                            className="text-emerald-500 hover:bg-emerald-500/10 p-2 rounded-lg transition-colors"
+                                            className="text-emerald-500 hover:bg-emerald-500/10 min-h-11 min-w-11 p-2 rounded-lg transition-colors inline-flex items-center justify-center"
                                             title="Lembrete WhatsApp"
                                           >
                                             <Send size={15} />
@@ -1871,18 +1873,18 @@ const scheduleUpdates = [
                             </div>
 
                             {/* Mobile Card View */}
-                            <div className="md:hidden space-y-3">
+                            <div className="sm:hidden space-y-3">
                               {upcomingList.slice(0, 8).map(app => (
-                                <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl bg-card border border-border/60 flex flex-col gap-2 relative shadow-sm">
-                                  <div className="flex justify-between items-start">
-                                    <div>
+                                <div key={app.id} onClick={() => setSelectedAppointment(app)} className="p-4 rounded-2xl bg-card border border-border/60 flex flex-col gap-2 relative shadow-sm min-w-0">
+                                  <div className="flex justify-between items-start gap-2 min-w-0">
+                                    <div className="min-w-0">
                                       {app.status === 'confirmado' ? (
                                         <span className="badge-confirmed">✅ Confirmado</span>
                                       ) : (
                                         <span className="badge-pending">⏳ Pendente</span>
                                       )}
-                                      <h4 className="font-bold text-foreground text-sm mt-2">{app.client_name}</h4>
-                                      <p className="text-xs text-muted">{app.service_name}</p>
+                                      <h4 className="font-bold text-foreground text-sm mt-2 truncate">{app.client_name}</h4>
+                                      <p className="text-xs text-muted truncate">{app.service_name}</p>
                                     </div>
                                     <div className="text-right flex flex-col items-end gap-1">
                                       <ReminderIndicator appointment={app} />
@@ -1894,7 +1896,7 @@ const scheduleUpdates = [
                                     <span className="text-muted text-[11px]">Profissional: <strong className="text-foreground">{app.professional_name}</strong></span>
                                     <button 
                                       onClick={(e) => { e.stopPropagation(); handleWhatsAppAction(app, true); }}
-                                      className="text-emerald-500 font-bold text-[11px] bg-emerald-500/10 px-2.5 py-1 rounded-lg flex items-center gap-1"
+                                      className="text-emerald-500 font-bold text-[11px] bg-emerald-500/10 min-h-11 px-3 rounded-lg flex items-center gap-1 shrink-0"
                                     >
                                       <Send size={12} /> WhatsApp
                                     </button>
@@ -1910,11 +1912,11 @@ const scheduleUpdates = [
                       })()}
                     </div>
 
-                    <div className="glass-card p-6 border-l-4 border-l-primary flex flex-col">
-                      <h3 className="text-xl font-serif text-foreground mb-6">Ranking Financeiro</h3>
+                    <div className="glass-card p-4 sm:p-6 border-l-4 border-l-primary flex flex-col min-w-0">
+                      <h3 className="text-lg sm:text-xl font-serif text-foreground mb-6 truncate">Ranking Financeiro</h3>
                       <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                         {revenuePerProfessional.map((pro, idx) => (
-                          <div key={pro.id} className="flex items-center gap-3 bg-card/60 border border-border/50 p-3.5 rounded-2xl">
+                          <div key={pro.id} className="flex items-center gap-3 bg-card/60 border border-border/50 p-3.5 rounded-2xl min-w-0">
                             <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs shrink-0">
                               {idx + 1}º
                             </div>
@@ -1922,8 +1924,8 @@ const scheduleUpdates = [
                               <h4 className="text-foreground font-bold text-xs truncate">{pro.name}</h4>
                               <p className="text-[10px] text-muted">{pro.totalApps} agendamentos</p>
                             </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-primary font-black text-sm">R$ {pro.revenue.toFixed(2)}</p>
+                            <div className="text-right min-w-0 shrink">
+                              <p className="text-primary font-black text-sm tabular-nums truncate">R$ {formatMoney(pro.revenue)}</p>
                             </div>
                           </div>
                         ))}
@@ -1933,9 +1935,9 @@ const scheduleUpdates = [
                 </>
               ) : (
                     <>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div className="glass-card p-6 border-l-4 border-l-primary flex flex-col justify-between">
-                          <h3 className="text-2xl font-serif text-foreground mb-1">Olá, {user.name}!</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8 min-w-0">
+                        <div className="glass-card p-4 sm:p-6 border-l-4 border-l-primary flex flex-col justify-between min-w-0 sm:col-span-2 md:col-span-1">
+                          <h3 className="text-xl sm:text-2xl font-serif text-foreground mb-1 truncate">Olá, {user.name}!</h3>
                           <p className="text-sm text-muted">Bem-vindo(a) ao seu painel.</p>
                         </div>
                         <div className="glass-card p-6 flex flex-col justify-between">
@@ -1956,65 +1958,98 @@ const scheduleUpdates = [
                         </div>
                       </div>
 
-                      <div className="glass-card p-6 mb-8">
+                      <div className="glass-card p-4 sm:p-6 mb-8 min-w-0">
                         <h3 className="text-xl font-serif text-foreground mb-4">Sua Agenda da Semana</h3>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-sm">
-                            <thead>
-                              <tr className="border-b border-border/70 text-muted uppercase text-xs">
-                                <th className="pb-3 px-2">Data / Hora</th>
-                                <th className="pb-3 px-2">Cliente</th>
-                                <th className="pb-3 px-2">Serviço</th>
-                                <th className="pb-3 px-2 text-right">Ação</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(activeAppointments || [])
-                                .filter(a => {
-                                  const d = safeParseISO(a?.date);
-                                  if (!d) return false;
-                                  return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
-                                })
-                                .sort((a, b) => {
-                                  const dA = safeParseISO(`${a.date}T${a.time || '00:00'}`);
-                                  const dB = safeParseISO(`${b.date}T${b.time || '00:00'}`);
-                                  if (!dA || !dB) return 0;
-                                  return (isNaN(dA.getTime()) ? 0 : dA.getTime()) - (isNaN(dB.getTime()) ? 0 : dB.getTime());
-                                })
-                                .map(app => (
-                                  <tr key={app.id} className="border-b border-border/50 text-foreground last:border-0 hover:bg-border/20">
-                                    <td className="py-4 px-2">
-                                      <span className="font-medium mr-2">{safeFormatDate(app.date, 'dd/MM')}</span>
-                                      <span className="text-primary">{app.time} - {calculateEndTime(app.time, app.service_duration)}</span>
-                                    </td>
-                                    <td className="py-4 px-2 font-medium">{app.client_name}</td>
-                                    <td className="py-4 px-2 text-muted">{app.service_name || '-'}</td>
-                                    <td className="py-4 px-2 text-right">
+                        {(() => {
+                          const weekStart = startOfWeek(startOfToday(), { weekStartsOn: 0 });
+                          const weekEnd = endOfWeek(startOfToday(), { weekStartsOn: 0 });
+                          const weekList = (activeAppointments || [])
+                            .filter(a => {
+                              const d = safeParseISO(a?.date);
+                              if (!d) return false;
+                              return d >= weekStart && d <= weekEnd;
+                            })
+                            .sort((a, b) => {
+                              const dA = parseDateTime(a.date, a.time || '00:00');
+                              const dB = parseDateTime(b.date, b.time || '00:00');
+                              return (dA?.getTime() || 0) - (dB?.getTime() || 0);
+                            });
+
+                          return (
+                            <>
+                              <div className="hidden sm:block overflow-x-auto min-w-0">
+                                <table className="w-full text-left text-sm">
+                                  <thead>
+                                    <tr className="border-b border-border/70 text-muted uppercase text-xs">
+                                      <th className="pb-3 px-2">Data / Hora</th>
+                                      <th className="pb-3 px-2">Cliente</th>
+                                      <th className="pb-3 px-2">Serviço</th>
+                                      <th className="pb-3 px-2 text-right">Ação</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {weekList.map(app => (
+                                      <tr key={app.id} className="border-b border-border/50 text-foreground last:border-0 hover:bg-border/20">
+                                        <td className="py-4 px-2 whitespace-nowrap">
+                                          <span className="font-medium mr-2">{safeFormatDate(app.date, 'dd/MM')}</span>
+                                          <span className="text-primary">{app.time} - {calculateEndTime(app.time, app.service_duration)}</span>
+                                        </td>
+                                        <td className="py-4 px-2 font-medium max-w-[8rem] truncate">{app.client_name}</td>
+                                        <td className="py-4 px-2 text-muted max-w-[8rem] truncate">{app.service_name || '-'}</td>
+                                        <td className="py-4 px-2 text-right">
+                                          {app.status === 'concluído' ? (
+                                            <span className="text-green-500 inline-flex items-center justify-end gap-1 text-xs font-bold uppercase tracking-wider"><CheckCircle size={14}/> Pago</span>
+                                          ) : (
+                                            <div className="flex justify-end gap-1">
+                                              <button onClick={() => handleCompleteAppt(app.id)} className="text-green-500 hover:bg-green-500/10 min-h-11 min-w-11 p-2 rounded transition-colors inline-flex items-center justify-center" title="Concluir/Pago">
+                                                <CheckCircle size={16} />
+                                              </button>
+                                              <button onClick={() => handleCancelAppt(app.id)} className="text-red-500 hover:bg-red-500/10 min-h-11 min-w-11 p-2 rounded transition-colors inline-flex items-center justify-center" title="Desmarcar">
+                                                <Trash2 size={16} />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {weekList.length === 0 && (
+                                      <tr><td colSpan="4" className="text-center py-8 text-muted">Livre! Nenhum agendamento para esta semana.</td></tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              <div className="sm:hidden space-y-3">
+                                {weekList.map(app => (
+                                  <div key={app.id} className="p-4 rounded-2xl bg-card border border-border/60 min-w-0">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <p className="text-xs font-bold text-primary">{safeFormatDate(app.date, 'dd/MM')} · {app.time}</p>
+                                        <h4 className="font-bold text-sm text-foreground truncate mt-1">{app.client_name}</h4>
+                                        <p className="text-xs text-muted truncate">{app.service_name || '-'}</p>
+                                      </div>
                                       {app.status === 'concluído' ? (
-                                        <span className="text-green-500 flex items-center justify-end gap-1 text-xs font-bold uppercase tracking-wider"><CheckCircle size={14}/> Pago</span>
+                                        <span className="text-green-500 text-[10px] font-black uppercase shrink-0">Pago</span>
                                       ) : (
-                                        <div className="flex justify-end gap-1">
-                                          <button onClick={() => handleCompleteAppt(app.id)} className="text-green-500 hover:bg-green-500/10 p-2 rounded transition-colors" title="Concluir/Pago">
+                                        <div className="flex gap-1 shrink-0">
+                                          <button onClick={() => handleCompleteAppt(app.id)} className="min-h-11 min-w-11 text-green-500 hover:bg-green-500/10 rounded-xl inline-flex items-center justify-center" title="Concluir/Pago">
                                             <CheckCircle size={16} />
                                           </button>
-                                          <button onClick={() => handleCancelAppt(app.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded transition-colors" title="Desmarcar">
+                                          <button onClick={() => handleCancelAppt(app.id)} className="min-h-11 min-w-11 text-red-500 hover:bg-red-500/10 rounded-xl inline-flex items-center justify-center" title="Desmarcar">
                                             <Trash2 size={16} />
                                           </button>
                                         </div>
                                       )}
-                                    </td>
-                                  </tr>
+                                    </div>
+                                  </div>
                                 ))}
-                              {(activeAppointments || []).filter(a => {
-                                const d = safeParseISO(a?.date);
-                                if (!d) return false;
-                                return d >= startOfWeek(startOfToday(), { weekStartsOn: 0 }) && d <= endOfWeek(startOfToday(), { weekStartsOn: 0 });
-                              }).length === 0 && (
-                                  <tr><td colSpan="4" className="text-center py-8 text-muted">Livre! Nenhum agendamento para esta semana.</td></tr>
+                                {weekList.length === 0 && (
+                                  <p className="text-center py-8 text-muted text-xs">Livre! Nenhum agendamento para esta semana.</p>
                                 )}
-                            </tbody>
-                          </table>
-                        </div>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </>
                )}
@@ -2160,10 +2195,10 @@ const scheduleUpdates = [
                     <div className="fade-in-up duration-500">
 
                       {/* GESTÃO FINANCEIRA INICIO */}
-                      <div className="glass-card p-6 mb-8 border-primary/20 shadow-[0_0_40px_rgba(244,114,182,0.06)] relative overflow-hidden">
+                      <div className="glass-card p-4 sm:p-6 mb-8 border-primary/20 shadow-[0_0_40px_rgba(244,114,182,0.06)] relative overflow-hidden min-w-0">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-bl-full pointer-events-none"></div>
-                        <div className="flex justify-between items-center mb-6">
-                          <h3 className="text-2xl font-serif text-foreground flex items-center gap-2">
+                        <div className="flex flex-wrap justify-between items-center gap-2 mb-6 min-w-0">
+                          <h3 className="text-lg sm:text-2xl font-serif text-foreground flex items-center gap-2 min-w-0">
                             <DollarSign className="text-green-500" />
                             Controle Financeiro
                           </h3>
@@ -2172,32 +2207,32 @@ const scheduleUpdates = [
                         {financialStats ? (
                           <div className="space-y-6 relative z-10">
                             {/* Cards de Resumo */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm hover:border-green-500/50 transition-colors">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 min-w-0">
+                              <div className="p-4 sm:p-5 rounded-xl border border-border bg-background shadow-sm hover:border-green-500/50 transition-colors min-w-0">
                                 <p className="text-sm font-semibold uppercase text-muted tracking-wide mb-1">Hoje</p>
-                                <p className="text-3xl font-bold text-foreground">R$ {financialStats.today.toFixed(2).replace('.', ',')}</p>
+                                <p className="metric-value text-foreground" title={`R$ ${formatMoney(financialStats.today)}`}>R$ {formatMoney(financialStats.today)}</p>
                               </div>
-                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm hover:border-green-500/50 transition-colors">
+                              <div className="p-4 sm:p-5 rounded-xl border border-border bg-background shadow-sm hover:border-green-500/50 transition-colors min-w-0">
                                 <p className="text-sm font-semibold uppercase text-muted tracking-wide mb-1">Esta Semana</p>
-                                <p className="text-3xl font-bold text-foreground">R$ {financialStats.week.toFixed(2).replace('.', ',')}</p>
+                                <p className="metric-value text-foreground" title={`R$ ${formatMoney(financialStats.week)}`}>R$ {formatMoney(financialStats.week)}</p>
                               </div>
-                              <div className="p-5 rounded-xl border border-green-500/30 bg-green-500/5 shadow-sm hover:border-green-500/60 transition-colors relative overflow-hidden">
+                              <div className="p-4 sm:p-5 rounded-xl border border-green-500/30 bg-green-500/5 shadow-sm hover:border-green-500/60 transition-colors relative overflow-hidden min-w-0 sm:col-span-2 md:col-span-1">
                                 <div className="absolute top-0 right-0 w-16 h-16 bg-green-500/10 rounded-bl-full"></div>
                                 <p className="text-sm font-semibold uppercase text-green-700 dark:text-green-400/80 tracking-wide mb-1">Este Mês</p>
-                                <p className="text-3xl font-bold text-green-600 dark:text-green-400">R$ {financialStats.month.toFixed(2).replace('.', ',')}</p>
+                                <p className="metric-value text-green-600 dark:text-green-400" title={`R$ ${formatMoney(financialStats.month)}`}>R$ {formatMoney(financialStats.month)}</p>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
                               {/* Histórico Mensal */}
-                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm">
+                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm min-w-0">
                                 <h4 className="text-sm font-bold uppercase tracking-widest text-muted mb-4">Histórico de Faturamento</h4>
-                                <div className="h-[250px] w-full">
+                                <div className="h-[250px] w-full min-w-0 overflow-hidden">
                                   <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={[...financialStats.history].slice(0, 6).reverse()}>
                                       <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
                                       <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.5 }} />
-                                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.5 }} tickFormatter={(value) => `R$${value}`} />
+                                      <YAxis width={36} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'currentColor', opacity: 0.5 }} tickFormatter={(value) => `${value}`} />
                                       <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'var(--tw-colors-background)' }} formatter={(value) => [`R$ ${value.toFixed(2).replace('.', ',')}`, 'Faturamento']} />
                                       <Bar dataKey="total" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={40} />
                                     </BarChart>
@@ -2206,16 +2241,16 @@ const scheduleUpdates = [
                               </div>
 
                               {/* Ranking Profissionais */}
-                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm flex flex-col">
+                              <div className="p-5 rounded-xl border border-border bg-background shadow-sm flex flex-col min-w-0">
                                 <h4 className="text-sm font-bold uppercase tracking-widest text-muted mb-4">Desempenho por Profissional (Mês)</h4>
                                 <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                                   {financialStats.professionals.length > 0 ? financialStats.professionals.map((prof, idx) => (
-                                    <div key={idx} className="flex justify-between items-center p-3 rounded-lg border border-border/50 hover:bg-border/20 transition-colors">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">{prof.name.slice(0, 2).toUpperCase()}</div>
-                                        <span className="font-medium text-foreground">{prof.name}</span>
+                                    <div key={idx} className="flex justify-between items-center gap-3 p-3 rounded-lg border border-border/50 hover:bg-border/20 transition-colors min-w-0">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">{prof.name.slice(0, 2).toUpperCase()}</div>
+                                        <span className="font-medium text-foreground truncate">{prof.name}</span>
                                       </div>
-                                      <span className="font-bold text-foreground">R$ {prof.total.toFixed(2).replace('.', ',')}</span>
+                                      <span className="font-bold text-foreground tabular-nums whitespace-nowrap shrink-0">R$ {formatMoney(prof.total)}</span>
                                     </div>
                                   )) : (
                                     <p className="text-sm text-muted text-center py-8 italic border border-dashed border-border rounded-lg">Nenhum faturamento registrado pela equipe neste mês.</p>
@@ -2321,18 +2356,18 @@ const scheduleUpdates = [
                                 <div className="p-4 rounded-xl bg-background/50 border border-border">
                                   <p className="text-xs font-semibold uppercase text-muted tracking-wide mb-1">Realizado</p>
                                   <p className="text-2xl font-bold text-foreground mb-1">{pastApps.length} <span className="text-xs font-normal text-muted">Apt.</span></p>
-                                  <p className="text-primary font-semibold">R$ {pastRevenue.toFixed(2)}</p>
+                                  <p className="text-primary font-semibold tabular-nums truncate" title={`R$ ${formatMoney(pastRevenue)}`}>R$ {formatMoney(pastRevenue)}</p>
                                 </div>
                                 <div className="p-4 rounded-xl bg-background/50 border border-border">
                                   <p className="text-xs font-semibold uppercase text-muted tracking-wide mb-1">A Realizar</p>
                                   <p className="text-2xl font-bold text-foreground mb-1">{futureApps.length} <span className="text-xs font-normal text-muted">Apt.</span></p>
-                                  <p className="text-primary font-semibold">R$ {futureRevenue.toFixed(2)}</p>
+                                  <p className="text-primary font-semibold tabular-nums truncate" title={`R$ ${formatMoney(futureRevenue)}`}>R$ {formatMoney(futureRevenue)}</p>
                                 </div>
                               </div>
 
                               <div className="mt-2 pt-4 border-t border-border/50 flex justify-between items-center text-sm">
                                 <span className="text-muted">Total Cativado:</span>
-                                <span className="font-bold text-foreground text-lg">R$ {(pastRevenue + futureRevenue).toFixed(2)}</span>
+                                <span className="font-bold text-foreground text-lg tabular-nums truncate" title={`R$ ${formatMoney(pastRevenue + futureRevenue)}`}>R$ {formatMoney(pastRevenue + futureRevenue)}</span>
                               </div>
                             </div>
                           );
@@ -2361,8 +2396,8 @@ const scheduleUpdates = [
                       </div>
 
                       {/* Desktop View */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[500px]">
+                      <div className="hidden sm:block overflow-x-auto min-w-0">
+                        <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="border-b border-border/50 text-muted text-xs uppercase font-bold tracking-wider">
                               <th className="py-3 px-4">Nome</th>
@@ -2421,7 +2456,7 @@ const scheduleUpdates = [
                       </div>
 
                       {/* Mobile View */}
-                      <div className="md:hidden space-y-3">
+                      <div className="sm:hidden space-y-3">
                         {clients
                           .filter(c => {
                             if (!clientSearch.trim()) return true;
@@ -2448,14 +2483,14 @@ const scheduleUpdates = [
                                 <div className="flex items-center gap-1 shrink-0">
                                   <button 
                                     onClick={() => { setSelectedClient(client); setShowEditClientModal(true); }}
-                                    className="p-2.5 text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                                    className="min-h-11 min-w-11 p-2.5 text-primary hover:bg-primary/10 rounded-xl transition-colors inline-flex items-center justify-center"
                                     title="Editar Cliente"
                                   >
                                     <Edit2 size={16} />
                                   </button>
                                   <button 
                                     onClick={() => handleDeleteClient(client.id)}
-                                    className="p-2.5 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
+                                    className="min-h-11 min-w-11 p-2.5 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors inline-flex items-center justify-center"
                                     title="Excluir"
                                   >
                                     <Trash2 size={16} />
@@ -2473,11 +2508,11 @@ const scheduleUpdates = [
 
                   {/* Modal de Edição de Cliente */}
                   {showEditClientModal && selectedClient && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                      <div className="glass-card p-8 max-w-md w-full slide-in-from-bottom-4 animate-in duration-300">
-                        <div className="flex justify-between items-center mb-6">
+                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                      <div className="glass-card p-6 sm:p-8 max-w-md w-full max-h-[80vh] overflow-y-auto slide-in-from-bottom-4 animate-in duration-300 rounded-t-3xl sm:rounded-[1.5rem]">
+                        <div className="flex justify-between items-center mb-6 sticky top-0 bg-card/95 backdrop-blur z-10">
                           <h3 className="text-2xl font-serif text-foreground">Editar Cliente</h3>
-                          <button onClick={() => setShowEditClientModal(false)} className="text-muted hover:text-foreground"><X size={24} /></button>
+                          <button onClick={() => setShowEditClientModal(false)} className="text-muted hover:text-foreground min-h-11 min-w-11 inline-flex items-center justify-center"><X size={24} /></button>
                         </div>
                         <form onSubmit={handleEditClient} className="space-y-4">
                           <div>
@@ -3026,7 +3061,8 @@ const scheduleUpdates = [
                                 Nenhum histórico de alteração registrado ainda. As alterações desta configuração serão registradas com autor, data e valores.
                               </p>
                             ) : (
-                              <div className="overflow-x-auto rounded-xl border border-border/60 max-h-60 overflow-y-auto">
+                              <>
+                              <div className="hidden sm:block overflow-x-auto rounded-xl border border-border/60 max-h-60 overflow-y-auto min-w-0">
                                 <table className="w-full text-left text-xs border-collapse">
                                   <thead>
                                     <tr className="bg-card text-muted uppercase text-[10px] font-bold tracking-wider border-b border-border/50">
@@ -3075,6 +3111,38 @@ const scheduleUpdates = [
                                   </tbody>
                                 </table>
                               </div>
+                              <div className="sm:hidden space-y-2">
+                                {auditLogs.map((log) => {
+                                  let keyLabel = log.setting_key;
+                                  if (log.setting_key === 'hide_client_phone_from_collaborators') keyLabel = 'Ocultar telefone';
+                                  else if (log.setting_key === 'allow_admins_view_client_phone') keyLabel = 'Acesso Admins';
+                                  else if (log.setting_key === 'authorized_phone_viewer_ids') keyLabel = 'Permissões Individuais';
+                                  const formatVal = (v) => {
+                                    if (v === 'true') return 'Ativado';
+                                    if (v === 'false') return 'Desativado';
+                                    if (typeof v === 'string' && (v.startsWith('[') || v.startsWith('{'))) {
+                                      try {
+                                        const arr = JSON.parse(v);
+                                        if (Array.isArray(arr)) return arr.length === 0 ? 'Nenhum' : `${arr.length} autorizado(s)`;
+                                      } catch {}
+                                    }
+                                    return String(v || '-');
+                                  };
+                                  return (
+                                    <div key={log.id} className="p-3 rounded-xl border border-border/60 bg-card min-w-0">
+                                      <p className="text-[10px] font-mono text-muted">{log.created_at ? (safeFormat(new Date(log.created_at), 'dd/MM/yyyy HH:mm') || '-') : '-'}</p>
+                                      <p className="text-xs font-bold text-foreground truncate mt-1">{log.changed_by_name || log.changed_by_username || 'Administrador'}</p>
+                                      <p className="text-[11px] text-muted mt-0.5">{keyLabel}</p>
+                                      <p className="text-[11px] mt-1 break-words">
+                                        <span className="text-red-400 line-through">{formatVal(log.old_value)}</span>
+                                        <span className="text-muted mx-1">→</span>
+                                        <span className="text-emerald-400 font-bold">{formatVal(log.new_value)}</span>
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              </>
                             )}
                           </div>
                         </div>
@@ -3399,11 +3467,11 @@ const scheduleUpdates = [
 
       {/* MODAL FECHAR HORÁRIO */}
       {showBlockModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 fade-in-up">
-          <div className="bg-card w-full max-w-md rounded-[2.5rem] border border-amber-500/30 shadow-2xl p-6 relative overflow-hidden">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md p-4 pt-safe pb-safe fade-in-up">
+          <div className="bg-card w-full max-w-md max-h-[80vh] overflow-y-auto rounded-t-[2rem] sm:rounded-[2.5rem] border border-amber-500/30 shadow-2xl p-6 relative">
             <button 
               onClick={() => setShowBlockModal(false)}
-              className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors p-1"
+              className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors min-h-11 min-w-11 inline-flex items-center justify-center"
             >
               <X size={20} />
             </button>
@@ -3542,12 +3610,12 @@ const scheduleUpdates = [
 
       {/* MODAL EDITAR SERVIÇO (POP-UP) */}
       {editingService && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setEditingService(null)}>
-          <div className="bg-card border border-primary/30 rounded-[2.5rem] w-full max-w-lg shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative p-6 md:p-8" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setEditingService(null)}>
+          <div className="bg-card border border-primary/30 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex flex-col animate-in zoom-in-95 duration-300 relative p-6 md:p-8" onClick={e => e.stopPropagation()}>
             
             <button 
               onClick={() => setEditingService(null)} 
-              className="absolute right-6 top-6 text-muted hover:text-foreground transition-colors p-1 rounded-xl hover:bg-muted/10"
+              className="absolute right-6 top-6 text-muted hover:text-foreground transition-colors min-h-11 min-w-11 p-1 rounded-xl hover:bg-muted/10 inline-flex items-center justify-center"
             >
               <X size={20} />
             </button>
@@ -3652,12 +3720,12 @@ const scheduleUpdates = [
 
       {selectedAppointment && (
         selectedAppointment.notes?.startsWith('BLOCK:') ? (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
-            <div className="bg-card border border-amber-500/40 rounded-[2.5rem] w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 relative p-6 space-y-5" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
+            <div className="bg-card border border-amber-500/40 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 relative p-6 space-y-5" onClick={e => e.stopPropagation()}>
               
               <button 
                 onClick={() => setSelectedAppointment(null)}
-                className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors p-1"
+                className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors min-h-11 min-w-11 inline-flex items-center justify-center"
               >
                 <X size={20} />
               </button>
@@ -3712,13 +3780,13 @@ const scheduleUpdates = [
             </div>
           </div>
         ) : (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
-            <div className="bg-card border border-primary/20 rounded-[2.5rem] w-full max-w-md max-h-[90vh] shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
+            <div className="bg-card border border-primary/20 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-md max-h-[80vh] shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
               
               <div className={`grid ${isPhoneProtected(selectedAppointment.client_phone) ? 'grid-cols-2' : 'grid-cols-4'} gap-1 p-4 bg-gradient-to-br from-muted/20 to-transparent border-b border-border/50`}>
                 {!isPhoneProtected(selectedAppointment.client_phone) && (
                   <>
-                    <button onClick={() => handleWhatsAppAction(selectedAppointment, false)} className="flex flex-col items-center gap-1 text-green-500 hover:text-green-600 transition-colors p-2 rounded-2xl hover:bg-green-500/10">
+                    <button onClick={() => handleWhatsAppAction(selectedAppointment, false)} className="flex flex-col items-center justify-center gap-1 text-green-500 hover:text-green-600 transition-colors min-h-11 p-2 rounded-2xl hover:bg-green-500/10">
                       <MessageCircle size={20} />
                       <span className="text-[10px] font-bold uppercase tracking-widest">Whats</span>
                     </button>
@@ -3903,11 +3971,11 @@ const scheduleUpdates = [
       )}
 
       {showEditAppt && editAppt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-background rounded-2xl w-full max-w-md shadow-2xl p-6 relative border border-border scale-in-center">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-background rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl p-6 relative border border-border scale-in-center">
             <button 
               onClick={() => { setShowEditAppt(false); setEditAppt(null); }}
-              className="absolute top-4 right-4 text-muted hover:text-foreground hover:bg-muted/20 p-2 rounded-full transition-colors"
+              className="absolute top-4 right-4 text-muted hover:text-foreground hover:bg-muted/20 min-h-11 min-w-11 p-2 rounded-full transition-colors inline-flex items-center justify-center"
             >
               <X size={20} />
             </button>
@@ -3971,7 +4039,7 @@ const scheduleUpdates = [
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-2xl border-t border-border/60 px-2 py-2 flex justify-around items-center pb-safe shadow-[0_-10px_25px_rgba(0,0,0,0.2)]">
         <button
           onClick={() => setActiveTab('agenda')}
-          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
             activeTab === 'agenda' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
           }`}
         >
@@ -3981,7 +4049,7 @@ const scheduleUpdates = [
 
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
             activeTab === 'dashboard' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
           }`}
         >
@@ -3991,7 +4059,7 @@ const scheduleUpdates = [
 
         <button
           onClick={() => setActiveTab('clients')}
-          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
             activeTab === 'clients' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
           }`}
         >
@@ -4002,7 +4070,7 @@ const scheduleUpdates = [
         {isAdmin && (
           <button
             onClick={() => setActiveTab('catalog')}
-            className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+            className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
               activeTab === 'catalog' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
             }`}
           >
@@ -4013,7 +4081,7 @@ const scheduleUpdates = [
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex flex-col items-center gap-1 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+          className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
             activeTab === 'settings' ? 'text-primary font-black scale-105' : 'text-muted hover:text-foreground'
           }`}
         >

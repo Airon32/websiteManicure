@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   hasOpenScheduleDay,
   normalizeClock,
+  resolveWorkClock,
   toApiWeekSchedule,
   toEditorWeekSchedule
 } from '../utils/schedule.js';
@@ -34,4 +35,10 @@ test('normalizeClock aceita HH:MM:SS e rejeita texto solto', () => {
   assert.equal(normalizeClock('7:00'), '07:00');
   assert.equal(normalizeClock('07:00:00'), '07:00');
   assert.equal(normalizeClock('9h'), '');
+});
+
+test('resolveWorkClock ignora undefined, vazio e NaN e usa o primeiro horário válido', () => {
+  assert.equal(resolveWorkClock(undefined, '', NaN, '09:00', '18:00'), '09:00');
+  assert.equal(resolveWorkClock('7:30'), '07:30');
+  assert.equal(resolveWorkClock(null, '18:00'), '18:00');
 });

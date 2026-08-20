@@ -35,7 +35,9 @@ import {
   filterVisibleProfessionals,
   normalizeDate,
   appointmentDate,
-  safeFormat
+  safeFormat,
+  parseDateTime,
+  salonCalendarDate
 } from '../utils/agendaMultiview.js';
 
 describe('Agenda Redesign - Test Suite', () => {
@@ -572,11 +574,12 @@ describe('Agenda Redesign - Test Suite', () => {
   });
 
   describe('9. WebKit-safe dates and ISO normalization', () => {
-    it('should normalize ISO timestamps to YYYY-MM-DD for appointment matching', () => {
-      assert.strictEqual(normalizeDate('2026-08-19T14:30:00.000Z'), '2026-08-19');
+    it('should normalize ISO timestamps to the civil day in America/Sao_Paulo', () => {
       assert.strictEqual(normalizeDate('2026-08-19'), '2026-08-19');
-      assert.strictEqual(normalizeDate(new Date(2026, 7, 19)), '2026-08-19');
-      assert.strictEqual(normalizeDate('2026-08-19T14:30:00.000Z'), appointmentDate(new Date(2026, 7, 19)));
+      assert.strictEqual(normalizeDate('2026-08-19T14:30:00.000Z'), '2026-08-19');
+      assert.strictEqual(normalizeDate('2026-08-19T02:00:00.000Z'), '2026-08-18');
+      assert.ok(parseDateTime('2026-08-19T14:00:00.000Z', '14:00'));
+      assert.equal(salonCalendarDate(parseDateTime('2026-08-19', '14:00')), '2026-08-19');
     });
 
     it('should not throw RangeError when formatting invalid dates', () => {
@@ -586,6 +589,11 @@ describe('Agenda Redesign - Test Suite', () => {
       assert.doesNotThrow(() => getWeekDays(new Date('invalid')));
       assert.strictEqual(getWeekDays(new Date('invalid')).length, 7);
       assert.doesNotThrow(() => formatViewTitle(VIEW_MODES.DAY, new Date('invalid')));
+    });
+
+    it('should not produce NaN pixel offsets for invalid minutes', () => {
+      assert.equal(minuteToPixels(NaN, 480), 0);
+      assert.equal(minuteToPixels(600, 0), 1280);
     });
 
     it('should group ISO and plain dates on the same calendar day', () => {

@@ -26,6 +26,12 @@
   html {
     height: 100%;
     height: -webkit-fill-available;
+    max-width: 100%;
+  }
+
+  #root {
+    min-width: 0;
+    max-width: 100%;
   }
 
   body {
@@ -38,7 +44,7 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
-    @apply font-sans antialiased overflow-x-hidden transition-colors duration-300;
+    @apply font-sans antialiased transition-colors duration-300;
   }
 
   button,
@@ -92,16 +98,16 @@
     @apply bg-card/80 backdrop-blur-xl border border-border/60 shadow-xl rounded-2xl md:rounded-3xl transition-all duration-300;
   }
   .btn-primary {
-    @apply bg-primary text-white font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
+    @apply bg-primary text-white font-black min-h-[44px] px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .btn-outline {
     @apply border-2 border-primary/50 text-primary font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-primary/10 transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .btn-secondary {
-    @apply bg-card/60 backdrop-blur-lg border border-border text-muted font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-border/40 hover:text-foreground transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
+    @apply bg-card/60 backdrop-blur-lg border border-border text-muted font-black min-h-[44px] px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-border/40 hover:text-foreground transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .input-field {
-    @apply w-full bg-background/60 border border-border/70 rounded-xl md:rounded-2xl px-4 py-3 md:py-3.5 text-sm md:text-base text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300;
+    @apply w-full min-h-[44px] bg-background/60 border border-border/70 rounded-xl md:rounded-2xl px-4 py-3 md:py-3.5 text-sm md:text-base text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300;
   }
   
   .glow-primary {
@@ -126,6 +132,10 @@
   }
   .badge-cancelled {
     @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-black uppercase tracking-wider bg-red-500/15 text-red-500 border border-red-500/30;
+  }
+
+  .metric-value {
+    @apply min-w-0 max-w-full truncate tabular-nums text-2xl sm:text-3xl md:text-4xl font-black leading-tight tracking-tight;
   }
 }
 
@@ -171,6 +181,16 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .min-h-touch {
+    min-height: 44px;
+    min-width: 44px;
   }
   .agenda-shell {
     height: calc(100vh - 5.5rem);

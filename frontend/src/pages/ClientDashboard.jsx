@@ -280,13 +280,13 @@ const ClientDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen min-w-0 max-w-full bg-background pb-20">
       
       {/* Premium Modal */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe">
           <div className="absolute inset-0 bg-background/60 backdrop-blur-md animate-in fade-in duration-300" onClick={modal.onCancel}></div>
-          <div className="relative bg-card border border-border shadow-2xl rounded-[2.5rem] p-10 max-w-sm w-full animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+          <div className="relative bg-card border border-border shadow-2xl rounded-t-[2rem] sm:rounded-[2.5rem] p-8 sm:p-10 max-w-sm w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
             <div className="flex flex-col items-center text-center">
               <div className={`mb-8 p-5 rounded-3xl ${
                 modal.type === 'confirm' ? 'bg-amber-100 text-amber-600' : 
@@ -326,7 +326,7 @@ const ClientDashboard = () => {
           </div>
         </div>
       )}
-      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 px-6 py-4">
+      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50 px-4 sm:px-6 py-4 min-w-0">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <button 
             onClick={() => navigate('/')}
@@ -508,27 +508,27 @@ const ClientDashboard = () => {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-w-0">
               {filteredAppointments.map((app) => (
                 <div 
                   key={app.id} 
-                  className={`bg-background border rounded-3xl p-6 shadow-sm hover:shadow-md transition-all group relative overflow-hidden ${
+                  className={`bg-background border rounded-3xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-all group relative overflow-hidden min-w-0 ${
                     app.status === 'cancelado' ? 'border-red-50 bg-red-50/5' : 'border-border/50 hover:border-primary/30'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
+                  <div className="flex justify-between items-start mb-6 gap-3 min-w-0">
+                    <div className="min-w-0">
                       {getStatusBadge(app)}
-                      <h4 className="text-xl font-serif text-foreground mt-3 group-hover:text-primary transition-colors">
+                      <h4 className="text-lg sm:text-xl font-serif text-foreground mt-3 group-hover:text-primary transition-colors truncate">
                         {app.service_name}
                       </h4>
                       <p className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mt-1 opacity-70">
                         {app.category || 'Geral'}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-foreground">{app.time}</p>
-                      <p className="text-[10px] text-muted uppercase font-bold tracking-widest mt-1">
+                    <div className="text-right shrink-0 min-w-0">
+                      <p className="text-xl sm:text-2xl font-bold text-foreground">{app.time}</p>
+                      <p className="text-[10px] text-muted uppercase font-bold tracking-widest mt-1 truncate max-w-[9rem]">
                         {safeFormatDate(app.date, "dd 'DE' MMMM", { locale: ptBR })}
                       </p>
                     </div>
