@@ -12,9 +12,11 @@ export function getSettingValue(settings, key) {
   return settings.find(setting => setting.key === key)?.value;
 }
 
-/** Missing setting means visible. Only an explicit false hides the column. */
+/** Missing setting: manicures on, sócio/sócia off until someone toggles. */
 export function parseAgendaVisible(value) {
-  return !(value === false || value === 'false' || value === 0 || value === '0');
+  if (value === false || value === 'false' || value === 0 || value === '0') return false;
+  if (value === true || value === 'true' || value === 1 || value === '1') return true;
+  return null;
 }
 
 export function withAgendaVisibility(professionals = [], settings = []) {

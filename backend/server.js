@@ -452,6 +452,27 @@ function scheduleFromFlatHours(workStart, workEnd, workDays) {
     );
 }
 
+function isPartnerRecord(professional) {
+    const identity = `${professional?.name || ''} ${professional?.specialty || ''}`
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    return identity.includes('socio') || identity.includes('socia');
+}
+
+function storedAgendaVisible(settingsMap, professionalId) {
+    const raw = settingsMap[getProfessionalSettingKey(professionalId, 'agenda_visible')];
+    if (raw === 'false') return false;
+    if (raw === 'true') return true;
+    return null;
+}
+
+function resolveAgendaVisible(settingsMap, professional) {
+    const stored = storedAgendaVisible(settingsMap, professional?.id);
+    if (stored !== null) return stored;
+    return !isPartnerRecord(professional);
+}
+
 function buildProfessionalSchedule(settingsMap, professionalId) {
     const rawInterval = Number(settingsMap[getProfessionalSettingKey(professionalId, 'slot_interval')] || settingsMap.slot_interval || DEFAULT_SLOT_INTERVAL);
     const flatStart = settingsMap[getProfessionalSettingKey(professionalId, 'work_start')] || settingsMap.work_start || DEFAULT_WORK_START;
@@ -475,7 +496,7 @@ function buildProfessionalSchedule(settingsMap, professionalId) {
         slot_interval: Number.isInteger(rawInterval) && rawInterval >= 5 && rawInterval <= 240 ? rawInterval : Number(DEFAULT_SLOT_INTERVAL),
         work_days: hasPerDay ? openDays : flatDays,
         is_public_agenda: settingsMap[getProfessionalSettingKey(professionalId, 'is_public_agenda')] === 'true',
-        agenda_visible: settingsMap[getProfessionalSettingKey(professionalId, 'agenda_visible')] !== 'false',
+        agenda_visible: storedAgendaVisible(settingsMap, professionalId),
         schedule
     };
 }
@@ -1273,9 +1294,11 @@ app.get('/api/professionals', async (req, res) => {
             const visible = canViewPrivate
                 ? presentStaffWhatsApp(professional)
                 : omitStaffWhatsApp(professional);
+            const schedule = await buildProfessionalScheduleWithExceptions(supabase, settingsMap, professional.id);
             return {
                 ...visible,
-                ...await buildProfessionalScheduleWithExceptions(supabase, settingsMap, professional.id)
+                ...schedule,
+                agenda_visible: resolveAgendaVisible(settingsMap, visible)
             };
         }));
 
@@ -1322,7 +1345,8 @@ app.get('/api/professionals/:id', async (req, res) => {
             "message": "success",
             "data": {
                 ...payload,
-                ...scheduleWithExceptions
+                ...scheduleWithExceptions,
+                agenda_visible: resolveAgendaVisible(settingsMap, payload)
             }
         });
     } catch (settingsError) {
@@ -1963,7 +1987,7 @@ app.post('/api/appointments', rateLimit({
         try {
             const { data: dbPro } = await supabase
                 .from('professionals')
-                .select('id, status')
+                .select('id, name, specialty, status')
                 .eq('id', professionalId)
                 .maybeSingle();
             professional = dbPro;
@@ -1990,7 +2014,8 @@ app.post('/api/appointments', rateLimit({
         const totalDuration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
 
         const professionalSchedule = buildProfessionalSchedule(settingsMap, professionalId);
-        if (!isStaff && professionalSchedule.agenda_visible === false) {
+        const agendaVisible = resolveAgendaVisible(settingsMap, professional);
+        if (!isStaff && agendaVisible === false) {
             return res.status(400).json({ error: 'Esta profissional não está atendendo no momento.' });
         }
         const allowOutsideHours = isStaff;
@@ -2855,7 +2880,7 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
         SETTING_KEYS.templateOwner, SETTING_KEYS.templateProfessional,
         SETTING_KEYS.templateClientPending, SETTING_KEYS.templateClientConfirmed
     ]);
-    const professionalMatch = key.match(/^professional_(\d+)_(work_start|work_end|slot_interval|work_days|is_public_agenda|agenda_visible|schedule)$/);
+    const professionalMatch = key.match(/^professional_([A-Za-z0-9-]+)_(work_start|work_end|slot_interval|work_days|is_public_agenda|agenda_visible|schedule)$/);
     const isGlobalAdmin = req.auth.role === 'admin' || isOwner(req.auth);
     const reminderSpec = reminderSettingSpec(key);
     if (reminderSpec && !isReminderPrivileged(req.auth)) {
