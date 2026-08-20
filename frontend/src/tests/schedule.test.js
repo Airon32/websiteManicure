@@ -42,3 +42,15 @@ test('resolveWorkClock ignora undefined, vazio e NaN e usa o primeiro horário v
   assert.equal(resolveWorkClock('7:30'), '07:30');
   assert.equal(resolveWorkClock(null, '18:00'), '18:00');
 });
+
+test('agenda visível por padrão e só some com false explícito', async () => {
+  const { parseAgendaVisible, withAgendaVisibility } = await import('../utils/schedule.js');
+  assert.equal(parseAgendaVisible(undefined), true);
+  assert.equal(parseAgendaVisible('true'), true);
+  assert.equal(parseAgendaVisible('false'), false);
+  const tagged = withAgendaVisibility(
+    [{ id: 4, name: 'Sócio Fundador' }],
+    [{ key: 'professional_4_agenda_visible', value: 'false' }]
+  );
+  assert.equal(tagged[0].agenda_visible, false);
+});

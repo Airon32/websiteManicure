@@ -12,6 +12,21 @@ export function getSettingValue(settings, key) {
   return settings.find(setting => setting.key === key)?.value;
 }
 
+/** Missing setting means visible. Only an explicit false hides the column. */
+export function parseAgendaVisible(value) {
+  return !(value === false || value === 'false' || value === 0 || value === '0');
+}
+
+export function withAgendaVisibility(professionals = [], settings = []) {
+  return (Array.isArray(professionals) ? professionals : []).map(professional => ({
+    ...professional,
+    agenda_visible: parseAgendaVisible(
+      professional.agenda_visible ??
+        getSettingValue(settings, getProfessionalSettingKey(professional.id, 'agenda_visible'))
+    )
+  }));
+}
+
 export function parseWorkDays(value) {
   if (!value) return [...DEFAULT_WORK_DAYS];
 
@@ -94,13 +109,17 @@ export function buildEffectiveSchedule(settings, professionalId = null) {
     : getSettingValue(settings, 'is_public_agenda');
 
   const isPublicAgenda = isPublicAgendaValue === 'true' || isPublicAgendaValue === true;
+  const agendaVisibleValue = professionalId
+    ? getSettingValue(settings, getProfessionalSettingKey(professionalId, 'agenda_visible'))
+    : getSettingValue(settings, 'agenda_visible');
 
   return {
     workStart,
     workEnd,
     slotInterval: String(slotInterval),
     workDays: parseWorkDays(workDaysValue),
-    is_public_agenda: isPublicAgenda
+    is_public_agenda: isPublicAgenda,
+    agenda_visible: parseAgendaVisible(agendaVisibleValue)
   };
 }
 

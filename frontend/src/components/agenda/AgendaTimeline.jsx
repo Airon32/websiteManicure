@@ -9,6 +9,7 @@ import {
   filterVisibleProfessionals,
   formatViewTitle,
   getWeekDays,
+  isAgendaVisible,
   isCurrentPeriod,
   isPartner,
   normalizeDate,
@@ -296,7 +297,9 @@ export default function AgendaTimeline({
   loading = false,
   error = null,
   workStart,
-  workEnd
+  workEnd,
+  onToggleAgendaVisible,
+  togglingAgendaId = null
 }) {
   const [viewMode, setViewMode] = useState(VIEW_MODES.DAY);
   const [selectedProfessionalFilter, setSelectedProfessionalFilter] = useState('all');
@@ -488,6 +491,35 @@ export default function AgendaTimeline({
             })}
           </div>
         )}
+
+        {isAdmin && typeof onToggleAgendaVisible === 'function' && professionals.length > 0 && (
+          <div className="mt-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-muted">
+              Equipe
+            </span>
+            {professionals.map(professional => {
+              const on = isAgendaVisible(professional);
+              return (
+                <button
+                  key={professional.id}
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  disabled={String(togglingAgendaId) === String(professional.id)}
+                  onClick={() => onToggleAgendaVisible(professional, !on)}
+                  className={`shrink-0 rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-wider transition-colors min-h-8 ${
+                    on
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border/60 bg-card/40 text-muted'
+                  }`}
+                  title={on ? `Desligar ${professional.name} da agenda (férias)` : `Ligar ${professional.name} na agenda`}
+                >
+                  {professional.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {loading && (
@@ -507,7 +539,7 @@ export default function AgendaTimeline({
       {!loading && !error && visibleProfessionals.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 px-6 text-center">
           <p className="text-base font-black text-foreground">Agenda vazia</p>
-          <p className="text-xs text-muted">Nenhuma profissional visível neste perfil. Verifique o cadastro ou o filtro de sócia.</p>
+          <p className="text-xs text-muted">Nenhuma profissional visível neste perfil. Ligue a agenda da equipe (chips acima) ou em Gestão & RH.</p>
         </div>
       )}
 
