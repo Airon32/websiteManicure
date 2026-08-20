@@ -18,7 +18,9 @@ import {
 } from '../utils/timelineLayout.js';
 
 import {
-  buildEffectiveSchedule
+  buildEffectiveSchedule,
+  parseAgendaVisible,
+  withAgendaVisibility
 } from '../utils/schedule.js';
 
 import {
@@ -33,6 +35,7 @@ import {
   getProfessionalGridClass,
   isPartner,
   filterVisibleProfessionals,
+  isAgendaVisible,
   normalizeDate,
   appointmentDate,
   safeFormat,
@@ -227,21 +230,27 @@ describe('Agenda Redesign - Test Suite', () => {
       assert.strictEqual(isPartner({ name: 'Juliana Paes', specialty: 'Pedicure' }), false);
     });
 
-    it('should keep the professional in Personal Agenda even when isPartner is true', () => {
-      const self = { id: 'pro-9', name: 'Mariana Sócia', specialty: 'Sócia', is_public_agenda: true };
+    it('should keep the professional in Personal Agenda even when agenda is off for the team', () => {
+      const self = { id: 'pro-9', name: 'Mariana Sócia', specialty: 'Sócia', agenda_visible: false };
       const visible = filterVisibleProfessionals([self], { isAdmin: false, currentUserId: 'pro-9' });
       assert.strictEqual(visible.length, 1);
       assert.strictEqual(visible[0].id, 'pro-9');
     });
 
-    it('should hide other partners in team grid but never empty the list', () => {
+    it('should hide professionals with agenda_visible false from the team grid', () => {
       const team = [
-        { id: '1', name: 'Ana', specialty: 'Manicure', is_public_agenda: true },
-        { id: '2', name: 'Sócia Gerente', specialty: 'Sócia', is_public_agenda: true }
+        { id: '1', name: 'Ana', specialty: 'Manicure' },
+        { id: '2', name: 'Sócio Fundador', specialty: 'Sócio', agenda_visible: false }
       ];
       const visible = filterVisibleProfessionals(team, { isAdmin: true, currentUserId: 'admin-1' });
       assert.strictEqual(visible.length, 1);
       assert.strictEqual(visible[0].name, 'Ana');
+      assert.equal(isAgendaVisible(team[1]), false);
+      assert.equal(parseAgendaVisible(undefined), true);
+      assert.deepEqual(
+        withAgendaVisibility(team, [{ key: 'professional_2_agenda_visible', value: 'false' }]).map(p => p.agenda_visible),
+        [true, false]
+      );
     });
   });
 
@@ -275,12 +284,12 @@ describe('Agenda Redesign - Test Suite', () => {
     // 1. Profissionais lado a lado horizontal
     it('Criteria 1: Professional columns layout & column widths', () => {
       const mockProfessionals = [
-        { id: '1', name: 'Ana', specialty: 'Nail Designer', is_public_agenda: true },
-        { id: '2', name: 'Bia', specialty: 'Manicure', is_public_agenda: true },
-        { id: '3', name: 'Sócia Gerente', specialty: 'Sócia', is_public_agenda: true }
+        { id: '1', name: 'Ana', specialty: 'Nail Designer', agenda_visible: true },
+        { id: '2', name: 'Bia', specialty: 'Manicure', agenda_visible: true },
+        { id: '3', name: 'Sócia Gerente', specialty: 'Sócia', agenda_visible: false }
       ];
 
-      const visible = mockProfessionals.filter(p => !p.specialty.toLowerCase().includes('sócia'));
+      const visible = filterVisibleProfessionals(mockProfessionals, { isAdmin: true, currentUserId: 'admin-1' });
       assert.strictEqual(visible.length, 2);
       assert.deepStrictEqual(visible.map(p => p.name), ['Ana', 'Bia']);
     });

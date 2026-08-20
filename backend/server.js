@@ -475,6 +475,7 @@ function buildProfessionalSchedule(settingsMap, professionalId) {
         slot_interval: Number.isInteger(rawInterval) && rawInterval >= 5 && rawInterval <= 240 ? rawInterval : Number(DEFAULT_SLOT_INTERVAL),
         work_days: hasPerDay ? openDays : flatDays,
         is_public_agenda: settingsMap[getProfessionalSettingKey(professionalId, 'is_public_agenda')] === 'true',
+        agenda_visible: settingsMap[getProfessionalSettingKey(professionalId, 'agenda_visible')] !== 'false',
         schedule
     };
 }
@@ -1278,7 +1279,11 @@ app.get('/api/professionals', async (req, res) => {
             };
         }));
 
-        res.json({ message: "success", data: withSchedule });
+        const payload = canViewPrivate
+            ? withSchedule
+            : withSchedule.filter(professional => professional.agenda_visible !== false);
+
+        res.json({ message: "success", data: payload });
     } catch {
         res.json({ message: "success", data: defaultProfessionalsMock.map(omitStaffWhatsApp) });
     }
@@ -1985,6 +1990,9 @@ app.post('/api/appointments', rateLimit({
         const totalDuration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
 
         const professionalSchedule = buildProfessionalSchedule(settingsMap, professionalId);
+        if (!isStaff && professionalSchedule.agenda_visible === false) {
+            return res.status(400).json({ error: 'Esta profissional não está atendendo no momento.' });
+        }
         const allowOutsideHours = isStaff;
         const validation = validateAppointmentAgainstSchedule({
             date,
@@ -2847,7 +2855,7 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
         SETTING_KEYS.templateOwner, SETTING_KEYS.templateProfessional,
         SETTING_KEYS.templateClientPending, SETTING_KEYS.templateClientConfirmed
     ]);
-    const professionalMatch = key.match(/^professional_(\d+)_(work_start|work_end|slot_interval|work_days|is_public_agenda|schedule)$/);
+    const professionalMatch = key.match(/^professional_(\d+)_(work_start|work_end|slot_interval|work_days|is_public_agenda|agenda_visible|schedule)$/);
     const isGlobalAdmin = req.auth.role === 'admin' || isOwner(req.auth);
     const reminderSpec = reminderSettingSpec(key);
     if (reminderSpec && !isReminderPrivileged(req.auth)) {
@@ -2859,6 +2867,9 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
     if (!allowed) return res.status(403).json({ error: 'Você não pode alterar esta configuração.' });
 
     const suffix = professionalMatch?.[2] || key;
+    if (suffix === 'agenda_visible' && !isGlobalAdmin) {
+        return res.status(403).json({ error: 'Só a gestão pode ligar ou desligar a agenda da profissional.' });
+    }
     if (['work_start', 'work_end'].includes(suffix) && !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
         return res.status(400).json({ error: 'Horário de expediente inválido.' });
     }
@@ -2868,7 +2879,7 @@ app.put('/api/settings', requireStaff(), async (req, res) => {
     if (suffix === 'max_advance_days' && (!Number.isInteger(Number(value)) || Number(value) < 1 || Number(value) > 365)) {
         return res.status(400).json({ error: 'O limite de antecedência deve ficar entre 1 e 365 dias.' });
     }
-    if (['allow_online_booking', 'is_public_agenda', 'hide_client_phone_from_collaborators', 'allow_admins_view_client_phone'].includes(suffix) && !['true', 'false'].includes(value)) {
+    if (['allow_online_booking', 'is_public_agenda', 'agenda_visible', 'hide_client_phone_from_collaborators', 'allow_admins_view_client_phone'].includes(suffix) && !['true', 'false'].includes(value)) {
         return res.status(400).json({ error: 'Valor booleano inválido.' });
     }
     if (reminderSpec?.kind === 'boolean' && !['true', 'false'].includes(value)) {

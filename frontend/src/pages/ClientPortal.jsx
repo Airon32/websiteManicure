@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { addDays, startOfToday, isAfter, endOfWeek, isWithinInterval } from 'date-fns';
-import { parseDateTime, appointmentDate, safeFormat, toValidDate } from '../utils/agendaMultiview';
+import { parseDateTime, appointmentDate, safeFormat, toValidDate, isAgendaVisible, isPartner } from '../utils/agendaMultiview';
 import { ptBR } from 'date-fns/locale';
 
 const safeFormatDate = (dateStr, formatStr = 'dd/MM', options = {}) => {
@@ -864,7 +864,7 @@ export default function ClientPortal() {
             businessName={businessName}
             whatsappNumber={whatsappNumber}
             services={services}
-            professionals={professionals.filter(professional => !(professional.specialty?.toLowerCase().includes('sócio') || professional.specialty?.toLowerCase().includes('socio')))}
+            professionals={professionals.filter(professional => isAgendaVisible(professional) && !isPartner(professional))}
             quickSlots={quickSlots}
             quickSlotsLoading={quickSlotsLoading}
             links={{ privacy: '/privacidade', staff: '/admin' }}
@@ -1059,7 +1059,7 @@ export default function ClientPortal() {
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h3 className="text-2xl font-serif text-foreground mb-6">Escolha o Profissional</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio'))).map(pro => (
+                    {professionals.filter(p => isAgendaVisible(p) && !isPartner(p)).map(pro => (
                       <button
                         type="button"
                         aria-pressed={selectedPro?.id === pro.id}

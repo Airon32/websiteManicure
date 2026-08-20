@@ -3,9 +3,9 @@ import api from '../api';
 import { useNavigate } from '../router';
 import { Calendar as CalendarIcon, Users, Settings, Scissors, LayoutDashboard, Search, Bell, LogOut, Trash2, Plus, X, User, Sun, Moon, Briefcase, DollarSign, Activity, ChevronLeft, ChevronRight, Menu, AlertTriangle, CheckCircle, Info, Edit2, Lock, Unlock, Clock, MessageCircle, Tag, Copy, FileText, Send, Printer, Shield, ShieldCheck } from 'lucide-react';
 import { format, parseISO, startOfToday, addDays, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, subMonths, addMonths, isSameMonth, formatDistanceToNow } from 'date-fns';
-import { parseDateTime, appointmentDate, normalizeDate, safeFormat } from '../utils/agendaMultiview';
+import { parseDateTime, appointmentDate, normalizeDate, safeFormat, isAgendaVisible } from '../utils/agendaMultiview';
 import { ptBR } from 'date-fns/locale';
-import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey, toApiWeekSchedule, toEditorWeekSchedule } from '../utils/schedule';
+import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey, toApiWeekSchedule, toEditorWeekSchedule, withAgendaVisibility } from '../utils/schedule';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import AgendaTimeline from '../components/agenda/AgendaTimeline';
 import ReminderIndicator from '../components/reminders/ReminderIndicator';
@@ -222,6 +222,7 @@ export default function AdminDashboard() {
   const [allowOnlineBooking, setAllowOnlineBooking] = useState(true);
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' ou 'timeline'
   const [isPublicAgenda, setIsPublicAgenda] = useState(false);
+  const [togglingAgendaId, setTogglingAgendaId] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [showNotifModal, setShowNotifModal] = useState(false);
 
@@ -339,7 +340,7 @@ export default function AdminDashboard() {
       setServices(srvRes.data.data);
 
       if (loggedUser.role === 'admin') {
-        setProfessionals(profileRes.data.data);
+        setProfessionals(withAgendaVisibility(profileRes.data.data, incomingSettings));
         const globalSchedule = buildEffectiveSchedule(incomingSettings);
         setWorkStart(globalSchedule.workStart);
         setWorkEnd(globalSchedule.workEnd);
@@ -611,6 +612,39 @@ export default function AdminDashboard() {
         }
       }
     });
+  };
+
+  const handleToggleAgendaVisible = async (professional, nextValue) => {
+    if (!professional?.id) return;
+    const key = getProfessionalSettingKey(professional.id, 'agenda_visible');
+    const value = String(Boolean(nextValue));
+    setTogglingAgendaId(professional.id);
+    try {
+      await api.put('/api/settings', { key, value });
+      setProfessionals(prev =>
+        prev.map(person =>
+          String(person.id) === String(professional.id)
+            ? { ...person, agenda_visible: Boolean(nextValue) }
+            : person
+        )
+      );
+      setSettingsData(prev => {
+        const next = [...prev];
+        const existingIndex = next.findIndex(setting => setting.key === key);
+        if (existingIndex >= 0) next[existingIndex] = { ...next[existingIndex], value };
+        else next.push({ key, value });
+        return next;
+      });
+    } catch (err) {
+      openModal({
+        title: 'Não foi possível atualizar a agenda',
+        message: err.response?.data?.error || 'Tente novamente em instantes.',
+        type: 'error',
+        confirmText: 'Entendido'
+      });
+    } finally {
+      setTogglingAgendaId(null);
+    }
   };
 
   const handleAddService = async (e) => {
@@ -1260,6 +1294,7 @@ const scheduleUpdates = [
   if (!user) return <div className="min-h-screen bg-background flex items-center justify-center text-foreground">Carregando...</div>;
 
   const isAdmin = user.role === 'admin';
+  const bookableProfessionals = professionals.filter(isAgendaVisible);
   const dayOptions = [
     { k: 'dom', l: 'Dom' },
     { k: 'seg', l: 'Seg' },
@@ -1572,7 +1607,7 @@ const scheduleUpdates = [
                               <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Profissional</label>
                               <select className="input-field w-full text-sm" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
                                 <option value="" disabled>Selecione</option>
-                                {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio'))).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {bookableProfessionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                               </select>
                             </div>
                           )}
@@ -1660,7 +1695,7 @@ const scheduleUpdates = [
                               <label className="text-[10px] md:text-xs font-bold text-primary uppercase tracking-widest block mb-1">Profissional</label>
                               <select className="input-field w-full" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
                                 <option value="" disabled>Selecione</option>
-                                {professionals.filter(p => !(p.specialty?.toLowerCase().includes('sócio') || p.specialty?.toLowerCase().includes('socio') || p.name?.toLowerCase().includes('sócio') || p.name?.toLowerCase().includes('socio'))).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {bookableProfessionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                               </select>
                             </div>
                           )}
@@ -2077,6 +2112,8 @@ const scheduleUpdates = [
                         setNewAppt(prev => ({ ...prev, professional_id: profId, date: dateStr, time: timeStr }));
                         setShowAddAppt(true);
                       }}
+                      onToggleAgendaVisible={handleToggleAgendaVisible}
+                      togglingAgendaId={togglingAgendaId}
                       workStart={workStart}
                       workEnd={workEnd}
                       slotInterval={slotInterval}
@@ -2307,8 +2344,33 @@ const scheduleUpdates = [
                                   <p className="text-xs text-primary font-bold mt-1">Login: {pro.username}</p>
                                 </div>
                               </div>
-                              <div className="mt-auto border-t border-border pt-4 flex justify-between items-center">
-                                <span className="text-xs text-muted">Login: <span className="text-foreground font-medium">{pro.username}</span></span>
+                              <div className="mt-auto border-t border-border pt-4 flex justify-between items-center gap-2">
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={isAgendaVisible(pro)}
+                                  disabled={togglingAgendaId === pro.id}
+                                  onClick={() => handleToggleAgendaVisible(pro, !isAgendaVisible(pro))}
+                                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                                    isAgendaVisible(pro)
+                                      ? 'bg-primary/15 text-primary border border-primary/30'
+                                      : 'bg-muted/20 text-muted border border-border'
+                                  }`}
+                                  title={isAgendaVisible(pro) ? 'Esta profissional aparece na agenda. Toque para desligar (férias).' : 'Fora da agenda. Toque para ligar de novo.'}
+                                >
+                                  <span
+                                    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                                      isAgendaVisible(pro) ? 'bg-primary' : 'bg-border'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                                        isAgendaVisible(pro) ? 'left-4' : 'left-0.5'
+                                      }`}
+                                    />
+                                  </span>
+                                  {isAgendaVisible(pro) ? 'Na agenda' : 'Fora da agenda'}
+                                </button>
                                 <button onClick={() => handleDeleteStaff(pro.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded transition-colors" title="Demitir Profissional">
                                   <Trash2 size={18} />
                                 </button>
@@ -3497,7 +3559,7 @@ const scheduleUpdates = [
                     required
                   >
                     <option value="" disabled>Selecione o Profissional</option>
-                    {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {bookableProfessionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               )}
@@ -4022,7 +4084,7 @@ const scheduleUpdates = [
                 <label className="text-sm text-muted mb-1 block">Profissional</label>
                 <select className="input-field w-full" value={editAppt.professional_id} onChange={e => setEditAppt({ ...editAppt, professional_id: e.target.value })} required>
                   <option value="" disabled>Selecione um Profissional</option>
-                  {professionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {bookableProfessionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
 
