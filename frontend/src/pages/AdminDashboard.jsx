@@ -1293,7 +1293,7 @@ const scheduleUpdates = [
 
   if (!user) return <div className="min-h-screen bg-background flex items-center justify-center text-foreground">Carregando...</div>;
 
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'owner' || user.is_owner === true;
   const bookableProfessionals = professionals.filter(isAgendaVisible);
   const dayOptions = [
     { k: 'dom', l: 'Dom' },

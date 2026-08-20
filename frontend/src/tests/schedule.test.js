@@ -43,9 +43,10 @@ test('resolveWorkClock ignora undefined, vazio e NaN e usa o primeiro horário v
   assert.equal(resolveWorkClock(null, '18:00'), '18:00');
 });
 
-test('agenda visível por padrão e só some com false explícito', async () => {
+test('agenda visível por padrão e sócio some até ligar', async () => {
   const { parseAgendaVisible, withAgendaVisibility } = await import('../utils/schedule.js');
-  assert.equal(parseAgendaVisible(undefined), true);
+  const { isAgendaVisible } = await import('../utils/agendaMultiview.js');
+  assert.equal(parseAgendaVisible(undefined), null);
   assert.equal(parseAgendaVisible('true'), true);
   assert.equal(parseAgendaVisible('false'), false);
   const tagged = withAgendaVisibility(
@@ -53,4 +54,6 @@ test('agenda visível por padrão e só some com false explícito', async () => 
     [{ key: 'professional_4_agenda_visible', value: 'false' }]
   );
   assert.equal(tagged[0].agenda_visible, false);
+  assert.equal(isAgendaVisible({ name: 'Sócio Fundador' }), false);
+  assert.equal(isAgendaVisible({ name: 'Sócio Fundador', agenda_visible: true }), true);
 });

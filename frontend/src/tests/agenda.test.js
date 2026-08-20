@@ -246,11 +246,20 @@ describe('Agenda Redesign - Test Suite', () => {
       assert.strictEqual(visible.length, 1);
       assert.strictEqual(visible[0].name, 'Ana');
       assert.equal(isAgendaVisible(team[1]), false);
-      assert.equal(parseAgendaVisible(undefined), true);
+      assert.equal(parseAgendaVisible(undefined), null);
+      assert.equal(isAgendaVisible({ name: 'Sócio Fundador', specialty: 'Sócio' }), false);
+      assert.equal(isAgendaVisible({ name: 'Ana', specialty: 'Manicure' }), true);
       assert.deepEqual(
         withAgendaVisibility(team, [{ key: 'professional_2_agenda_visible', value: 'false' }]).map(p => p.agenda_visible),
-        [true, false]
+        [null, false]
       );
+    });
+
+    it('should hide the logged-in partner from the admin team grid when agenda is off', () => {
+      const socio = { id: '1', name: 'Sócio Fundador', specialty: 'Sócio', agenda_visible: false };
+      const ana = { id: '2', name: 'Ana', specialty: 'Manicure' };
+      const visible = filterVisibleProfessionals([socio, ana], { isAdmin: true, currentUserId: '1' });
+      assert.deepEqual(visible.map(p => p.name), ['Ana']);
     });
   });
 

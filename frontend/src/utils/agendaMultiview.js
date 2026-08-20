@@ -180,24 +180,26 @@ export const isPartner = professional => {
   return identity.includes('socio') || identity.includes('socia');
 };
 
-/** Column / public booking: default on. Explicit false hides. */
+/** Column / public booking. Explicit false hides. Sócio defaults off. */
 export function isAgendaVisible(professional) {
   const value = professional?.agenda_visible;
   if (value === false || value === 'false' || value === 0 || value === '0') return false;
-  return true;
+  if (value === true || value === 'true' || value === 1 || value === '1') return true;
+  return !isPartner(professional);
 }
 
 /**
- * Agenda pessoal: a profissional logada sempre vê a própria coluna.
- * Grade da equipe e site público: só quem está com a agenda ligada.
+ * Grade da equipe (admin): o interruptor vale para todas, inclusive a conta logada.
+ * Agenda pessoal: a profissional logada ainda vê a própria coluna.
  */
 export function filterVisibleProfessionals(professionals = [], { isAdmin = false, currentUserId } = {}) {
   const list = Array.isArray(professionals) ? professionals : [];
   return list.filter(professional => {
     const isSelf = String(professional.id) === String(currentUserId);
-    if (isSelf) return true;
-    if (!isAgendaVisible(professional)) return false;
-    if (isAdmin) return true;
+    if (!isAgendaVisible(professional)) {
+      return isSelf && !isAdmin;
+    }
+    if (isAdmin || isSelf) return true;
     return Boolean(professional.is_public_agenda);
   });
 }
