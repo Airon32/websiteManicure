@@ -1347,7 +1347,7 @@ const scheduleUpdates = [
       channelReady={reminderChannelReady}
       user={user}
     >
-    <div className="flex min-w-0 w-full h-screen bg-background overflow-hidden font-sans transition-colors duration-300" style={{ height: '100dvh' }}>
+    <div className="flex min-h-0 min-w-0 w-full h-screen bg-background overflow-hidden font-sans transition-colors duration-300" style={{ height: '100dvh' }}>
       {liveBookingAlert && (
         <div className="fixed top-4 left-1/2 z-[90] w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl border border-primary/40 bg-card px-4 py-3 shadow-2xl">
           <p className="text-sm font-bold text-foreground">{liveBookingAlert.title}</p>
@@ -1459,7 +1459,7 @@ const scheduleUpdates = [
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative bg-background w-full max-w-full pb-24 lg:pb-0">
+      <main className={`flex-1 flex flex-col min-h-0 min-w-0 relative bg-background w-full max-w-full pb-24 lg:pb-0 ${activeTab === 'agenda' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         <header className="min-h-16 md:h-20 border-b border-border/40 flex items-center justify-between gap-2 px-3 py-2 md:px-8 md:py-0 bg-background/80 backdrop-blur-2xl sticky top-0 z-40">
           <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
             <button className="lg:hidden h-10 w-10 shrink-0 text-muted hover:text-primary rounded-xl bg-card/60 border border-border/50 transition-all flex items-center justify-center" onClick={() => setIsMobileMenuOpen(true)}>
@@ -1491,7 +1491,7 @@ const scheduleUpdates = [
           </div>
         </header>
 
-        <div className={`min-w-0 max-w-full ${activeTab === 'agenda' ? 'p-0 md:p-4' : 'p-4 md:p-8'}`}>
+        <div className={`min-w-0 max-w-full ${activeTab === 'agenda' ? 'flex flex-1 flex-col min-h-0 p-0 md:p-4' : 'p-4 md:p-8'}`}>
 
           {showAddAppt && (
             <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 pt-safe pb-safe animate-in fade-in duration-300">
@@ -2057,7 +2057,7 @@ const scheduleUpdates = [
           )}
 
                 {activeTab === 'agenda' && (
-                  <div className="fade-in-up duration-500 w-full flex-1 flex flex-col min-h-0">
+                  <div className="w-full flex-1 flex flex-col min-h-0">
                     <AgendaTimeline
                       selectedDate={selectedCalendarDate} 
                       setSelectedDate={setSelectedCalendarDate}

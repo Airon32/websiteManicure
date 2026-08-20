@@ -97,9 +97,9 @@ export default function AgendaMonthView({
       )}
 
       {/* Month Matrix Grid */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-auto no-scrollbar">
+      <div className="agenda-scroll flex flex-col">
         {/* Weekday Header Row */}
-        <div className="grid grid-cols-7 border-b border-border/50 bg-card/90 backdrop-blur-md sticky-ios top-0 z-20">
+        <div className="grid grid-cols-7 border-b border-border/50 bg-card sticky-ios top-0 z-20">
           {WEEK_DAYS_HEADER.map(dayName => (
             <div
               key={dayName}

@@ -202,14 +202,14 @@ function WeekScheduleOverlay({ schedule, startMinute, endMinute }) {
     <>
       {beforeHeight > 0 && (
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-black/30 backdrop-blur-[1px]"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-black/25"
           style={{ height: `${beforeHeight}px` }}
           aria-hidden="true"
         />
       )}
       {afterHeight > 0 && (
         <div
-          className="pointer-events-none absolute inset-x-0 z-10 bg-black/30 backdrop-blur-[1px]"
+          className="pointer-events-none absolute inset-x-0 z-10 bg-black/25"
           style={{ top: `${minuteToPixels(afterTop, startMinute)}px`, height: `${afterHeight}px` }}
           aria-hidden="true"
         />
@@ -326,10 +326,10 @@ export default function AgendaWeekView({
       )}
 
       {/* Week Grid Container */}
-      <div className="relative flex-1 overflow-auto no-scrollbar flex flex-col">
+      <div className="agenda-scroll relative no-scrollbar flex flex-col">
         <div className="flex flex-col w-full min-w-0">
           {/* Sticky Header Row: Time Axis Corner + 7 Weekday Headers */}
-          <div className="sticky-ios top-0 z-40 flex border-b border-border/50 bg-card/95 backdrop-blur-2xl min-w-0">
+          <div className="sticky-ios top-0 z-40 flex border-b border-border/50 bg-card min-w-0">
             {/* Sticky Time Axis Column Header (HORA) */}
             <div className="sticky-ios left-0 z-50 flex w-12 md:w-16 shrink-0 items-center justify-center border-r border-border/50 bg-background/95 text-[9px] md:text-[10px] font-black uppercase tracking-wider text-primary">
               <Clock size={11} className="mr-0.5" /> HORA
