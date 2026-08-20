@@ -263,14 +263,14 @@ function ScheduleOverlay({ schedule, startMinute, endMinute }) {
     <>
       {beforeHeight > 0 && (
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-black/30 backdrop-blur-[1px]"
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-black/25"
           style={{ height: `${beforeHeight}px` }}
           aria-hidden="true"
         />
       )}
       {afterHeight > 0 && (
         <div
-          className="pointer-events-none absolute inset-x-0 z-10 bg-black/30 backdrop-blur-[1px]"
+          className="pointer-events-none absolute inset-x-0 z-10 bg-black/25"
           style={{ top: `${minuteToPixels(afterTop, startMinute)}px`, height: `${afterHeight}px` }}
           aria-hidden="true"
         />
@@ -398,11 +398,11 @@ export default function AgendaTimeline({
 
   return (
     <section
-      className="agenda-shell glass-panel mb-0 flex flex-1 flex-col overflow-hidden border-border/50 bg-background/90 p-0 shadow-2xl"
+      className="agenda-shell mb-0 flex flex-1 flex-col overflow-hidden rounded-none md:rounded-2xl border-0 md:border border-border/50 bg-background p-0 shadow-none md:shadow-2xl"
       aria-label="Agenda"
     >
       {/* 1. Header & Navigation Control Strip */}
-      <div className="relative z-30 shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-2 py-1.5 md:px-4 md:py-2">
+      <div className="relative z-30 shrink-0 border-b border-border/50 bg-card px-2 py-1.5 md:px-4 md:py-2">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
           {/* Stepper: Date / Week / Month Navigation */}
           <div className="flex items-center gap-1">
@@ -517,11 +517,11 @@ export default function AgendaTimeline({
           ref={gridScrollContainerRef}
           id="view-mode-panel-dia"
           role="tabpanel"
-          className="relative flex-1 overflow-auto no-scrollbar flex flex-col"
+          className="agenda-scroll relative no-scrollbar flex flex-col"
         >
           <div className={`flex flex-col ${isSingleProfessional || isTwoProfessionals ? 'w-full' : 'min-w-max'}`}>
             {/* Sticky Header Row: HORA + Professionals */}
-            <div className="sticky-ios top-0 z-40 flex border-b border-border/50 bg-card/95 backdrop-blur-2xl">
+            <div className="sticky-ios top-0 z-40 flex border-b border-border/50 bg-card">
               {/* Top-Left Corner (HORA): Sticky in both X and Y */}
               <div className="sticky-ios left-0 z-50 flex w-12 md:w-16 shrink-0 items-center justify-center border-r border-border/50 bg-background/95 text-[9px] md:text-[10px] font-black uppercase tracking-wider text-primary">
                 <Clock size={11} className="mr-0.5" /> HORA

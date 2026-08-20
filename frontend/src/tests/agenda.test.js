@@ -596,6 +596,15 @@ describe('Agenda Redesign - Test Suite', () => {
       assert.equal(minuteToPixels(600, 0), 1280);
     });
 
+    it('should keep iOS day-view scroll from collapsing (min-height + overflow)', async () => {
+      const css = await import('node:fs/promises').then(fs =>
+        fs.readFile(new URL('../index.css', import.meta.url), 'utf8')
+      );
+      assert.match(css, /\.agenda-scroll[\s\S]*min-height:\s*40vh/);
+      assert.match(css, /\.agenda-scroll[\s\S]*-webkit-overflow-scrolling:\s*touch/);
+      assert.match(css, /\.agenda-shell[\s\S]*min-height:\s*0/);
+    });
+
     it('should group ISO and plain dates on the same calendar day', () => {
       const grouped = groupAppointmentsByDate([
         { id: 1, date: '2026-08-19T09:00:00.000Z' },
