@@ -27,6 +27,8 @@
     height: 100%;
     height: -webkit-fill-available;
     max-width: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   #root {
@@ -98,16 +100,17 @@
     @apply bg-card/80 backdrop-blur-xl border border-border/60 shadow-xl rounded-2xl md:rounded-3xl transition-all duration-300;
   }
   .btn-primary {
-    @apply bg-primary text-white font-black min-h-[44px] px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
+    @apply bg-primary text-white font-black min-h-11 md:min-h-[44px] px-4 py-2.5 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl shadow-xl shadow-primary/20 hover:bg-primary-hover hover:shadow-primary/40 transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .btn-outline {
-    @apply border-2 border-primary/50 text-primary font-black px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-primary/10 transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
+    @apply border-2 border-primary/50 text-primary font-black px-4 py-2.5 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-primary/10 transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .btn-secondary {
-    @apply bg-card/60 backdrop-blur-lg border border-border text-muted font-black min-h-[44px] px-5 py-3 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-border/40 hover:text-foreground transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
+    @apply bg-card/60 backdrop-blur-lg border border-border text-muted font-black min-h-11 md:min-h-[44px] px-4 py-2.5 md:px-8 md:py-3.5 rounded-xl md:rounded-2xl hover:bg-border/40 hover:text-foreground transition-all duration-300 active:scale-95 flex items-center justify-center gap-2 uppercase text-[11px] md:text-sm tracking-wider;
   }
   .input-field {
-    @apply w-full min-h-[44px] bg-background/60 border border-border/70 rounded-xl md:rounded-2xl px-4 py-3 md:py-3.5 text-sm md:text-base text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300;
+    @apply w-full min-h-11 md:min-h-[44px] bg-background/60 border border-border/70 rounded-xl md:rounded-2xl px-3 py-2 md:px-4 md:py-3.5 text-base text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-300;
+    font-size: 16px;
   }
   
   .glow-primary {
@@ -211,5 +214,85 @@
   .sticky-ios {
     position: -webkit-sticky;
     position: sticky;
+  }
+
+  .app-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: max(0.5rem, env(safe-area-inset-top, 0px)) 0.5rem 0;
+    background: rgb(0 0 0 / 0.7);
+  }
+
+  .app-sheet {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 28rem;
+    min-height: 0;
+    max-height: min(88svh, calc(100dvh - 0.75rem));
+    overflow: hidden;
+    border-radius: 1.25rem 1.25rem 0 0;
+    background: rgb(var(--color-card));
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+  }
+
+  .app-sheet-wide {
+    max-width: 56rem;
+  }
+
+  .app-viewport {
+    height: 100svh;
+    height: 100dvh;
+    max-height: 100svh;
+    max-height: 100dvh;
+  }
+
+  .pb-mobile-nav {
+    padding-bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* text-xs/sm on the same node must not win — Safari zooms the page below 16px */
+  .input-field {
+    font-size: 16px !important;
+  }
+
+  .app-sheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 0.75rem 1rem 0.5rem;
+  }
+
+  .app-sheet-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgb(var(--color-border) / 0.6);
+    background: rgb(var(--color-card));
+  }
+
+  @media (min-width: 640px) {
+    .app-sheet-overlay {
+      align-items: center;
+      padding: 1rem;
+    }
+    .app-sheet {
+      border-radius: 1.5rem;
+      max-height: min(88vh, 44rem);
+    }
+  }
+
+  @media all and (display-mode: standalone) {
+    .app-sheet {
+      max-height: min(94dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 0.5rem));
+    }
   }
 }

@@ -152,7 +152,10 @@ function AppRoutes() {
   else page = <NotFound />;
 
   return (
-    <div className="min-h-screen min-w-0 max-w-full bg-background flex flex-col">
+    <div className={location.pathname === '/admin'
+      ? 'min-h-0 min-w-0 max-w-full h-svh max-h-svh bg-background flex flex-col overflow-hidden'
+      : 'min-h-screen min-w-0 max-w-full bg-background flex flex-col'
+    }>
       <Suspense fallback={<PageLoader />}>{page}</Suspense>
     </div>
   );

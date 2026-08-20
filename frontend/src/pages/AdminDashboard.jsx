@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { buildEffectiveSchedule, buildTimeSlots, getProfessionalSettingKey, toApiWeekSchedule, toEditorWeekSchedule, withAgendaVisibility } from '../utils/schedule';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import AgendaTimeline from '../components/agenda/AgendaTimeline';
+import IosInstallHint from '../components/IosInstallHint';
 import ReminderIndicator from '../components/reminders/ReminderIndicator';
 import ReminderSettings from '../components/reminders/ReminderSettings';
 import AppointmentReminderPanel from '../components/reminders/AppointmentReminderPanel';
@@ -1382,7 +1383,7 @@ const scheduleUpdates = [
       channelReady={reminderChannelReady}
       user={user}
     >
-    <div className="flex min-h-0 min-w-0 w-full h-screen bg-background overflow-hidden font-sans transition-colors duration-300" style={{ height: '100dvh' }}>
+    <div className="app-viewport flex min-h-0 min-w-0 w-full bg-background overflow-hidden font-sans transition-colors duration-300">
       {liveBookingAlert && (
         <div className="fixed top-4 left-1/2 z-[90] w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl border border-primary/40 bg-card px-4 py-3 shadow-2xl">
           <p className="text-sm font-bold text-foreground">{liveBookingAlert.title}</p>
@@ -1399,23 +1400,22 @@ const scheduleUpdates = [
 
       {/* Premium Confirm/Alert Modal */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe">
-          <div className="absolute inset-0 bg-background/60 backdrop-blur-md animate-in fade-in duration-300" onClick={modal.onCancel}></div>
-          <div className="relative bg-card border border-border shadow-2xl rounded-t-3xl sm:rounded-[2rem] p-6 sm:p-8 max-w-sm w-full max-h-[80vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+        <div className="app-sheet-overlay" onClick={modal.onCancel}>
+          <div className="app-sheet border border-border shadow-2xl p-5 sm:p-8 !max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="flex flex-col items-center text-center">
-              <div className={`mb-6 p-4 rounded-2xl ${
+              <div className={`mb-4 p-3 rounded-2xl ${
                 modal.type === 'confirm' ? 'bg-amber-100 text-amber-600' : 
                 modal.type === 'error' ? 'bg-red-100 text-red-600' : 
                 modal.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
               }`}>
-                {modal.type === 'confirm' && <AlertTriangle size={32} />}
-                {modal.type === 'error' && <X size={32} />}
-                {modal.type === 'success' && <CheckCircle size={32} />}
-                {modal.type === 'info' && <Info size={32} />}
+                {modal.type === 'confirm' && <AlertTriangle size={24} />}
+                {modal.type === 'error' && <X size={24} />}
+                {modal.type === 'success' && <CheckCircle size={24} />}
+                {modal.type === 'info' && <Info size={24} />}
               </div>
               
-              <h3 className="text-2xl font-serif text-foreground mb-2">{modal.title}</h3>
-              <p className="text-muted text-sm mb-8 leading-relaxed">{modal.message}</p>
+              <h3 className="text-lg font-serif text-foreground mb-2">{modal.title}</h3>
+              <p className="text-muted text-sm mb-5 leading-relaxed">{modal.message}</p>
               
               <div className="flex flex-col sm:flex-row gap-3 w-full">
                 {modal.type === 'confirm' && (
@@ -1494,8 +1494,8 @@ const scheduleUpdates = [
       </aside>
 
       {/* Main Content */}
-      <main className={`flex-1 flex flex-col min-h-0 min-w-0 relative bg-background w-full max-w-full pb-24 lg:pb-0 ${activeTab === 'agenda' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-        <header className="min-h-16 md:h-20 border-b border-border/40 flex items-center justify-between gap-2 px-3 py-2 md:px-8 md:py-0 bg-background/80 backdrop-blur-2xl sticky top-0 z-40">
+      <main className={`flex-1 flex flex-col min-h-0 min-w-0 relative bg-background w-full max-w-full pb-mobile-nav lg:pb-0 ${activeTab === 'agenda' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <header className="min-h-12 md:h-20 border-b border-border/40 flex items-center justify-between gap-2 px-2.5 py-1.5 md:px-8 md:py-0 bg-background sticky top-0 z-40">
           <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
             <button className="lg:hidden h-10 w-10 shrink-0 text-muted hover:text-primary rounded-xl bg-card/60 border border-border/50 transition-all flex items-center justify-center" onClick={() => setIsMobileMenuOpen(true)}>
               <Menu size={19} />
@@ -1529,24 +1529,23 @@ const scheduleUpdates = [
         <div className={`min-w-0 max-w-full ${activeTab === 'agenda' ? 'flex flex-1 flex-col min-h-0 p-0 md:p-4' : 'p-4 md:p-8'}`}>
 
           {showAddAppt && (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/90 backdrop-blur-md p-2 md:p-4 pt-safe pb-safe animate-in fade-in duration-300">
-              <div className="bg-card border border-primary/20 rounded-t-xl md:rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-                <div className="flex justify-between items-center p-4 md:p-6 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent shrink-0 sticky top-0 z-10">
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20">
-                      <Plus size={20} />
+            <div className="app-sheet-overlay z-50 bg-black/80" role="dialog" aria-modal="true" aria-labelledby="new-appt-title">
+              <div className="app-sheet app-sheet-wide border border-primary/20 shadow-2xl">
+                <div className="relative flex justify-between items-center px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-gradient-to-r from-primary/10 to-transparent shrink-0">
+                  <div className="flex items-center gap-2 md:gap-3 min-w-0 pr-8">
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
+                      <Plus size={18} />
                     </div>
-                    <div>
-                      <h3 className="text-base md:text-xl font-serif text-foreground">Novo Agendamento</h3>
+                    <div className="min-w-0">
+                      <h3 id="new-appt-title" className="text-base md:text-xl font-serif text-foreground">Novo Agendamento</h3>
                       <p className="text-[10px] text-muted">Preencha os dados abaixo</p>
                     </div>
                   </div>
-                  <button onClick={() => setShowAddAppt(false)} className="text-muted hover:text-foreground hover:bg-muted/20 min-h-11 min-w-11 p-1.5 md:p-2 rounded-full transition-colors inline-flex items-center justify-center"><X size={18} /></button>
+                  <button type="button" onClick={() => setShowAddAppt(false)} className="absolute right-2 top-2 md:right-3 md:top-3 text-muted hover:text-foreground hover:bg-muted/20 min-h-11 min-w-11 p-1.5 rounded-full transition-colors inline-flex items-center justify-center" aria-label="Fechar"><X size={18} /></button>
                 </div>
                 
-                <form onSubmit={handleAddAppt} className="flex flex-col flex-1 overflow-hidden relative">
-                  {/* Área Rolável */}
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-28 md:pb-32">
+                <form onSubmit={handleAddAppt} className="relative flex min-h-0 flex-1 flex-col">
+                  <div className="app-sheet-body !p-4 md:!p-6">
                     <div className="flex flex-col md:flex-row gap-6">
                       
                       {/* Esquerda: Cliente e Serviços */}
@@ -1605,7 +1604,7 @@ const scheduleUpdates = [
                            {isAdmin && (
                             <div>
                               <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Profissional</label>
-                              <select className="input-field w-full text-sm" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
+                              <select className="input-field w-full" value={newAppt.professional_id} onChange={e => setNewAppt({ ...newAppt, professional_id: e.target.value })} required>
                                 <option value="" disabled>Selecione</option>
                                 {bookableProfessionals.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                               </select>
@@ -1614,11 +1613,11 @@ const scheduleUpdates = [
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Data</label>
-                              <input type="date" className="input-field w-full text-sm" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} required />
+                              <input type="date" className="input-field w-full" value={newAppt.date} onChange={e => setNewAppt({ ...newAppt, date: e.target.value })} required />
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Horário</label>
-                              <select className="input-field w-full text-sm" value={newAppt.time} onChange={e => setNewAppt({ ...newAppt, time: e.target.value })} required>
+                              <select className="input-field w-full" value={newAppt.time} onChange={e => setNewAppt({ ...newAppt, time: e.target.value })} required>
                                 <option value="" disabled>Selecione</option>
                                 {appointmentTimeSlots.map(t => {
                                   const duration = services
@@ -1730,7 +1729,7 @@ const scheduleUpdates = [
                   </div>
 
                   {/* Footer Fixo: Resumo e Botão Marcar */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-primary/20 p-4 md:p-6 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-20">
+                  <div className="app-sheet-actions items-center">
                     <div className="flex justify-between items-center w-full max-w-4xl mx-auto gap-4">
                       <div className="flex-shrink-0">
                         <p className="text-[9px] md:text-[10px] text-primary font-black uppercase tracking-widest mb-0.5">Total</p>
@@ -2448,7 +2447,7 @@ const scheduleUpdates = [
                         <div className="relative w-full sm:w-72">
                           <input 
                             type="text" 
-                            className="input-field pl-10 py-2.5 text-xs" 
+                            className="input-field pl-10 py-2.5" 
                             placeholder="Buscar por nome ou telefone..."
                             value={clientSearch}
                             onChange={e => setClientSearch(e.target.value)}
@@ -2570,13 +2569,14 @@ const scheduleUpdates = [
 
                   {/* Modal de Edição de Cliente */}
                   {showEditClientModal && selectedClient && (
-                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                      <div className="glass-card p-6 sm:p-8 max-w-md w-full max-h-[80vh] overflow-y-auto slide-in-from-bottom-4 animate-in duration-300 rounded-t-3xl sm:rounded-[1.5rem]">
-                        <div className="flex justify-between items-center mb-6 sticky top-0 bg-card/95 backdrop-blur z-10">
-                          <h3 className="text-2xl font-serif text-foreground">Editar Cliente</h3>
-                          <button onClick={() => setShowEditClientModal(false)} className="text-muted hover:text-foreground min-h-11 min-w-11 inline-flex items-center justify-center"><X size={24} /></button>
+                    <div className="app-sheet-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-client-title">
+                      <div className="app-sheet border border-border/60 shadow-2xl">
+                        <div className="relative flex shrink-0 items-center justify-between border-b border-border/40 px-4 py-3">
+                          <h3 id="edit-client-title" className="text-lg font-serif text-foreground">Editar Cliente</h3>
+                          <button type="button" onClick={() => setShowEditClientModal(false)} className="text-muted hover:text-foreground min-h-11 min-w-11 inline-flex items-center justify-center" aria-label="Fechar"><X size={20} /></button>
                         </div>
-                        <form onSubmit={handleEditClient} className="space-y-4">
+                        <form onSubmit={handleEditClient} className="flex min-h-0 flex-1 flex-col">
+                          <div className="app-sheet-body space-y-4">
                           <div>
                             <label className="text-sm font-medium text-muted mb-1 block">Nome Completo</label>
                             <input 
@@ -2602,19 +2602,20 @@ const scheduleUpdates = [
                               />
                             )}
                           </div>
-                          <div className="pt-6 flex gap-3">
+                          </div>
+                          <div className="app-sheet-actions">
                             <button 
                               type="button"
                               onClick={() => setShowEditClientModal(false)}
-                              className="flex-1 py-3 rounded-xl border border-border text-muted font-bold hover:bg-border/50 transition-colors"
+                              className="btn-secondary flex-1 text-[10px] uppercase tracking-wider"
                             >
                               Cancelar
                             </button>
                             <button 
                               type="submit"
-                              className="flex-1 py-3 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
+                              className="btn-primary flex-1 text-[10px]"
                             >
-                              Salvar Alterações
+                              Salvar
                             </button>
                           </div>
                         </form>
@@ -2624,6 +2625,7 @@ const scheduleUpdates = [
 
                   {activeTab === 'settings' && isAdmin && (
                     <div className="fade-in-up duration-500 space-y-8">
+                      <IosInstallHint className="lg:hidden" />
                       <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Seções de ajustes">
                         <button
                           type="button"
@@ -2804,11 +2806,11 @@ const scheduleUpdates = [
                                         <div className="grid grid-cols-2 gap-2">
                                           <div>
                                             <label className="block text-[11px] text-muted mb-1">Início</label>
-                                            <input type="time" className="input-field text-sm" value={daySched.start} onChange={(e) => updateDaySchedule(d.k, { ...daySched, start: e.target.value })} />
+                                            <input type="time" className="input-field" value={daySched.start} onChange={(e) => updateDaySchedule(d.k, { ...daySched, start: e.target.value })} />
                                           </div>
                                           <div>
                                             <label className="block text-[11px] text-muted mb-1">Fim</label>
-                                            <input type="time" className="input-field text-sm" value={daySched.end} onChange={(e) => updateDaySchedule(d.k, { ...daySched, end: e.target.value })} />
+                                            <input type="time" className="input-field" value={daySched.end} onChange={(e) => updateDaySchedule(d.k, { ...daySched, end: e.target.value })} />
                                           </div>
                                         </div>
                                       )}
@@ -3224,6 +3226,7 @@ const scheduleUpdates = [
 
                   {activeTab === 'settings' && !isAdmin && (
                     <div className="fade-in-up duration-500 space-y-8">
+                      <IosInstallHint className="lg:hidden" />
                       <div className="glass-card p-6">
                         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/50">
                           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -3394,11 +3397,11 @@ const scheduleUpdates = [
                                         <div className="grid grid-cols-2 gap-2">
                                           <div>
                                             <label className="block text-[11px] text-muted mb-1">Início</label>
-                                            <input type="time" className="input-field text-sm" value={daySched.start} onChange={(e) => updateDaySchedule(d.k, { ...daySched, start: e.target.value })} />
+                                            <input type="time" className="input-field" value={daySched.start} onChange={(e) => updateDaySchedule(d.k, { ...daySched, start: e.target.value })} />
                                           </div>
                                           <div>
                                             <label className="block text-[11px] text-muted mb-1">Fim</label>
-                                            <input type="time" className="input-field text-sm" value={daySched.end} onChange={(e) => updateDaySchedule(d.k, { ...daySched, end: e.target.value })} />
+                                            <input type="time" className="input-field" value={daySched.end} onChange={(e) => updateDaySchedule(d.k, { ...daySched, end: e.target.value })} />
                                           </div>
                                         </div>
                                       )}
@@ -3529,31 +3532,33 @@ const scheduleUpdates = [
 
       {/* MODAL FECHAR HORÁRIO */}
       {showBlockModal && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md p-4 pt-safe pb-safe fade-in-up">
-          <div className="bg-card w-full max-w-md max-h-[80vh] overflow-y-auto rounded-t-[2rem] sm:rounded-[2.5rem] border border-amber-500/30 shadow-2xl p-6 relative">
-            <button 
-              onClick={() => setShowBlockModal(false)}
-              className="absolute right-5 top-5 text-muted hover:text-foreground transition-colors min-h-11 min-w-11 inline-flex items-center justify-center"
-            >
-              <X size={20} />
-            </button>
-            
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shadow-md">
-                <Lock size={22} />
+        <div className="app-sheet-overlay" role="dialog" aria-modal="true" aria-labelledby="block-slot-title" onClick={() => setShowBlockModal(false)}>
+          <div className="app-sheet border border-amber-500/30 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="relative flex shrink-0 items-center gap-2.5 border-b border-border/40 px-4 py-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/20 text-amber-400">
+                <Lock size={16} />
               </div>
-              <div>
-                <h2 className="text-xl font-serif font-black text-foreground">Fechar Horário</h2>
-                <p className="text-xs text-muted">Bloqueie sua agenda para pausas ou faltas</p>
+              <div className="min-w-0 flex-1 pr-8">
+                <h2 id="block-slot-title" className="text-base font-serif font-black text-foreground">Fechar Horário</h2>
+                <p className="text-[11px] text-muted">Pausas, almoço ou folga</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowBlockModal(false)}
+                className="absolute right-2 top-2 text-muted hover:text-foreground min-h-11 min-w-11 inline-flex items-center justify-center"
+                aria-label="Fechar"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <form onSubmit={handleAddBlock} className="space-y-4 mt-5">
+            <form onSubmit={handleAddBlock} className="flex min-h-0 flex-1 flex-col">
+              <div className="app-sheet-body space-y-3">
               {isAdmin && (
                 <div>
-                  <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Profissional</label>
+                  <label className="text-[10px] font-bold text-muted mb-1 block uppercase tracking-wider">Profissional</label>
                   <select 
-                    className="input-field w-full text-xs font-bold uppercase tracking-wider" 
+                    className="input-field w-full font-bold uppercase tracking-wider" 
                     value={newBlock.professional_id} 
                     onChange={e => setNewBlock({ ...newBlock, professional_id: e.target.value })} 
                     required
@@ -3565,22 +3570,21 @@ const scheduleUpdates = [
               )}
               
               <div>
-                <label className="text-xs font-bold text-muted mb-1 block uppercase tracking-wider">Data do Bloqueio</label>
+                <label className="text-[10px] font-bold text-muted mb-1 block uppercase tracking-wider">Data do Bloqueio</label>
                 <input 
                   type="date" 
-                  className="input-field w-full text-xs font-bold" 
+                  className="input-field w-full font-bold" 
                   value={newBlock.date} 
                   onChange={e => setNewBlock({ ...newBlock, date: e.target.value })} 
                   required 
                 />
               </div>
 
-              {/* Escolha Livre de Horário de Início e Término */}
-              <div className="grid grid-cols-2 gap-3 bg-card border border-amber-500/30 p-3.5 rounded-2xl">
+              <div className="grid grid-cols-2 gap-2 border border-amber-500/30 p-2.5 rounded-xl">
                 <div>
-                  <label className="text-[11px] font-black text-amber-400 mb-1 block uppercase tracking-wider">De (Início)</label>
+                  <label className="text-[10px] font-black text-amber-400 mb-1 block uppercase tracking-wider">De (Início)</label>
                   <select 
-                    className="input-field w-full text-xs font-bold bg-background text-foreground" 
+                    className="input-field w-full font-bold bg-background text-foreground" 
                     value={newBlock.time || '12:00'} 
                     onChange={e => {
                       const startTime = e.target.value;
@@ -3596,9 +3600,9 @@ const scheduleUpdates = [
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-black text-amber-400 mb-1 block uppercase tracking-wider">Até (Término)</label>
+                  <label className="text-[10px] font-black text-amber-400 mb-1 block uppercase tracking-wider">Até (Término)</label>
                   <select 
-                    className="input-field w-full text-xs font-bold bg-background text-foreground" 
+                    className="input-field w-full font-bold bg-background text-foreground" 
                     value={newBlock.endTime || '13:00'} 
                     onChange={e => setNewBlock({ ...newBlock, endTime: e.target.value })} 
                     required
@@ -3610,28 +3614,25 @@ const scheduleUpdates = [
                 </div>
               </div>
 
-              {/* Badge de Duração Calculada */}
               {(() => {
                 const [sh, sm] = (newBlock.time || '12:00').split(':').map(Number);
                 const [eh, em] = (newBlock.endTime || '13:00').split(':').map(Number);
                 const diff = (eh * 60 + em) - (sh * 60 + sm);
                 const isValid = diff > 0;
                 return (
-                  <div className={`p-2.5 rounded-xl border text-xs font-bold text-center flex items-center justify-center gap-2 transition-all ${isValid ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
+                  <div className={`p-2 rounded-xl border text-[11px] font-bold text-center flex items-center justify-center gap-2 transition-all ${isValid ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>
                     <Clock size={14} />
                     {isValid ? (
-                      <span>Duração da Pausa: <strong>{diff >= 60 ? `${Math.floor(diff/60)}h ${diff%60 > 0 ? `${diff%60}m` : ''}` : `${diff} minutos`}</strong> (das {newBlock.time} às {newBlock.endTime})</span>
+                      <span>Pausa: <strong>{diff >= 60 ? `${Math.floor(diff/60)}h ${diff%60 > 0 ? `${diff%60}m` : ''}` : `${diff} min`}</strong> ({newBlock.time}–{newBlock.endTime})</span>
                     ) : (
-                      <span>Horário de término deve ser após {newBlock.time}</span>
+                      <span>Término deve ser após {newBlock.time}</span>
                     )}
                   </div>
                 );
               })()}
 
               <div>
-                <label className="text-xs font-bold text-muted mb-1.5 block uppercase tracking-wider">Motivo / Descrição</label>
-                
-                {/* Atalhos Rápidos */}
+                <label className="text-[10px] font-bold text-muted mb-1.5 block uppercase tracking-wider">Motivo / Descrição</label>
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {[
                     { label: 'Almoço (1h)', start: '12:00', end: '13:00', desc: 'Horário de Almoço' },
@@ -3643,7 +3644,7 @@ const scheduleUpdates = [
                       key={preset.label}
                       type="button"
                       onClick={() => setNewBlock({ ...newBlock, time: preset.start, endTime: preset.end, description: preset.desc })}
-                      className={`text-[10px] font-bold px-2.5 py-1 rounded-xl border transition-all ${newBlock.description === preset.desc ? 'bg-amber-500/30 border-amber-500 text-amber-300' : 'bg-card border-border/60 text-muted hover:text-foreground'}`}
+                      className={`min-h-8 text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all ${newBlock.description === preset.desc ? 'bg-amber-500/30 border-amber-500 text-amber-300' : 'bg-card border-border/60 text-muted hover:text-foreground'}`}
                     >
                       {preset.label}
                     </button>
@@ -3652,17 +3653,18 @@ const scheduleUpdates = [
 
                 <input 
                   type="text" 
-                  className="input-field w-full text-xs font-bold" 
-                  placeholder="Ex: Horário de Almoço, Médico, Folga, etc." 
+                  className="input-field w-full font-bold" 
+                  placeholder="Ex: Almoço, Médico, Folga" 
                   value={newBlock.description} 
                   onChange={e => setNewBlock({ ...newBlock, description: e.target.value })} 
                 />
               </div>
+              </div>
 
-              <div className="pt-3 flex gap-3">
-                <button type="button" onClick={() => setShowBlockModal(false)} className="btn-secondary flex-1 text-xs font-bold uppercase tracking-wider py-3">Cancelar</button>
-                <button type="submit" className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl transition-all font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
-                  <Lock size={15} /> Bloquear Agenda
+              <div className="app-sheet-actions">
+                <button type="button" onClick={() => setShowBlockModal(false)} className="btn-secondary flex-1 text-[10px] uppercase tracking-wider">Cancelar</button>
+                <button type="submit" className="flex-1 min-h-11 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition-all font-black text-[10px] uppercase tracking-wider shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2">
+                  <Lock size={14} /> Bloquear
                 </button>
               </div>
             </form>
@@ -3672,31 +3674,32 @@ const scheduleUpdates = [
 
       {/* MODAL EDITAR SERVIÇO (POP-UP) */}
       {editingService && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setEditingService(null)}>
-          <div className="bg-card border border-primary/30 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex flex-col animate-in zoom-in-95 duration-300 relative p-6 md:p-8" onClick={e => e.stopPropagation()}>
-            
-            <button 
-              onClick={() => setEditingService(null)} 
-              className="absolute right-6 top-6 text-muted hover:text-foreground transition-colors min-h-11 min-w-11 p-1 rounded-xl hover:bg-muted/10 inline-flex items-center justify-center"
-            >
-              <X size={20} />
-            </button>
-
-            <div className="flex items-center gap-3.5 mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-primary/20 text-primary border border-primary/30 flex items-center justify-center shadow-lg glow-primary shrink-0">
-                <Scissors size={24} />
+        <div className="app-sheet-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-service-title" onClick={() => setEditingService(null)}>
+          <div className="app-sheet border border-primary/30 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="relative flex shrink-0 items-center gap-2.5 border-b border-border/40 px-4 py-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/20 text-primary">
+                <Scissors size={16} />
               </div>
-              <div>
-                <h3 className="text-xl font-serif font-black text-foreground">Editar Serviço</h3>
-                <p className="text-xs text-muted">Altere o preço ou detalhes. Os agendamentos marcados serão sincronizados.</p>
+              <div className="min-w-0 flex-1 pr-8">
+                <h3 id="edit-service-title" className="text-base font-serif font-black text-foreground">Editar Serviço</h3>
+                <p className="text-[11px] text-muted">Preço e detalhes sincronizam nos agendamentos</p>
               </div>
+              <button 
+                type="button"
+                onClick={() => setEditingService(null)} 
+                className="absolute right-2 top-2 text-muted hover:text-foreground min-h-11 min-w-11 inline-flex items-center justify-center"
+                aria-label="Fechar"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <form onSubmit={handleUpdateService} className="space-y-4">
+            <form onSubmit={handleUpdateService} className="flex min-h-0 flex-1 flex-col">
+              <div className="app-sheet-body space-y-3">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-muted uppercase tracking-wider block">Nome do Serviço</label>
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider block">Nome do Serviço</label>
                 <input 
-                  className="input-field w-full text-xs font-bold" 
+                  className="input-field w-full font-bold" 
                   placeholder="Ex: Manicure Tradicional" 
                   type="text" 
                   required 
@@ -3707,9 +3710,9 @@ const scheduleUpdates = [
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-muted uppercase tracking-wider block">Categoria</label>
+                  <label className="text-[10px] font-bold text-muted uppercase tracking-wider block">Categoria</label>
                   <select 
-                    className="input-field w-full text-xs font-bold" 
+                    className="input-field w-full font-bold" 
                     value={editingService.category || ''} 
                     onChange={e => setEditingService({ ...editingService, category: e.target.value })}
                   >
@@ -3725,9 +3728,9 @@ const scheduleUpdates = [
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-muted uppercase tracking-wider block">Duração (Min)</label>
+                  <label className="text-[10px] font-bold text-muted uppercase tracking-wider block">Duração (Min)</label>
                   <input 
-                    className="input-field w-full text-xs font-bold" 
+                    className="input-field w-full font-bold" 
                     placeholder="Ex: 40" 
                     type="number" 
                     required 
@@ -3737,9 +3740,9 @@ const scheduleUpdates = [
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-primary uppercase tracking-wider block font-black">Preço (R$)</label>
+                  <label className="text-[10px] font-bold text-primary uppercase tracking-wider block">Preço (R$)</label>
                   <input 
-                    className="input-field w-full text-xs font-black text-emerald-400 border-emerald-500/40 bg-emerald-500/10" 
+                    className="input-field w-full font-black text-emerald-400 border-emerald-500/40 bg-emerald-500/10" 
                     placeholder="Ex: 50.00" 
                     type="number" 
                     step="0.01" 
@@ -3751,28 +3754,29 @@ const scheduleUpdates = [
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-bold text-muted uppercase tracking-wider block">Descrição Completa</label>
+                <label className="text-[10px] font-bold text-muted uppercase tracking-wider block">Descrição Completa</label>
                 <textarea 
-                  className="input-field w-full h-24 resize-none text-xs font-medium" 
+                  className="input-field w-full h-20 resize-none font-medium" 
                   placeholder="Descreva o que está incluso neste serviço..." 
                   value={editingService.description || ''} 
                   onChange={e => setEditingService({ ...editingService, description: e.target.value })}
                 />
               </div>
+              </div>
 
-              <div className="pt-3 flex gap-3">
+              <div className="app-sheet-actions">
                 <button 
                   type="button" 
                   onClick={() => setEditingService(null)} 
-                  className="btn-secondary flex-1 text-xs font-bold uppercase tracking-wider py-3.5"
+                  className="btn-secondary flex-1 text-[10px] uppercase tracking-wider"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
-                  className="flex-1 py-3.5 bg-primary hover:bg-primary-dark text-white rounded-2xl transition-all font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                  className="btn-primary flex-1 text-[10px]"
                 >
-                  <CheckCircle size={16} /> Salvar & Sincronizar
+                  <CheckCircle size={14} /> Salvar
                 </button>
               </div>
             </form>
@@ -3782,8 +3786,8 @@ const scheduleUpdates = [
 
       {selectedAppointment && (
         selectedAppointment.notes?.startsWith('BLOCK:') ? (
-          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/75 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
-            <div className="bg-card border border-amber-500/40 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl flex flex-col animate-in zoom-in-95 duration-300 relative p-6 space-y-5" onClick={e => e.stopPropagation()}>
+          <div className="app-sheet-overlay" onClick={() => setSelectedAppointment(null)}>
+            <div className="app-sheet border border-amber-500/40 shadow-2xl overflow-y-auto p-5 space-y-4" onClick={e => e.stopPropagation()}>
               
               <button 
                 onClick={() => setSelectedAppointment(null)}
@@ -3842,8 +3846,8 @@ const scheduleUpdates = [
             </div>
           </div>
         ) : (
-          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/70 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedAppointment(null)}>
-            <div className="bg-card border border-primary/20 rounded-t-[2rem] sm:rounded-[2.5rem] w-full max-w-md max-h-[80vh] shadow-[0_30px_60px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+          <div className="app-sheet-overlay" onClick={() => setSelectedAppointment(null)}>
+            <div className="app-sheet border border-primary/20 shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
               
               <div className={`grid ${isPhoneProtected(selectedAppointment.client_phone) ? 'grid-cols-2' : 'grid-cols-4'} gap-1 p-4 bg-gradient-to-br from-muted/20 to-transparent border-b border-border/50`}>
                 {!isPhoneProtected(selectedAppointment.client_phone) && (
@@ -4033,8 +4037,8 @@ const scheduleUpdates = [
       )}
 
       {showEditAppt && editAppt && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 pt-safe pb-safe bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-background rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl p-6 relative border border-border scale-in-center">
+        <div className="app-sheet-overlay z-50" role="dialog" aria-modal="true">
+          <div className="app-sheet border border-border shadow-2xl overflow-y-auto p-5">
             <button 
               onClick={() => { setShowEditAppt(false); setEditAppt(null); }}
               className="absolute top-4 right-4 text-muted hover:text-foreground hover:bg-muted/20 min-h-11 min-w-11 p-2 rounded-full transition-colors inline-flex items-center justify-center"
@@ -4098,7 +4102,7 @@ const scheduleUpdates = [
       )}
 
       {/* Mobile Bottom Navigation Bar - NATIVE APP FEEL */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-2xl border-t border-border/60 px-2 py-2 flex justify-around items-center pb-safe shadow-[0_-10px_25px_rgba(0,0,0,0.2)]">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 border-t border-border/60 px-1.5 pt-1 flex justify-around items-center pb-[max(0.4rem,env(safe-area-inset-bottom))] shadow-[0_-10px_25px_rgba(0,0,0,0.2)]">
         <button
           onClick={() => setActiveTab('agenda')}
           className={`flex flex-col items-center justify-center gap-1 min-h-11 p-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${

@@ -131,7 +131,7 @@ function DestinationRow({ person, destination, onSavePhone }) {
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <input
             type="tel"
-            className="input-field text-sm min-h-[44px]"
+            className="input-field min-h-[44px]"
             placeholder="+5511999999999"
             value={draft}
             onChange={event => setDraft(event.target.value)}

@@ -621,6 +621,9 @@ describe('Agenda Redesign - Test Suite', () => {
       assert.match(css, /\.agenda-scroll[\s\S]*min-height:\s*40vh/);
       assert.match(css, /\.agenda-scroll[\s\S]*-webkit-overflow-scrolling:\s*touch/);
       assert.match(css, /\.agenda-shell[\s\S]*min-height:\s*0/);
+      assert.match(css, /\.app-sheet[\s\S]*max-height:\s*min\(88svh/);
+      assert.match(css, /\.input-field[\s\S]*text-base/);
+      assert.match(css, /\.input-field[\s\S]*font-size:\s*16px/);
     });
 
     it('should group ISO and plain dates on the same calendar day', () => {

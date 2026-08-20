@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import api from '../api';
 import { useNavigate } from '../router';
 import { ArrowLeft, Eye, EyeOff, Loader2, Lock, ShieldCheck, User } from 'lucide-react';
+import IosInstallHint from '../components/IosInstallHint';
 
 const STORAGE_FLAG = 'has_active_staff_session';
 
@@ -249,6 +250,7 @@ export default function Login() {
           </form>
 
           <p className="text-xs text-muted leading-relaxed mt-7 text-center">Por segurança, não compartilhe sua senha. Ao terminar, use "Encerrar sessão" no painel.</p>
+          <IosInstallHint className="mt-5 lg:hidden" />
         </div>
       </section>
     </main>
