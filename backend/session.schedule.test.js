@@ -499,25 +499,38 @@ test('client booking enforces the per-day window instead of a single weekly rang
     mock.tables.settings = mock.tables.settings.filter(row => !row.key.endsWith('schedule'));
     mock.tables.settings.push({
         key: `professional_${STAFF_COLLABORATOR.id}_schedule`,
-        // 2026-08-25 is a Tuesday and 2026-08-26 a Wednesday.
         value: JSON.stringify({ ter: { start: '09:00', end: '18:00' }, qua: null })
     });
+
+    function getFutureWeekday(targetDay) {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        while (d.getDay() !== targetDay) {
+            d.setDate(d.getDate() + 1);
+        }
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+    const nextTue = getFutureWeekday(2);
+    const nextWed = getFutureWeekday(3);
 
     const booking = (date, time) => post('/api/appointments', {
         cookies: clientCookie(),
         body: { date, time, professional_id: String(STAFF_COLLABORATOR.id), service_ids: [11] }
     });
 
-    const closedDay = await booking('2026-08-26', '10:00');
+    const closedDay = await booking(nextWed, '10:00');
     assert.equal(closedDay.status, 400);
     assert.match((await closedDay.json()).error, /não atende no dia/i);
 
     // The 60 minute service would end at 18:30, past Tuesday's 18:00 close.
-    const afterHours = await booking('2026-08-25', '17:30');
+    const afterHours = await booking(nextTue, '17:30');
     assert.equal(afterHours.status, 400);
     assert.match((await afterHours.json()).error, /fora do expediente/i);
 
-    const withinHours = await booking('2026-08-25', '10:00');
+    const withinHours = await booking(nextTue, '10:00');
     assert.equal(withinHours.status, 201, await withinHours.text());
 });
 
