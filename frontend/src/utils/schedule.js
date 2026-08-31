@@ -89,6 +89,71 @@ export function hasOpenScheduleDay(schedule = {}) {
   return DAY_KEYS.some(day => schedule[day]);
 }
 
+function dateParts(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return {
+      year: value.getFullYear(),
+      month: value.getMonth() + 1,
+      day: value.getDate(),
+      weekDay: value.getDay()
+    };
+  }
+
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const localDate = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(localDate.getTime())) return null;
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    weekDay: localDate.getDay()
+  };
+}
+
+function normalizeScheduleWindow(entry) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  const start = normalizeClock(entry.start);
+  const end = normalizeClock(entry.end);
+  if (!start || !end) return null;
+
+  const [startHour, startMinute] = start.split(':').map(Number);
+  const [endHour, endMinute] = end.split(':').map(Number);
+  if ((endHour * 60) + endMinute <= (startHour * 60) + startMinute) return null;
+  return { start, end };
+}
+
+/**
+ * Resolves the exact opening window for a calendar date. Date exceptions have
+ * priority, followed by the per-day week schedule and finally the legacy flat
+ * hours. A null result means the professional is off on that date.
+ */
+export function getScheduleWindowForDate(scheduleInfo = {}, date) {
+  const parts = dateParts(date);
+  if (!parts) return null;
+
+  const dateKey = `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+  const exceptions = scheduleInfo?.exceptions;
+  if (exceptions && Object.prototype.hasOwnProperty.call(exceptions, dateKey)) {
+    return normalizeScheduleWindow(exceptions[dateKey]);
+  }
+
+  const dayKey = DAY_KEYS[parts.weekDay];
+  const perDaySchedule = scheduleInfo?.schedule;
+  if (perDaySchedule && Object.prototype.hasOwnProperty.call(perDaySchedule, dayKey)) {
+    return normalizeScheduleWindow(perDaySchedule[dayKey]);
+  }
+
+  const rawWorkDays = scheduleInfo?.work_days ?? scheduleInfo?.workDays;
+  const workDays = Array.isArray(rawWorkDays) ? rawWorkDays : parseWorkDays(rawWorkDays);
+  if (!workDays.includes(dayKey)) return null;
+
+  return normalizeScheduleWindow({
+    start: scheduleInfo?.work_start ?? scheduleInfo?.workStart ?? DEFAULT_WORK_START,
+    end: scheduleInfo?.work_end ?? scheduleInfo?.workEnd ?? DEFAULT_WORK_END
+  });
+}
+
 export function buildEffectiveSchedule(settings, professionalId = null) {
   const workStart = professionalId
     ? getSettingValue(settings, getProfessionalSettingKey(professionalId, 'work_start')) || getSettingValue(settings, 'work_start') || DEFAULT_WORK_START

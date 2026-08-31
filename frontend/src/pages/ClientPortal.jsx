@@ -31,7 +31,7 @@ import api from '../api';
 import { useNavigate, useLocation } from '../router';
 import FadeContent from '../components/FadeContent';
 import PublicExperienceSections from '../components/PublicExperienceSections';
-import { buildEffectiveSchedule, buildTimeSlots } from '../utils/schedule';
+import { buildEffectiveSchedule, buildTimeSlots, getScheduleWindowForDate } from '../utils/schedule';
 import { buildGoogleCalendarUrl, buildMapUrl, downloadIcsFile } from '../utils/bookingExtras';
 import {
   DEFAULT_CLIENT_BOOKING_WHATSAPP,
@@ -128,8 +128,15 @@ export default function ClientPortal() {
 
   const today = startOfToday();
   const dayNameMap = { 0: 'dom', 1: 'seg', 2: 'ter', 3: 'qua', 4: 'qui', 5: 'sex', 6: 'sab' };
+  const scheduleSource = useMemo(() => selectedPro || ({
+    work_start: workStart,
+    work_end: workEnd,
+    work_days: workDays
+  }), [selectedPro, workStart, workEnd, workDays]);
   const nextDays = Array.from({ length: maxAdvanceDays + 1 }).map((_, i) => addDays(today, i))
-    .filter(date => workDays.includes(dayNameMap[date.getDay()]));
+    .filter(date => selectedPro
+      ? Boolean(getScheduleWindowForDate(scheduleSource, date))
+      : workDays.includes(dayNameMap[date.getDay()]));
   const groupedDays = nextDays.reduce((acc, date) => {
     const month = safeFormat(date, 'MMMM yyyy', { locale: ptBR });
     if (!acc[month]) acc[month] = [];
@@ -137,12 +144,18 @@ export default function ClientPortal() {
     return acc;
   }, {});
 
-  // Gerar horários dinamicamente a partir das configurações e agendamentos existentes
+  const selectedScheduleWindow = useMemo(
+    () => selectedDate ? getScheduleWindowForDate(scheduleSource, selectedDate) : null,
+    [scheduleSource, selectedDate]
+  );
+
+  // Gerar horários dinamicamente a partir do expediente exato da data escolhida.
   const timeSlots = useMemo(() => {
-    const rangeStart = reschedulingAppointmentId ? shiftTime(workStart, -60) : workStart;
-    const rangeEnd = reschedulingAppointmentId ? shiftTime(workEnd, 60) : workEnd;
+    if (!selectedScheduleWindow) return [];
+    const rangeStart = reschedulingAppointmentId ? shiftTime(selectedScheduleWindow.start, -60) : selectedScheduleWindow.start;
+    const rangeEnd = reschedulingAppointmentId ? shiftTime(selectedScheduleWindow.end, 60) : selectedScheduleWindow.end;
     return buildTimeSlots(rangeStart, rangeEnd, slotInterval, false, busyAppointments);
-  }, [workStart, workEnd, slotInterval, busyAppointments, reschedulingAppointmentId]);
+  }, [selectedScheduleWindow, slotInterval, busyAppointments, reschedulingAppointmentId]);
 
   useEffect(() => {
     api.get('/api/services')
@@ -481,8 +494,9 @@ export default function ClientPortal() {
       
       const slotStart = timeToMinutes(slot);
       const slotEnd = slotStart + totalDuration;
-      const scheduleStart = timeToMinutes(workStart) - (reschedulingAppointmentId ? 60 : 0);
-      const scheduleEnd = timeToMinutes(workEnd) + (reschedulingAppointmentId ? 60 : 0);
+      if (!selectedScheduleWindow) return false;
+      const scheduleStart = timeToMinutes(selectedScheduleWindow.start) - (reschedulingAppointmentId ? 60 : 0);
+      const scheduleEnd = timeToMinutes(selectedScheduleWindow.end) + (reschedulingAppointmentId ? 60 : 0);
 
       if (selectedDate) {
         const slotDate = new Date(selectedDate);
@@ -507,7 +521,7 @@ export default function ClientPortal() {
       
       return !hasConflict;
     });
-  }, [timeSlots, busyAppointments, selectedServices, totalDuration, selectedPro, selectedDate, workStart, workEnd, reschedulingAppointmentId]);
+  }, [timeSlots, busyAppointments, selectedServices, totalDuration, selectedPro, selectedDate, selectedScheduleWindow, reschedulingAppointmentId]);
 
   const handleRescheduleSupport = () => {
     const digits = String(whatsappNumber || '').replace(/\D/g, '');
