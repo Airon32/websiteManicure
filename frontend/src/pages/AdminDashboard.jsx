@@ -372,19 +372,6 @@ export default function AdminDashboard() {
         setWorkDays(professionalSchedule.workDays);
         setIsPublicAgenda(professionalSchedule.is_public_agenda || false);
 
-        // Load per-day schedule for this professional
-        const profScheduleKey = getProfessionalSettingKey(loggedUser.id, 'schedule');
-        const profPerDaySetting = incomingSettings.find(s => s.key === profScheduleKey);
-        if (profPerDaySetting?.value) {
-          try {
-            const parsed = JSON.parse(profPerDaySetting.value);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0) {
-              setUsePerDaySchedule(true);
-              setPerDaySchedule(toEditorWeekSchedule(parsed));
-            }
-          } catch {}
-        }
-
       }
 
       const bName = incomingSettings.find(s => s.key === 'business_name');
@@ -426,8 +413,15 @@ export default function AdminDashboard() {
         }
       }
 
-      // Expediente personalizado por dia
-      const perDaySetting = incomingSettings.find(s => s.key === 'schedule');
+      // Carrega o mesmo expediente efetivo usado pelo backend: o da profissional
+      // tem prioridade e o global funciona como fallback.
+      const globalPerDaySetting = incomingSettings.find(s => s.key === 'schedule');
+      const professionalPerDaySetting = loggedUser.role === 'admin'
+        ? null
+        : incomingSettings.find(s => s.key === getProfessionalSettingKey(loggedUser.id, 'schedule'));
+      const perDaySetting = professionalPerDaySetting?.value
+        ? professionalPerDaySetting
+        : globalPerDaySetting;
       if (perDaySetting?.value) {
         try {
           const parsed = JSON.parse(perDaySetting.value);
@@ -436,6 +430,8 @@ export default function AdminDashboard() {
             setPerDaySchedule(toEditorWeekSchedule(parsed));
           }
         } catch {}
+      } else {
+        setUsePerDaySchedule(false);
       }
 
       if (loggedUser.role === 'admin' || loggedUser.is_owner) {
@@ -3486,7 +3482,7 @@ const scheduleUpdates = [
 
                           <div className="rounded-xl border border-border bg-background/50 p-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-2">Expediente Atual</p>
-                            <p className="text-foreground font-medium">{workStart} às {workEnd}</p>
+                            <p className="text-foreground font-medium">{usePerDaySchedule ? 'Personalizado por dia' : `${workStart} às ${workEnd}`}</p>
                             <p className="text-xs text-muted mt-1">Intervalos de {slotInterval} min</p>
                           </div>
 
@@ -3504,7 +3500,7 @@ const scheduleUpdates = [
                               <span
                                 key={day.k}
                                 className={`px-4 py-2 rounded-xl text-sm font-bold ${
-                                  workDays.includes(day.k)
+                                  (usePerDaySchedule ? !perDaySchedule[day.k]?.off : workDays.includes(day.k))
                                     ? 'bg-primary text-white shadow-lg shadow-primary/20'
                                     : 'bg-background border border-border text-muted'
                                 }`}

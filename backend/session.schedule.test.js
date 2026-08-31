@@ -198,6 +198,21 @@ function get(path, cookies) {
     });
 }
 
+function nextDateForWeekday(targetWeekday) {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    const parts = Object.fromEntries(formatter.formatToParts(new Date()).map(part => [part.type, part.value]));
+    const cursor = new Date(`${parts.year}-${parts.month}-${parts.day}T12:00:00Z`);
+    do {
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+    } while (cursor.getUTCDay() !== targetWeekday);
+    return cursor.toISOString().slice(0, 10);
+}
+
 function staffCookie(professional = STAFF_ADMIN, ttlSeconds = ACCESS_TTL) {
     return `mary_session=${encodeURIComponent(signSession({ type: 'staff', id: String(professional.id), role: professional.role }, ttlSeconds))}`;
 }
@@ -496,6 +511,11 @@ test('a collaborator may set only their own per-day expedient', async () => {
 });
 
 test('client booking enforces the per-day window instead of a single weekly range', async () => {
+    const tuesday = nextDateForWeekday(2);
+    const wednesdayCursor = new Date(`${tuesday}T12:00:00Z`);
+    wednesdayCursor.setUTCDate(wednesdayCursor.getUTCDate() + 1);
+    const wednesday = wednesdayCursor.toISOString().slice(0, 10);
+
     mock.tables.settings = mock.tables.settings.filter(row => !row.key.endsWith('schedule'));
     mock.tables.settings.push({
         key: `professional_${STAFF_COLLABORATOR.id}_schedule`,
@@ -532,6 +552,30 @@ test('client booking enforces the per-day window instead of a single weekly rang
 
     const withinHours = await booking(nextTue, '10:00');
     assert.equal(withinHours.status, 201, await withinHours.text());
+});
+
+test('a date exception overrides the weekly schedule during client booking', async () => {
+    const tuesday = nextDateForWeekday(2);
+    mock.tables.settings = mock.tables.settings.filter(row => !row.key.endsWith('schedule'));
+    mock.tables.settings.push({
+        key: `professional_${STAFF_COLLABORATOR.id}_schedule`,
+        value: JSON.stringify({ ter: { start: '09:00', end: '18:00' } })
+    });
+    mock.tables.schedule_exceptions = [{
+        id: 9001,
+        professional_id: STAFF_COLLABORATOR.id,
+        exception_date: tuesday,
+        start_time: null,
+        end_time: null,
+        is_day_off: true
+    }];
+
+    const response = await post('/api/appointments', {
+        cookies: clientCookie(),
+        body: { date: tuesday, time: '10:00', professional_id: String(STAFF_COLLABORATOR.id), service_ids: [11] }
+    });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /não atende no dia/i);
 });
 
 test('a closed weekday produces no availability suggestion for that professional', async () => {

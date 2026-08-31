@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   hasOpenScheduleDay,
+  getScheduleWindowForDate,
   normalizeClock,
   resolveWorkClock,
   toApiWeekSchedule,
@@ -41,6 +42,41 @@ test('resolveWorkClock ignora undefined, vazio e NaN e usa o primeiro horário v
   assert.equal(resolveWorkClock(undefined, '', NaN, '09:00', '18:00'), '09:00');
   assert.equal(resolveWorkClock('7:30'), '07:30');
   assert.equal(resolveWorkClock(null, '18:00'), '18:00');
+});
+
+test('resolve o expediente específico do domingo em vez do envelope semanal', () => {
+  const professional = {
+    work_start: '08:00',
+    work_end: '20:00',
+    work_days: ['dom', 'seg', 'ter', 'qua', 'qui', 'sex'],
+    schedule: {
+      dom: { start: '12:00', end: '17:00' },
+      seg: { start: '08:00', end: '20:00' },
+      ter: { start: '08:00', end: '20:00' },
+      qua: { start: '08:00', end: '20:00' },
+      qui: { start: '08:00', end: '20:00' },
+      sex: { start: '08:00', end: '20:00' },
+      sab: null
+    }
+  };
+
+  assert.deepEqual(getScheduleWindowForDate(professional, '2026-09-06'), { start: '12:00', end: '17:00' });
+  assert.equal(getScheduleWindowForDate(professional, '2026-09-05'), null);
+});
+
+test('exceção de data prevalece sobre o expediente semanal', () => {
+  const professional = {
+    work_start: '09:00',
+    work_end: '18:00',
+    work_days: ['seg'],
+    exceptions: {
+      '2026-09-07': { start: '13:00:00', end: '16:00:00' },
+      '2026-09-14': null
+    }
+  };
+
+  assert.deepEqual(getScheduleWindowForDate(professional, '2026-09-07'), { start: '13:00', end: '16:00' });
+  assert.equal(getScheduleWindowForDate(professional, '2026-09-14'), null);
 });
 
 test('agenda visível por padrão e sócio some até ligar', async () => {

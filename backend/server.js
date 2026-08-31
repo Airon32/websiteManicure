@@ -530,7 +530,11 @@ async function buildProfessionalScheduleWithExceptions(supabase, settingsMap, pr
  * Resolves the opening window of one date. Returns null when the professional
  * does not work that day, so every caller enforces the same per-day rule.
  */
-function getScheduleWindowForDay(schedule, dayKey) {
+function getScheduleWindowForDay(schedule, dayKey, date = null) {
+    if (date && schedule?.exceptions && Object.prototype.hasOwnProperty.call(schedule.exceptions, date)) {
+        const exception = schedule.exceptions[date];
+        return exception ? { start: timeToMinutes(exception.start), end: timeToMinutes(exception.end) } : null;
+    }
     const perDay = schedule?.schedule;
     if (perDay) {
         const day = perDay[dayKey];
@@ -572,7 +576,7 @@ function validateAppointmentAgainstSchedule({ date, time, duration, schedule, ig
     const appointmentDate = new Date(`${date}T00:00:00`);
     const dayKey = DAY_NAME_MAP[appointmentDate.getDay()];
 
-    const window = getScheduleWindowForDay(schedule, dayKey);
+    const window = getScheduleWindowForDay(schedule, dayKey, date);
     if (!window) {
         return { valid: false, error: 'Este profissional não atende no dia selecionado.' };
     }
@@ -591,7 +595,7 @@ function validateClientRescheduleAgainstSchedule({ date, time, duration, schedul
     const appointmentDate = new Date(`${date}T00:00:00`);
     const dayKey = DAY_NAME_MAP[appointmentDate.getDay()];
 
-    const window = getScheduleWindowForDay(schedule, dayKey);
+    const window = getScheduleWindowForDay(schedule, dayKey, date);
     if (!window) {
         return { valid: false, error: 'A profissional não atende nesse dia. Fale com a equipe para solicitar uma exceção.' };
     }
@@ -1810,8 +1814,11 @@ app.get('/api/availability/next', rateLimit({
         const dayKey = DAY_NAME_MAP[cursor.getUTCDay()];
 
         for (const professional of professionals) {
-            const schedule = buildProfessionalSchedule(settingsMap, professional.id);
-            const window = getScheduleWindowForDay(schedule, dayKey);
+            const schedule = {
+                ...buildProfessionalSchedule(settingsMap, professional.id),
+                exceptions: exceptionsByProfessional[professional.id] || {}
+            };
+            const window = getScheduleWindowForDay(schedule, dayKey, date);
             if (!window) continue;
             const workStart = window.start;
             const workEnd = window.end;
@@ -2013,7 +2020,7 @@ app.post('/api/appointments', rateLimit({
 
         const totalDuration = services.reduce((sum, service) => sum + (Number(service.duration) || 0), 0);
 
-        const professionalSchedule = buildProfessionalSchedule(settingsMap, professionalId);
+        const professionalSchedule = await buildProfessionalScheduleWithExceptions(supabase, settingsMap, professionalId);
         const agendaVisible = resolveAgendaVisible(settingsMap, professional);
         if (!isStaff && agendaVisible === false) {
             return res.status(400).json({ error: 'Esta profissional não está atendendo no momento.' });
@@ -2377,7 +2384,7 @@ app.put('/api/appointments/:id/reschedule', rateLimit({
     }
 
     const duration = await loadAppointmentDuration(ownership.data);
-    const schedule = buildProfessionalSchedule(settingsMap, ownership.data.professional_id);
+    const schedule = await buildProfessionalScheduleWithExceptions(supabase, settingsMap, ownership.data.professional_id);
     const scheduleValidation = validateClientRescheduleAgainstSchedule({
         date,
         time,
